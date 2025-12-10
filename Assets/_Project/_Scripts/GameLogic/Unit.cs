@@ -61,6 +61,43 @@ namespace Move37.GameLogic
             }
         }
 
+        public bool IsMoveValid(Tile targetTile)
+        {
+            if (targetTile == null || CurrentTile == null) return false;
+            if (targetTile == CurrentTile) return false;
+
+            // 팀킬 방지
+            if (targetTile.CurrentUnit != null && targetTile.CurrentUnit.owner == owner) return false;
+
+            int dx = targetTile.x - CurrentTile.x;
+            int dy = targetTile.y - CurrentTile.y;
+
+            switch (type)
+            {
+                case UnitType.Pawn:
+                    {
+                        int forward = owner == Owner.Player ? -1 : 1;
+
+                        // 전진: 빈 칸만, 앞 한 칸
+                        if (dy == forward && dx == 0 && targetTile.CurrentUnit == null)
+                            return true;
+
+                        // 대각선 공격: 적이 있을 때만
+                        if (dy == forward && Mathf.Abs(dx) == 1 && targetTile.CurrentUnit != null &&
+                            targetTile.CurrentUnit.owner != owner)
+                            return true;
+
+                        return false;
+                    }
+                case UnitType.King:
+                    return Mathf.Abs(dx) <= 1 && Mathf.Abs(dy) <= 1 && (dx != 0 || dy != 0);
+                case UnitType.Knight:
+                    return (Mathf.Abs(dx) == 1 && Mathf.Abs(dy) == 2) || (Mathf.Abs(dx) == 2 && Mathf.Abs(dy) == 1);
+                default:
+                    return false;
+            }
+        }
+
         public void SetSelected(bool isSelected)
         {
             var baseScale = type == UnitType.King ? KingBonusScale : BaseScale;

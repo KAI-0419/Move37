@@ -555,6 +555,7 @@ GameObject:
   - component: {fileID: 601919212}
   - component: {fileID: 601919211}
   - component: {fileID: 601919210}
+  - component: {fileID: 601919213}
   m_Layer: 5
   m_Name: 2_Panel_Game
   m_TagString: Untagged
@@ -597,6 +598,9 @@ MonoBehaviour:
   tilePrefab: {fileID: 7524410973094275357, guid: f5cb6a5eb3c982140845072d58fdffb0, type: 3}
   unitPrefab: {fileID: 2313555966956197665, guid: cfa3fa6f1c7a3944795d0fb3079bca52, type: 3}
   boardGrid: {fileID: 339010690}
+  selectedUnit: {fileID: 0}
+  CurrentTurn: 0
+  aiAgent: {fileID: 601919213}
 --- !u!114 &601919211
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -635,6 +639,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 601919208}
   m_CullTransparentMesh: 1
+--- !u!114 &601919213
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 601919208}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c14d21d85e3c0642bc268d16e7f4455, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Move37.AI.AIAgent
+  boardManager: {fileID: 601919210}
 --- !u!1 &619394800
 GameObject:
   m_ObjectHideFlags: 0
