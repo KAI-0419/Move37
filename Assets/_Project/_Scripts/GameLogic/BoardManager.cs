@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Move37.AI;
+using TMPro;
 
 namespace Move37.GameLogic
 {
@@ -12,7 +13,13 @@ namespace Move37.GameLogic
         public Unit selectedUnit;
         public Turn CurrentTurn = Turn.Player;
         public AIAgent aiAgent;
+        public ParticleSystem explosionPrefab;
+        public Sprite kingSprite;
+        public Sprite knightSprite;
+        public Sprite pawnSprite;
+        public TextMeshProUGUI systemMessageText;
         private bool _isGameOver;
+        private bool _isAnimating;
 
         private const int BoardSize = 5;
         private Tile[,] _tiles = new Tile[BoardSize, BoardSize];
@@ -119,6 +126,11 @@ namespace Move37.GameLogic
             if (unit != null)
             {
                 unit.Init(owner, type);
+                var sprite = GetSpriteForType(type);
+                if (sprite != null)
+                {
+                    unit.SetSprite(sprite);
+                }
                 tile.SetUnit(unit);
             }
             else
@@ -132,9 +144,20 @@ namespace Move37.GameLogic
             return x >= 0 && x < BoardSize && y >= 0 && y < BoardSize;
         }
 
+        private Sprite GetSpriteForType(Unit.UnitType type)
+        {
+            return type switch
+            {
+                Unit.UnitType.King => kingSprite,
+                Unit.UnitType.Knight => knightSprite,
+                Unit.UnitType.Pawn => pawnSprite,
+                _ => null
+            };
+        }
+
         public void OnTileClicked(Tile tile)
         {
-            if (tile == null || _isGameOver) return;
+            if (tile == null || _isGameOver || _isAnimating) return;
 
             if (CurrentTurn != Turn.Player) return;
 
@@ -158,21 +181,42 @@ namespace Move37.GameLogic
                     fromTile.SetUnit(null);
                 }
 
+                string captureContext = null;
+                var capturedUnit = tile.CurrentUnit;
                 // 공격 처리: 적이 있으면 제거
                 if (tile.CurrentUnit != null && tile.CurrentUnit.owner != selectedUnit.owner)
                 {
+                    if (explosionPrefab != null)
+                    {
+                        var fx = Instantiate(explosionPrefab, tile.CurrentUnit.transform.position, Quaternion.identity);
+                        fx.Play();
+                        Destroy(fx.gameObject, 1f);
+                    }
                     Destroy(tile.CurrentUnit.gameObject);
                     tile.SetUnit(null);
+                    captureContext = $"Player captured {capturedUnit.owner} {capturedUnit.type} at ({tile.x},{tile.y})";
                 }
 
-                selectedUnit.MoveTo(tile);
-                tile.SetUnit(selectedUnit);
-                selectedUnit.SetSelected(false);
-                selectedUnit = null;
+                _isAnimating = true;
+                var movingUnit = selectedUnit;
+                movingUnit.MoveTo(tile, () =>
+                {
+                    tile.SetUnit(movingUnit);
+                    movingUnit.SetSelected(false);
+                    selectedUnit = null;
 
-                if (CheckWinCondition()) return;
+                    var moveContext = captureContext ?? $"Player moved {movingUnit.type} to ({tile.x},{tile.y})";
+                    ShowComment(moveContext);
 
-                EndTurn();
+                    if (CheckWinCondition())
+                    {
+                        _isAnimating = false;
+                        return;
+                    }
+
+                    _isAnimating = false;
+                    EndTurn();
+                });
             }
         }
 
@@ -309,6 +353,32 @@ namespace Move37.GameLogic
             {
                 Grid = grid
             };
+        }
+
+        public void SetAnimating(bool value)
+        {
+            _isAnimating = value;
+        }
+
+        public void ShowComment(string context)
+        {
+            if (string.IsNullOrEmpty(context)) return;
+
+            string msg = context;
+            var brain = NeuralBrain.Instance;
+            if (brain != null)
+            {
+                msg = brain.GenerateComment(context);
+            }
+
+            if (systemMessageText != null)
+            {
+                systemMessageText.text = msg;
+            }
+            else
+            {
+                Debug.Log($"[SystemMessage] {msg}");
+            }
         }
     }
 }

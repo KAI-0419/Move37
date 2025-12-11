@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -23,6 +25,7 @@ namespace Move37.GameLogic
         public Image unitImage;
 
         public Tile CurrentTile { get; private set; }
+        private Coroutine _moveRoutine;
 
         private const float BaseScale = 1f;
         private const float KingBonusScale = 1.12f;
@@ -47,18 +50,13 @@ namespace Move37.GameLogic
             CurrentTile = tile;
         }
 
-        public void MoveTo(Tile targetTile)
+        public void MoveTo(Tile targetTile, Action onCompleted = null)
         {
-            transform.SetParent(targetTile.transform, false);
-
-            if (transform is RectTransform rectTransform)
+            if (_moveRoutine != null)
             {
-                rectTransform.anchoredPosition = Vector2.zero;
+                StopCoroutine(_moveRoutine);
             }
-            else
-            {
-                transform.localPosition = Vector3.zero;
-            }
+            _moveRoutine = StartCoroutine(AnimateMove(targetTile, onCompleted));
         }
 
         public bool IsMoveValid(Tile targetTile)
@@ -112,10 +110,55 @@ namespace Move37.GameLogic
             }
         }
 
+        public void SetSprite(Sprite newSprite)
+        {
+            if (unitImage != null && newSprite != null)
+            {
+                unitImage.sprite = newSprite;
+            }
+        }
+
         private void ApplyBaseScale()
         {
             var baseScale = type == UnitType.King ? KingBonusScale : BaseScale;
             transform.localScale = Vector3.one * baseScale;
+        }
+
+        private IEnumerator AnimateMove(Tile targetTile, Action onCompleted)
+        {
+            if (targetTile == null)
+            {
+                onCompleted?.Invoke();
+                yield break;
+            }
+
+            // UI 공간 안전 이동: RectTransform 기준으로 World Position Lerp
+            var startPos = transform.position;
+            var endPos = targetTile.transform.position;
+            const float duration = 0.2f;
+            float t = 0f;
+
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                float lerp = Mathf.Clamp01(t / duration);
+                transform.position = Vector3.Lerp(startPos, endPos, lerp);
+                yield return null;
+            }
+
+            // 부모를 목표 타일로 옮기고 정렬
+            transform.SetParent(targetTile.transform, false);
+            if (transform is RectTransform rectTransform)
+            {
+                rectTransform.anchoredPosition = Vector2.zero;
+            }
+            else
+            {
+                transform.localPosition = Vector3.zero;
+            }
+
+            _moveRoutine = null;
+            onCompleted?.Invoke();
         }
     }
 }

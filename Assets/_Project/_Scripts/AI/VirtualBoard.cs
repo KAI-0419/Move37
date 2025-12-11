@@ -78,6 +78,11 @@ namespace Move37.AI
             float positionScore = 0f;
             float attackScore = 0f;
 
+            (int x, int y)? myKingPos = null;
+            (int x, int y)? enemyKingPos = null;
+            var friendPieces = new List<(Piece piece, int x, int y)>();
+            var enemyPieces = new List<(Piece piece, int x, int y)>();
+
             for (int y = 0; y < Size; y++)
             {
                 for (int x = 0; x < Size; x++)
@@ -99,10 +104,68 @@ namespace Move37.AI
                     {
                         attackScore -= 50f;
                     }
+
+                    if (piece.Value.type == Unit.UnitType.King)
+                    {
+                        if (isFriend)
+                            myKingPos = (x, y);
+                        else
+                            enemyKingPos = (x, y);
+                    }
+
+                    if (isFriend) friendPieces.Add((piece.Value, x, y));
+                    else enemyPieces.Add((piece.Value, x, y));
                 }
             }
 
-            return materialScore + positionScore + attackScore;
+            // King 존재 여부: 잡혔다면 즉시 큰 점수
+            if (enemyKingPos == null) return 999_999f;
+            if (myKingPos == null) return -999_999f;
+
+            // 즉시 킹 포획 가능 / 위협 감지
+            if (CanCaptureKing(perspective, enemyKingPos.Value.x, enemyKingPos.Value.y))
+                return 999_999f;
+
+            var opponent = perspective == Unit.Owner.AI ? Unit.Owner.Player : Unit.Owner.AI;
+            if (CanCaptureKing(opponent, myKingPos.Value.x, myKingPos.Value.y))
+                return -999_999f;
+
+            // 희생 가중치: 상대 King 주변 2칸 내 내 유닛이 2개 이상이면 보너스
+            float threatScore = 0f;
+            if (enemyKingPos.HasValue)
+            {
+                int threatCount = 0;
+                foreach (var fp in friendPieces)
+                {
+                    if (IsWithinDistance(fp.x, fp.y, enemyKingPos.Value.x, enemyKingPos.Value.y, 2))
+                    {
+                        threatCount++;
+                    }
+                }
+                if (threatCount >= 2)
+                {
+                    threatScore += 2000f;
+                }
+            }
+
+            // 공격 지향: 상대가 우리 King 주변을 장악하면 위협을 약간 감점하여 균형
+            if (myKingPos.HasValue)
+            {
+                int enemyThreat = 0;
+                foreach (var ep in enemyPieces)
+                {
+                    if (IsWithinDistance(ep.x, ep.y, myKingPos.Value.x, myKingPos.Value.y, 2))
+                    {
+                        enemyThreat++;
+                    }
+                }
+                if (enemyThreat >= 2)
+                {
+                    threatScore -= 1500f;
+                }
+            }
+
+            return materialScore + positionScore + attackScore + threatScore;
         }
 
         private static float GetPieceValue(Unit.UnitType type)
@@ -134,6 +197,21 @@ namespace Move37.AI
                 default:
                     return 0f;
             }
+        }
+
+        private bool CanCaptureKing(Unit.Owner owner, int kingX, int kingY)
+        {
+            foreach (var move in GetValidMoves(owner))
+            {
+                if (move.ToX == kingX && move.ToY == kingY)
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool IsWithinDistance(int x1, int y1, int x2, int y2, int maxDist)
+        {
+            return Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2)) <= maxDist;
         }
 
         private bool HasAttackOpportunity(Piece piece, int x, int y)

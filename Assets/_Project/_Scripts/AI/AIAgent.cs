@@ -42,14 +42,39 @@ namespace Move37.AI
 
             var unit = fromTile.CurrentUnit;
             fromTile.SetUnit(null);
-            unit.MoveTo(toTile);
-            toTile.SetUnit(unit);
 
-            Debug.Log($"AI moved {unit.type} to ({move.ToX},{move.ToY}) [score: {move.Score}]");
+            string captureContext = null;
+            // 공격 처리: 목적지에 적이 있으면 제거
+            if (toTile.CurrentUnit != null && toTile.CurrentUnit.owner != unit.owner)
+            {
+                if (boardManager.explosionPrefab != null)
+                {
+                    var fx = Instantiate(boardManager.explosionPrefab, toTile.CurrentUnit.transform.position, Quaternion.identity);
+                    fx.Play();
+                    Destroy(fx.gameObject, 1f);
+                }
+                captureContext = $"AI captured {toTile.CurrentUnit.owner} {toTile.CurrentUnit.type} at ({move.ToX},{move.ToY})";
+                Destroy(toTile.CurrentUnit.gameObject);
+                toTile.SetUnit(null);
+            }
 
-            if (boardManager.CheckWinCondition()) yield break;
+            boardManager.SetAnimating(true);
+            unit.MoveTo(toTile, () =>
+            {
+                toTile.SetUnit(unit);
+                Debug.Log($"AI moved {unit.type} to ({move.ToX},{move.ToY}) [score: {move.Score}]");
+                var context = captureContext ?? $"AI moved {unit.type} to ({move.ToX},{move.ToY})";
+                boardManager.ShowComment(context);
 
-            boardManager.EndTurn();
+                if (boardManager.CheckWinCondition())
+                {
+                    boardManager.SetAnimating(false);
+                    return;
+                }
+
+                boardManager.SetAnimating(false);
+                boardManager.EndTurn();
+            });
         }
     }
 }

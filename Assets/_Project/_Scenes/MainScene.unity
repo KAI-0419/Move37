@@ -543,6 +543,55 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &593154190
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 593154192}
+  - component: {fileID: 593154191}
+  m_Layer: 0
+  m_Name: Global Volume
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &593154191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 593154190}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
+  m_IsGlobal: 1
+  priority: 0
+  blendDistance: 0
+  weight: 1
+  sharedProfile: {fileID: 11400000, guid: a467aaba944cc414893e7c1225215848, type: 2}
+--- !u!4 &593154192
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 593154190}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 111.18111, y: 189.51344, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &601919208
 GameObject:
   m_ObjectHideFlags: 0
@@ -601,6 +650,11 @@ MonoBehaviour:
   selectedUnit: {fileID: 0}
   CurrentTurn: 0
   aiAgent: {fileID: 601919213}
+  explosionPrefab: {fileID: 623439553814665131, guid: 1e0cdbbdd0ce162408bbcba9d0ab23a1, type: 3}
+  kingSprite: {fileID: -6522820759514273839, guid: 62576701100c6c34e9f88523de5dce5e, type: 3}
+  knightSprite: {fileID: 614398724117675431, guid: b836348e1fe1eb443a10dac5984292bc, type: 3}
+  pawnSprite: {fileID: -7763990343289783005, guid: e882913908cdebb4b9ef2722a8e90632, type: 3}
+  systemMessageText: {fileID: 0}
 --- !u!114 &601919211
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -928,6 +982,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1095896749}
   - component: {fileID: 1095896748}
+  - component: {fileID: 1095896750}
   m_Layer: 0
   m_Name: AppManager
   m_TagString: Untagged
@@ -963,6 +1018,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1095896750
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1095896747}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d39cda717d763c0489b6df9b8c75cef9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Move37.AI.NeuralBrain
+  modelAssetName: model_quantized
 --- !u!1 &2051915547
 GameObject:
   m_ObjectHideFlags: 0
@@ -1212,3 +1280,4 @@ SceneRoots:
   - {fileID: 642586067}
   - {fileID: 1095896749}
   - {fileID: 2139042554}
+  - {fileID: 593154192}

@@ -23,7 +23,7 @@ namespace Move37.Core
             {
                 if (_instance == null)
                 {
-                    _instance = FindObjectOfType<AppManager>();
+                    _instance = FindFirstObjectByType<AppManager>();
                     if (_instance == null)
                     {
                         Debug.LogError("[AppManager] Instance not found in scene.");
