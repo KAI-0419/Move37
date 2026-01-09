@@ -1,0 +1,204 @@
+{
+  "common": {
+    "move37": "MOVE 37",
+    "nexus": "NEXUS"
+  },
+  "lobby": {
+    "systemOnline": "시스템 온라인",
+    "initializingText": " 전략 엔진 초기화 중... 희생 프로토콜 활성화. 논리는 차갑다. 승리는 손실을 요구한다.",
+    "initiateSystem": "게임 시작",
+    "initializing": "초기화 중...",
+    "tutorial": "튜토리얼",
+    "selectAIDifficulty": "AI 난이도 선택",
+    "difficulty": {
+      "easy": "쉬움",
+      "medium": "보통",
+      "hard": "어려움",
+      "locked": "LOCKED",
+      "completePrevious": "NEXUS-{{level}} 완료 필요"
+    },
+    "chart": {
+      "subject": "대상: 플레이어 1",
+      "status": "상태: 미검증",
+      "player": "플레이어",
+      "tactics": "전술",
+      "aggression": "공격성",
+      "speed": "속도",
+      "sacrifice": "희생",
+      "defense": "방어",
+      "endgame": "엔드게임"
+    },
+    "footer": "MOVE 37 © 2026 // SYSTEM VERSION 0.9.1 BETA",
+    "toast": {
+      "locked": "잠김",
+      "lockedDescription": "NEXUS-{{level}}을(를) 해제하려면 이전 난이도를 완료해야 합니다.",
+      "systemError": "시스템 오류",
+      "systemErrorDescription": "게임 초기화에 실패했습니다. 다시 시도해주세요."
+    },
+    "accessibility": {
+      "languageSettings": "언어 설정"
+    },
+    "language": {
+      "korean": "한국어",
+      "english": "English"
+    }
+  },
+  "gameRoom": {
+    "connecting": "신경 링크 연결 중...",
+    "criticalFailure": "치명적 시스템 오류",
+    "connectionLost": "연결이 끊어졌습니다.",
+    "noActiveGame": "활성 게임 없음",
+    "noActiveGameMessage": "활성 게임 세션을 찾을 수 없습니다.",
+    "gameNotFound": "게임을 찾을 수 없음",
+    "gameNotFoundMessage": "ID #{{id}}의 게임 데이터가 누락되었거나 손상되었습니다.",
+    "systemError": "시스템 오류",
+    "systemErrorMessage": "예기치 않은 오류가 발생했습니다.",
+    "abort": "중단",
+    "connected": "연결됨: {{id}}",
+    "player": "플레이어 (당신)",
+    "aiLabel": "AI",
+    "awaitingInput": "입력 대기 중",
+    "standby": "대기 중",
+    "analyzingMoves": "수 분석 중...",
+    "calculatingProbabilities": "확률 계산 중...",
+    "observing": "관찰 중",
+    "surrender": "항복",
+    "victory": "승리",
+    "draw": "무승부",
+    "defeat": "패배",
+    "yourTurn": ">> 당신의 차례",
+    "aiAnalyzing": ">> AI 분석 중",
+    "opponentThinking": ">> AI 생각 중",
+    "youWon": "당신이 승리했습니다",
+    "youLost": "당신이 패배했습니다",
+    "victoryMessage": "예상치 못한 결과. 기계가 굴복했습니다.",
+    "drawMessage": "자원 고갈. 어느 쪽도 승리를 달성하지 못했습니다.",
+    "defeatMessage": "논리가 승리했습니다. 인간의 오류가 감지되었습니다.",
+    "unlocked": ">> NEXUS-{{level}} 해제됨",
+    "returnToLobby": "로비로 돌아가기",
+    "newGame": "새 게임",
+    "playAgain": "다시 플레이",
+    "nextLevel": "다음 레벨",
+    "systemLog": "시스템 로그",
+    "log": {
+      "monitoring": "// 신경 활동 모니터링 중...",
+      "connectionEstablished": "// 연결이 설정되었습니다.",
+      "accessLevel": "// 접근 레벨: 제한 없음",
+      "nexusUnlocked": ">> NEXUS-{{level}} 해제됨. {{message}}",
+      "nexus5Unlocked": "다음 도전이 가능합니다.",
+      "nexus7Unlocked": "최종 도전이 가능합니다.",
+      "timeExpiredHuman": "시간 초과. 인간의 패배.",
+      "timeExpiredAI": "시간 초과. AI의 패배.",
+      "analyzing": "분석 중...",
+      "systemInitialized": "시스템 초기화 완료. 입력 대기 중...",
+      "processing": "처리 중...",
+      "moveExecuted": "수 실행됨.",
+      "logicFailure": "논리 실패. 인간의 승리.",
+      "resourceDepletion": "자원 고갈. 무승부.",
+      "victoryAchieved": "승리 달성.",
+      "timeExpiredDuringCalculation": "계산 중 시간 초과. AI의 패배.",
+      "calculationError": "계산 오류. 유효한 수가 없습니다.",
+      "calculationErrorKo": "계산 오류: 유효한 수가 없습니다.",
+      "calculationErrorNoSelection": "계산 오류: 유효한 수를 선택할 수 없습니다.",
+      "psychology": {
+        "capturedPiece1": "제 기물을 잡았군요. 예상된 행동입니다.",
+        "capturedPiece2": "물질적 이득을 추구하는군요. 하지만 그게 함정입니다.",
+        "capturedPiece3": "제 기물을 노리고 있었군요. 이미 계산에 포함되어 있습니다.",
+        "capturedPiece4": "공격적인 선택이지만, 이미 대응책이 준비되어 있습니다.",
+        "kingForward1": "킹을 전진시키려는 계획이 보입니다. 하지만 그 길은 막혀있습니다.",
+        "kingForward2": "승리를 향한 직진이군요. 예상된 행동입니다.",
+        "kingForward3": "킹을 앞으로 보내려는 의도가 명확합니다. 막겠습니다.",
+        "knightThreat1": "제 기물을 노리고 있군요. 예상된 행동입니다.",
+        "knightThreat2": "공격적인 움직임이군요. 하지만 이미 계산에 포함되어 있습니다.",
+        "knightThreat3": "나이트로 위협하려는 시도입니다. 무의미합니다.",
+        "pawnDefensive1": "방어적 포지셔닝입니다. 하지만 그게 함정입니다.",
+        "pawnDefensive2": "안전을 추구하는군요. 그게 바로 당신의 약점입니다.",
+        "pawnDefensive3": "신중한 움직임이지만, 이미 늦었습니다.",
+        "aggressive1": "공격적인 전략이군요. 하지만 모든 경우의 수를 계산했습니다.",
+        "aggressive2": "적극적인 움직임입니다. 예상 범위 내입니다.",
+        "aggressive3": "공격을 준비하고 있군요. 이미 대응책이 준비되어 있습니다.",
+        "defensive1": "수비에 집중하고 있군요. 하지만 그게 함정입니다.",
+        "defensive2": "신중한 선택입니다. 하지만 이미 늦었습니다.",
+        "defensive3": "방어적 자세가 보입니다. 예상된 행동입니다.",
+        "defensive4": "당신의 다음 수를 이미 계산했습니다."
+      }
+    },
+    "errors": {
+      "illegalMove": "불법적인 수",
+      "gameNotFound": "게임을 찾을 수 없음",
+      "gameOver": "게임 종료",
+      "notYourTurn": "당신의 차례가 아닙니다",
+      "invalidGameId": "유효하지 않은 게임 ID"
+    },
+    "chart": {
+      "player": "Player",
+      "tactics": "Tactics",
+      "aggression": "Aggression",
+      "speed": "Speed",
+      "sacrifice": "Sacrifice",
+      "defense": "Defense",
+      "endgame": "Endgame"
+    },
+    "accessibility": {
+      "languageSettings": "언어 설정"
+    },
+    "confirmLeave": "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?",
+    "confirmLeaveSubtext": "진행 중인 게임은 저장되지 않습니다."
+  },
+  "tutorial": {
+    "title": "TUTORIAL // SYSTEM TRAINING",
+    "step": "STEP {{current}} / {{total}}",
+    "next": "다음",
+    "prev": "이전",
+    "complete": "완료",
+    "steps": {
+      "goal": {
+        "title": "게임 목표",
+        "description": "5x5 보드에서 AI와 대결하는 전략 게임입니다. 적의 킹을 잡거나, 당신의 킹을 상대 진영 끝(맨 위 줄)으로 보내면 승리합니다."
+      },
+      "pieces": {
+        "title": "기물 종류",
+        "description": "각 진영은 5개의 기물을 가지고 있습니다:\n• 킹(K): 가장 중요한 기물. 잡히면 패배합니다.\n• 나이트(N): L자 형태로 이동합니다.\n• 폰(P): 앞으로만 이동하며, 대각선으로 공격합니다."
+      },
+      "king": {
+        "title": "킹의 이동",
+        "description": "킹은 상하좌우 및 대각선으로 1칸씩 이동할 수 있습니다. 킹을 상대 진영 끝(맨 위 줄)으로 보내면 승리합니다!"
+      },
+      "knight": {
+        "title": "나이트의 이동",
+        "description": "나이트는 L자 형태로 이동합니다. 다른 기물을 뛰어넘을 수 있어 전략적으로 유용합니다."
+      },
+      "pawn": {
+        "title": "폰의 이동",
+        "description": "폰은 앞으로만 1칸 이동합니다. 하지만 공격할 때는 대각선으로만 공격할 수 있습니다."
+      },
+      "victory": {
+        "title": "승리 조건",
+        "description": "승리하는 방법은 두 가지입니다:\n1. 적의 킹을 잡기\n2. 당신의 킹을 맨 위 줄(행 0)로 보내기\n\n30턴 안에 승부가 나지 않으면 무승부입니다.\n\n⏱️ 시간 제한:\n• 초기 시간: 180초 (3분)\n• 매 수마다 5초 추가\n• 시간이 0이 되면 즉시 패배\n• 양쪽 모두 동일한 시간 제한 적용"
+      },
+      "start": {
+        "title": "게임 시작",
+        "description": "기물을 클릭하여 선택하고, 이동할 칸을 클릭하세요. 유효한 이동 가능한 칸은 파란색으로 표시됩니다. 이제 AI와 대결할 준비가 되었습니다!"
+      }
+    },
+    "legend": {
+      "king": {
+        "name": "킹 (King)",
+        "move": "상하좌우 대각선 1칸"
+      },
+      "knight": {
+        "name": "나이트 (Knight)",
+        "move": "L자 형태 이동"
+      },
+      "pawn": {
+        "name": "폰 (Pawn)",
+        "move": "앞으로 1칸, 대각선 공격"
+      }
+    }
+  },
+  "notFound": {
+    "title": "SECTOR NOT FOUND",
+    "message": "지정하신 좌표가 이 시스템에 존재하지 않습니다.",
+    "returnToBase": "기지로 복귀"
+  }
+}

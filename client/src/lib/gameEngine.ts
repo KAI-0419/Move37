@@ -28,7 +28,7 @@ export async function createGame(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" =
     turn: 'player',
     history: [],
     winner: null,
-    aiLog: "System Initialized. Awaiting input...",
+    aiLog: "gameRoom.log.systemInitialized",
     turnCount: 0,
     difficulty,
     playerTimeRemaining: 180, // 180 seconds (3 minutes) initial time
@@ -71,15 +71,15 @@ export async function makeGameMove(
 ): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } }> {
   const game = await gameStorage.getGame(gameId);
   if (!game) {
-    throw new Error("Game not found");
+    throw new Error("gameRoom.errors.gameNotFound");
   }
 
   if (game.winner) {
-    throw new Error("Game over");
+    throw new Error("gameRoom.errors.gameOver");
   }
   
   if (game.turn !== 'player') {
-    throw new Error("Not your turn");
+    throw new Error("gameRoom.errors.notYourTurn");
   }
 
   // Calculate player's remaining time BEFORE move
@@ -92,7 +92,7 @@ export async function makeGameMove(
   if (playerTimeRemaining <= 0) {
     const updated = await gameStorage.updateGame(gameId, {
       winner: 'ai',
-      aiLog: "Time expired. Human defeat."
+      aiLog: "gameRoom.log.timeExpiredHuman"
     });
     return { game: updated, aiLogs: [] };
   }
@@ -118,7 +118,7 @@ export async function makeGameMove(
       pieceIsLowercase: piece ? piece === piece.toLowerCase() : null,
       isPlayer: piece ? piece === piece.toLowerCase() && piece !== piece.toUpperCase() : null
     });
-    throw new Error("Illegal move");
+    throw new Error("gameRoom.errors.illegalMove");
   }
 
   // Store player move info for AI analysis (before applying move)
@@ -148,12 +148,12 @@ export async function makeGameMove(
       playerTimeRemaining: updatedPlayerTime,
       lastMoveTimestamp: now,
       aiLog: winner === 'player' 
-        ? "Logic Failure. Human Victory." 
+        ? "gameRoom.log.logicFailure" 
         : winner === 'draw' 
-        ? "Resource Depletion. Draw." 
+        ? "gameRoom.log.resourceDepletion" 
         : winner === 'ai' && playerTimeRemaining <= 0
-        ? "Time expired. Human defeat."
-        : "Victory Achieved."
+        ? "gameRoom.log.timeExpiredHuman"
+        : "gameRoom.log.victoryAchieved"
     });
     return { game: updated, aiLogs: [] };
   }
@@ -168,7 +168,7 @@ export async function makeGameMove(
     turnCount: newTurnCount,
     playerTimeRemaining: updatedPlayerTime,
     lastMoveTimestamp: now, // Update timestamp so AI's time starts counting from now
-    aiLog: "Analyzing..."
+    aiLog: "gameRoom.log.analyzing"
   });
 
   // Return immediately with player's move applied
@@ -185,7 +185,7 @@ export async function calculateAIMove(
 ): Promise<{ game: Game; aiLogs: string[] }> {
   const game = await gameStorage.getGame(gameId);
   if (!game) {
-    throw new Error("Game not found");
+    throw new Error("gameRoom.errors.gameNotFound");
   }
 
   if (game.winner || game.turn !== 'ai') {
@@ -202,7 +202,7 @@ export async function calculateAIMove(
   if (aiTimeRemaining <= 0) {
     const updated = await gameStorage.updateGame(gameId, {
       winner: 'player',
-      aiLog: "Time expired. AI defeat."
+      aiLog: "gameRoom.log.timeExpiredAI"
     });
     return { game: updated, aiLogs: [] };
   }
@@ -230,7 +230,7 @@ export async function calculateAIMove(
     aiResult = getAIMove(board, playerMove, gameDifficulty, newTurnCount);
   } catch (error) {
     console.error("AI calculation error:", error);
-    aiResult = { move: null, logs: ["계산 오류가 발생했습니다."] };
+    aiResult = { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
   }
   
   // Calculate actual time spent on calculation
@@ -254,11 +254,11 @@ export async function calculateAIMove(
   if (aiTimeAfterThinking <= 0) {
     const updated = await gameStorage.updateGame(gameId, {
       winner: 'player',
-      aiLog: "Time expired during calculation. AI defeat."
+      aiLog: "gameRoom.log.timeExpiredDuringCalculation"
     });
     return { game: updated, aiLogs: [] };
   }
-  let aiLog = "Processing...";
+  let aiLog = "gameRoom.log.processing";
   let aiLogs: string[] = [];
   
   if (aiResult.move) {
@@ -275,7 +275,7 @@ export async function calculateAIMove(
     
     // Store the single psychological insight message
     aiLogs = aiResult.logs;
-    aiLog = aiResult.logs[0] || "Move executed.";
+    aiLog = aiResult.logs[0] || "gameRoom.log.moveExecuted";
     
     const updated = await gameStorage.updateGame(gameId, {
       board: generateFen(aiMoveBoard),
@@ -293,8 +293,8 @@ export async function calculateAIMove(
     const updated = await gameStorage.updateGame(gameId, {
       turn: 'player',
       winner: 'player',
-      aiLog: "Calculation error. No valid moves."
+      aiLog: "gameRoom.log.calculationError"
     });
-    return { game: updated, aiLogs: ["계산 오류: 유효한 수가 없습니다."] };
+    return { game: updated, aiLogs: ["gameRoom.log.calculationErrorKo"] };
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useCreateGame } from "@/hooks/use-game";
 import { GlitchButton } from "@/components/GlitchButton";
 import { Scanlines } from "@/components/Scanlines";
@@ -6,11 +7,18 @@ import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import { motion } from "framer-motion";
-import { Cpu, Skull, Brain, Zap, Lock } from "lucide-react";
+import { Cpu, Skull, Brain, Zap, Lock, Languages, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TutorialModal } from "@/components/TutorialModal";
 import { isDifficultyUnlocked, getUnlockedDifficulties } from "@/lib/storage";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // LocalStorage key for selected difficulty
 const DIFFICULTY_STORAGE_KEY = "move37_selected_difficulty";
@@ -37,17 +45,18 @@ function saveDifficulty(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): void {
   }
 }
 
-// Mock data for radar chart
-const statsData = [
-  { subject: 'Tactics', A: 120, fullMark: 150 },
-  { subject: 'Aggression', A: 98, fullMark: 150 },
-  { subject: 'Speed', A: 86, fullMark: 150 },
-  { subject: 'Sacrifice', A: 99, fullMark: 150 },
-  { subject: 'Defense', A: 65, fullMark: 150 },
-  { subject: 'Endgame', A: 85, fullMark: 150 },
+// Mock data for radar chart - will be translated in component
+const getStatsData = (t: (key: string) => string) => [
+  { subject: t("lobby.chart.tactics"), A: 120, fullMark: 150 },
+  { subject: t("lobby.chart.aggression"), A: 98, fullMark: 150 },
+  { subject: t("lobby.chart.speed"), A: 86, fullMark: 150 },
+  { subject: t("lobby.chart.sacrifice"), A: 99, fullMark: 150 },
+  { subject: t("lobby.chart.defense"), A: 65, fullMark: 150 },
+  { subject: t("lobby.chart.endgame"), A: 85, fullMark: 150 },
 ];
 
 export default function Lobby() {
+  const { t, i18n } = useTranslation();
   const [, setLocation] = useLocation();
   const createGame = useCreateGame();
   const { toast } = useToast();
@@ -64,6 +73,14 @@ export default function Lobby() {
   });
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [unlockedDifficulties, setUnlockedDifficulties] = useState<Set<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">>(() => getUnlockedDifficulties());
+  const [selectedLanguage, setSelectedLanguage] = useState<"ko" | "en">(() => {
+    try {
+      const stored = localStorage.getItem('move37_language');
+      return stored === 'en' ? 'en' : 'ko';
+    } catch {
+      return 'ko';
+    }
+  });
 
   // Load saved difficulty and unlock status on mount
   useEffect(() => {
@@ -83,6 +100,17 @@ export default function Lobby() {
       }
     };
 
+    // Load language preference
+    try {
+      const stored = localStorage.getItem('move37_language');
+      if (stored === 'en' || stored === 'ko') {
+        setSelectedLanguage(stored);
+        i18n.changeLanguage(stored);
+      }
+    } catch (error) {
+      console.error("Failed to load language preference:", error);
+    }
+
     loadUnlockStatus();
 
     // Listen for storage changes (when unlock status is updated from GameRoom)
@@ -97,14 +125,15 @@ export default function Lobby() {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('unlock-updated', handleStorageChange);
     };
-  }, []);
+  }, [i18n]);
 
   // Save difficulty whenever it changes (only if unlocked)
   const handleDifficultyChange = (difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
     if (!isDifficultyUnlocked(difficulty)) {
+      const level = difficulty.split('-')[1];
       toast({
-        title: "Locked",
-        description: `NEXUS-${difficulty.split('-')[1]}을(를) 해제하려면 이전 난이도를 완료해야 합니다.`,
+        title: t("lobby.toast.locked"),
+        description: t("lobby.toast.lockedDescription", { level }),
         variant: "default",
       });
       return;
@@ -120,8 +149,8 @@ export default function Lobby() {
     } catch (error: any) {
       console.error("Failed to create game:", error);
       toast({
-        title: "System Error",
-        description: error?.message || "Failed to initialize game. Please try again.",
+        title: t("lobby.toast.systemError"),
+        description: error?.message || t("lobby.toast.systemErrorDescription"),
         variant: "destructive",
       });
     }
@@ -131,9 +160,63 @@ export default function Lobby() {
     setTutorialOpen(true);
   };
 
+  const handleLanguageChange = (language: "ko" | "en") => {
+    setSelectedLanguage(language);
+    i18n.changeLanguage(language);
+    try {
+      localStorage.setItem('move37_language', language);
+    } catch (error) {
+      console.error("Failed to save language preference:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <Scanlines />
+      
+      {/* Language Settings Button */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="absolute top-4 right-4 z-20 p-2 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 transition-all duration-300 group"
+            aria-label={t("lobby.accessibility.languageSettings")}
+          >
+            <Languages className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent 
+          align="end" 
+          className="min-w-[140px] bg-black/95 border-white/10 backdrop-blur-sm"
+        >
+          <DropdownMenuRadioGroup 
+            value={selectedLanguage} 
+            onValueChange={(value) => handleLanguageChange(value as "ko" | "en")}
+          >
+            <DropdownMenuRadioItem 
+              value="ko"
+              className="font-mono text-xs cursor-pointer focus:bg-primary/10 focus:text-primary data-[state=checked]:text-primary"
+            >
+              <div className="flex items-center justify-between w-full">
+                <span>{t("lobby.language.korean")}</span>
+                {selectedLanguage === "ko" && (
+                  <Check className="h-3 w-3 text-primary" />
+                )}
+              </div>
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem 
+              value="en"
+              className="font-mono text-xs cursor-pointer focus:bg-primary/10 focus:text-primary data-[state=checked]:text-primary"
+            >
+              <div className="flex items-center justify-between w-full">
+                <span>{t("lobby.language.english")}</span>
+                {selectedLanguage === "en" && (
+                  <Check className="h-3 w-3 text-primary" />
+                )}
+              </div>
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       
       {/* Background Elements */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-background to-background z-0" />
@@ -149,7 +232,7 @@ export default function Lobby() {
               className="text-primary font-mono text-xs lg:text-sm tracking-widest uppercase mb-2 flex items-center justify-center lg:justify-start gap-2"
             >
               <span className="w-2 h-2 bg-primary animate-pulse" />
-              System Online
+              {t("lobby.systemOnline")}
             </motion.div>
             
             <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black font-display tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/50 relative">
@@ -159,7 +242,7 @@ export default function Lobby() {
             
             <div className="h-12 lg:h-16 max-w-md mx-auto lg:mx-0">
               <TerminalText 
-                text="INITIALIZING STRATEGIC ENGINE... SACRIFICE PROTOCOLS ENGAGED. LOGIC IS COLD. VICTORY REQUIRES LOSS."
+                text={t("lobby.initializingText")}
                 className="text-muted-foreground font-mono text-[10px] sm:text-sm md:text-base leading-relaxed"
                 speed={20}
               />
@@ -172,7 +255,7 @@ export default function Lobby() {
               disabled={createGame.isPending}
               className="w-full sm:w-auto text-base lg:text-lg py-4 lg:py-6"
             >
-              {createGame.isPending ? "INITIALIZING..." : "INITIATE SYSTEM"}
+              {createGame.isPending ? t("lobby.initializing") : t("lobby.initiateSystem")}
             </GlitchButton>
             
             <GlitchButton 
@@ -180,13 +263,13 @@ export default function Lobby() {
               className="w-full sm:w-auto py-4 lg:py-6"
               onClick={handleTutorial}
             >
-              TUTORIAL
+              {t("lobby.tutorial")}
             </GlitchButton>
           </div>
 
           {/* Difficulty Selection */}
           <div className="space-y-3 mt-6 lg:mt-8">
-            <h3 className="text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-widest">Select AI Difficulty</h3>
+            <h3 className="text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-widest">{t("lobby.selectAIDifficulty")}</h3>
             <div className="grid grid-cols-3 gap-2 lg:gap-3">
               <button
                 onClick={() => handleDifficultyChange("NEXUS-3")}
@@ -203,7 +286,7 @@ export default function Lobby() {
                 {!isDifficultyUnlocked("NEXUS-3") && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
                     <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
-                    <span className="text-[7px] lg:text-[8px] text-primary/30 font-mono">LOCKED</span>
+                    <span className="text-[7px] lg:text-[8px] text-primary/30 font-mono">{t("lobby.difficulty.locked")}</span>
                   </div>
                 )}
                 <Cpu className={cn(
@@ -217,7 +300,7 @@ export default function Lobby() {
                 <p className={cn(
                   "hidden sm:block text-[8px] lg:text-xs",
                   isDifficultyUnlocked("NEXUS-3") ? "text-muted-foreground" : "text-primary/30"
-                )}>쉬움</p>
+                )}>{t("lobby.difficulty.easy")}</p>
               </button>
               <button
                 onClick={() => handleDifficultyChange("NEXUS-5")}
@@ -234,7 +317,7 @@ export default function Lobby() {
                 {!isDifficultyUnlocked("NEXUS-5") && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
                     <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
-                    <span className="text-[7px] lg:text-[8px] text-secondary/30 font-mono">LOCKED</span>
+                    <span className="text-[7px] lg:text-[8px] text-secondary/30 font-mono">{t("lobby.difficulty.locked")}</span>
                   </div>
                 )}
                 <Cpu className={cn(
@@ -248,9 +331,9 @@ export default function Lobby() {
                 <p className={cn(
                   "hidden sm:block text-[8px] lg:text-xs",
                   isDifficultyUnlocked("NEXUS-5") ? "text-muted-foreground" : "text-secondary/30"
-                )}>보통</p>
+                )}>{t("lobby.difficulty.medium")}</p>
                 {!isDifficultyUnlocked("NEXUS-5") && (
-                  <p className="hidden sm:block text-[7px] lg:text-[8px] text-secondary/30 mt-0.5">NEXUS-3 완료 필요</p>
+                  <p className="hidden sm:block text-[7px] lg:text-[8px] text-secondary/30 mt-0.5">{t("lobby.difficulty.completePrevious", { level: "3" })}</p>
                 )}
               </button>
               <button
@@ -268,7 +351,7 @@ export default function Lobby() {
                 {!isDifficultyUnlocked("NEXUS-7") && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
                     <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
-                    <span className="text-[7px] lg:text-[8px] text-destructive/30 font-mono">LOCKED</span>
+                    <span className="text-[7px] lg:text-[8px] text-destructive/30 font-mono">{t("lobby.difficulty.locked")}</span>
                   </div>
                 )}
                 <Skull className={cn(
@@ -282,9 +365,9 @@ export default function Lobby() {
                 <p className={cn(
                   "hidden sm:block text-[8px] lg:text-xs",
                   isDifficultyUnlocked("NEXUS-7") ? "text-muted-foreground" : "text-destructive/30"
-                )}>어려움</p>
+                )}>{t("lobby.difficulty.hard")}</p>
                 {!isDifficultyUnlocked("NEXUS-7") && (
-                  <p className="hidden sm:block text-[7px] lg:text-[8px] text-destructive/30 mt-0.5">NEXUS-5 완료 필요</p>
+                  <p className="hidden sm:block text-[7px] lg:text-[8px] text-destructive/30 mt-0.5">{t("lobby.difficulty.completePrevious", { level: "5" })}</p>
                 )}
               </button>
             </div>
@@ -300,18 +383,18 @@ export default function Lobby() {
         >
           {/* Decorative header for chart box */}
           <div className="absolute top-0 left-0 w-full flex justify-between p-2 border-b border-white/10 text-[8px] lg:text-xs font-mono text-muted-foreground uppercase">
-            <span>Subject: Player 1</span>
-            <span>Status: Untested</span>
+            <span>{t("lobby.chart.subject")}</span>
+            <span>{t("lobby.chart.status")}</span>
           </div>
 
           <div className="h-full w-full pt-6 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={statsData}>
+              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={getStatsData(t)}>
                 <PolarGrid stroke="#333" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 8, fontFamily: 'Space Mono' }} />
                 <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
                 <Radar
-                  name="Player"
+                  name={t("lobby.chart.player")}
                   dataKey="A"
                   stroke="var(--primary)"
                   strokeWidth={2}
@@ -331,7 +414,7 @@ export default function Lobby() {
       </main>
 
       <footer className="absolute bottom-4 text-xs font-mono text-white/20 text-center w-full">
-        MOVE 37 © 2026 // SYSTEM VERSION 0.9.1 BETA
+        {t("lobby.footer")}
       </footer>
 
       {/* Tutorial Modal */}

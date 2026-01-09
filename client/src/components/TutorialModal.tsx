@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft, Crown, Component, Circle, Target, Zap, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,8 +14,8 @@ interface TutorialModalProps {
 }
 
 type TutorialStep = {
-  title: string;
-  description: string;
+  titleKey: string;
+  descriptionKey: string;
   boardState?: string;
   highlightSquares?: { r: number; c: number }[];
   animation?: {
@@ -24,15 +25,25 @@ type TutorialStep = {
   };
 };
 
+const tutorialStepKeys = [
+  { titleKey: "tutorial.steps.goal.title", descriptionKey: "tutorial.steps.goal.description" },
+  { titleKey: "tutorial.steps.pieces.title", descriptionKey: "tutorial.steps.pieces.description" },
+  { titleKey: "tutorial.steps.king.title", descriptionKey: "tutorial.steps.king.description" },
+  { titleKey: "tutorial.steps.knight.title", descriptionKey: "tutorial.steps.knight.description" },
+  { titleKey: "tutorial.steps.pawn.title", descriptionKey: "tutorial.steps.pawn.description" },
+  { titleKey: "tutorial.steps.victory.title", descriptionKey: "tutorial.steps.victory.description" },
+  { titleKey: "tutorial.steps.start.title", descriptionKey: "tutorial.steps.start.description" },
+];
+
 const tutorialSteps: TutorialStep[] = [
   {
-    title: "게임 목표",
-    description: "5x5 보드에서 AI와 대결하는 전략 게임입니다. 적의 킹을 잡거나, 당신의 킹을 상대 진영 끝(맨 위 줄)으로 보내면 승리합니다.",
+    titleKey: "tutorial.steps.goal.title",
+    descriptionKey: "tutorial.steps.goal.description",
     boardState: INITIAL_BOARD_FEN,
   },
   {
-    title: "기물 종류",
-    description: "각 진영은 5개의 기물을 가지고 있습니다:\n• 킹(K): 가장 중요한 기물. 잡히면 패배합니다.\n• 나이트(N): L자 형태로 이동합니다.\n• 폰(P): 앞으로만 이동하며, 대각선으로 공격합니다.",
+    titleKey: "tutorial.steps.pieces.title",
+    descriptionKey: "tutorial.steps.pieces.description",
     boardState: INITIAL_BOARD_FEN,
     highlightSquares: [
       { r: 0, c: 2 }, // AI King
@@ -44,8 +55,8 @@ const tutorialSteps: TutorialStep[] = [
     ],
   },
   {
-    title: "킹의 이동",
-    description: "킹은 상하좌우 및 대각선으로 1칸씩 이동할 수 있습니다. 킹을 상대 진영 끝(맨 위 줄)으로 보내면 승리합니다!",
+    titleKey: "tutorial.steps.king.title",
+    descriptionKey: "tutorial.steps.king.description",
     boardState: INITIAL_BOARD_FEN,
     animation: {
       from: { r: 4, c: 2 },
@@ -54,8 +65,8 @@ const tutorialSteps: TutorialStep[] = [
     },
   },
   {
-    title: "나이트의 이동",
-    description: "나이트는 L자 형태로 이동합니다. 다른 기물을 뛰어넘을 수 있어 전략적으로 유용합니다.",
+    titleKey: "tutorial.steps.knight.title",
+    descriptionKey: "tutorial.steps.knight.description",
     boardState: "NPKPN/5/5/5/npkpn",
     animation: {
       from: { r: 4, c: 1 },
@@ -64,8 +75,8 @@ const tutorialSteps: TutorialStep[] = [
     },
   },
   {
-    title: "폰의 이동",
-    description: "폰은 앞으로만 1칸 이동합니다. 하지만 공격할 때는 대각선으로만 공격할 수 있습니다.",
+    titleKey: "tutorial.steps.pawn.title",
+    descriptionKey: "tutorial.steps.pawn.description",
     boardState: "NPKPN/5/5/5/npkpn",
     animation: {
       from: { r: 4, c: 0 },
@@ -74,18 +85,19 @@ const tutorialSteps: TutorialStep[] = [
     },
   },
   {
-    title: "승리 조건",
-    description: "승리하는 방법은 두 가지입니다:\n1. 적의 킹을 잡기\n2. 당신의 킹을 맨 위 줄(행 0)로 보내기\n\n30턴 안에 승부가 나지 않으면 무승부입니다.\n\n⏱️ 시간 제한:\n• 초기 시간: 180초 (3분)\n• 매 수마다 5초 추가\n• 시간이 0이 되면 즉시 패배\n• 양쪽 모두 동일한 시간 제한 적용",
+    titleKey: "tutorial.steps.victory.title",
+    descriptionKey: "tutorial.steps.victory.description",
     boardState: INITIAL_BOARD_FEN,
   },
   {
-    title: "게임 시작",
-    description: "기물을 클릭하여 선택하고, 이동할 칸을 클릭하세요. 유효한 이동 가능한 칸은 파란색으로 표시됩니다. 이제 AI와 대결할 준비가 되었습니다!",
+    titleKey: "tutorial.steps.start.title",
+    descriptionKey: "tutorial.steps.start.description",
     boardState: INITIAL_BOARD_FEN,
   },
 ];
 
 export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const [animatedBoard, setAnimatedBoard] = useState<string>(INITIAL_BOARD_FEN);
   const [showAnimation, setShowAnimation] = useState(false);
@@ -159,14 +171,14 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
         <DialogHeader className="pb-3">
           <DialogTitle className="text-lg font-display font-black text-primary tracking-wider flex items-center gap-2">
             <Zap className="w-5 h-5" />
-            TUTORIAL // SYSTEM TRAINING
+            {t("tutorial.title")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Step Indicator */}
           <div className="flex items-center justify-between text-xs font-mono text-muted-foreground px-1">
-            <span>STEP {currentStep + 1} / {tutorialSteps.length}</span>
+            <span>{t("tutorial.step", { current: currentStep + 1, total: tutorialSteps.length })}</span>
             <div className="flex gap-1">
               {tutorialSteps.map((_, i) => (
                 <div
@@ -259,10 +271,10 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
                   {currentStep === 4 && <Circle className="w-4 h-4" />}
                   {currentStep === 5 && <Clock className="w-4 h-4" />}
                   {currentStep === 6 && <Target className="w-4 h-4" />}
-                  {step.title}
+                  {t(step.titleKey)}
                 </h3>
                 <div className="text-xs text-muted-foreground font-mono leading-relaxed whitespace-pre-line">
-                  {step.description}
+                  {t(step.descriptionKey)}
                 </div>
               </div>
 
@@ -272,22 +284,22 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
                   <div className="flex items-center gap-2">
                     <Crown className="w-5 h-5 text-primary flex-shrink-0" />
                     <div>
-                      <div className="text-xs font-bold text-primary">킹 (King)</div>
-                      <div className="text-[10px] text-muted-foreground">상하좌우 대각선 1칸</div>
+                      <div className="text-xs font-bold text-primary">{t("tutorial.legend.king.name")}</div>
+                      <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.king.move")}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Component className="w-5 h-5 text-primary rotate-45 flex-shrink-0" />
                     <div>
-                      <div className="text-xs font-bold text-primary">나이트 (Knight)</div>
-                      <div className="text-[10px] text-muted-foreground">L자 형태 이동</div>
+                      <div className="text-xs font-bold text-primary">{t("tutorial.legend.knight.name")}</div>
+                      <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.knight.move")}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Circle className="w-5 h-5 text-primary flex-shrink-0" />
                     <div>
-                      <div className="text-xs font-bold text-primary">폰 (Pawn)</div>
-                      <div className="text-[10px] text-muted-foreground">앞으로 1칸, 대각선 공격</div>
+                      <div className="text-xs font-bold text-primary">{t("tutorial.legend.pawn.name")}</div>
+                      <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.pawn.move")}</div>
                     </div>
                   </div>
                 </div>
@@ -304,7 +316,7 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
               className="flex items-center gap-1.5 text-xs py-2 px-3"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              이전
+              {t("tutorial.prev")}
             </GlitchButton>
 
             <div className="text-[10px] font-mono text-muted-foreground">
@@ -315,7 +327,7 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
               onClick={handleNext}
               className="flex items-center gap-1.5 text-xs py-2 px-3"
             >
-              {currentStep === tutorialSteps.length - 1 ? "완료" : "다음"}
+              {currentStep === tutorialSteps.length - 1 ? t("tutorial.complete") : t("tutorial.next")}
               {currentStep < tutorialSteps.length - 1 && <ChevronRight className="w-3.5 h-3.5" />}
             </GlitchButton>
           </div>

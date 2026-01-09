@@ -44,7 +44,7 @@ export function useMakeMove(gameId: number) {
     mutationFn: async (move: MoveRequest) => {
       // Validate gameId before attempting move
       if (!gameId || gameId <= 0) {
-        throw new Error("Invalid game ID");
+        throw new Error("gameRoom.errors.invalidGameId");
       }
       const result = await makeGameMove(gameId, move.from, move.to);
       return result;

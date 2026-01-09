@@ -1,0 +1,201 @@
+{
+  "common": {
+    "move37": "MOVE 37",
+    "nexus": "NEXUS"
+  },
+  "lobby": {
+    "systemOnline": "System Online",
+    "initializingText": "INITIALIZING STRATEGIC ENGINE... SACRIFICE PROTOCOLS ENGAGED. LOGIC IS COLD. VICTORY REQUIRES LOSS.",
+    "initiateSystem": "INITIATE SYSTEM",
+    "initializing": "INITIALIZING...",
+    "tutorial": "TUTORIAL",
+    "selectAIDifficulty": "Select AI Difficulty",
+    "difficulty": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard",
+      "locked": "LOCKED",
+      "completePrevious": "Complete NEXUS-{{level}} to unlock"
+    },
+    "chart": {
+      "subject": "Subject: Player 1",
+      "status": "Status: Untested",
+      "player": "Player",
+      "tactics": "Tactics",
+      "aggression": "Aggression",
+      "speed": "Speed",
+      "sacrifice": "Sacrifice",
+      "defense": "Defense",
+      "endgame": "Endgame"
+    },
+    "footer": "MOVE 37 © 2026 // SYSTEM VERSION 0.9.1 BETA",
+    "toast": {
+      "locked": "Locked",
+      "lockedDescription": "Complete the previous difficulty to unlock NEXUS-{{level}}.",
+      "systemError": "System Error",
+      "systemErrorDescription": "Failed to initialize game. Please try again."
+    },
+    "language": {
+      "korean": "한국어",
+      "english": "English"
+    }
+  },
+  "gameRoom": {
+    "connecting": "CONNECTING TO NEURAL LINK...",
+    "criticalFailure": "CRITICAL SYSTEM FAILURE",
+    "connectionLost": "Connection Lost.",
+    "noActiveGame": "NO ACTIVE GAME",
+    "noActiveGameMessage": "No active game session found.",
+    "gameNotFound": "GAME NOT FOUND",
+    "gameNotFoundMessage": "Game data for ID #{{id}} is missing or corrupted.",
+    "systemError": "SYSTEM ERROR",
+    "systemErrorMessage": "An unexpected error occurred.",
+    "abort": "ABORT",
+    "connected": "CONNECTED: {{id}}",
+    "player": "PLAYER (YOU)",
+    "aiLabel": "AI",
+    "awaitingInput": "AWAITING INPUT",
+    "standby": "STANDBY",
+    "analyzingMoves": "ANALYZING MOVES...",
+    "calculatingProbabilities": "CALCULATING PROBABILITIES...",
+    "observing": "OBSERVING",
+    "surrender": "SURRENDER",
+    "victory": "VICTORY",
+    "draw": "DRAW",
+    "defeat": "DEFEAT",
+    "yourTurn": ">> YOUR TURN",
+    "aiAnalyzing": ">> AI ANALYZING",
+    "opponentThinking": ">> OPPONENT THINKING",
+    "youWon": "YOU WON",
+    "youLost": "YOU LOST",
+    "victoryMessage": "Unexpected outcome. The machine is humbled.",
+    "drawMessage": "Resource depletion. Neither side achieved victory.",
+    "defeatMessage": "Logic prevails. Human error detected.",
+    "unlocked": ">> NEXUS-{{level}} UNLOCKED",
+    "returnToLobby": "RETURN TO LOBBY",
+    "newGame": "NEW GAME",
+    "playAgain": "PLAY AGAIN",
+    "nextLevel": "NEXT LEVEL",
+    "systemLog": "SYSTEM LOG",
+    "log": {
+      "monitoring": "// Monitoring neural activity...",
+      "connectionEstablished": "// Connection established.",
+      "accessLevel": "// Access level: UNRESTRICTED",
+      "nexusUnlocked": ">> NEXUS-{{level}} UNLOCKED. {{message}}",
+      "nexus5Unlocked": "Next challenge available.",
+      "nexus7Unlocked": "Final challenge available.",
+      "timeExpiredHuman": "Time expired. Human defeat.",
+      "timeExpiredAI": "Time expired. AI defeat.",
+      "analyzing": "Analyzing...",
+      "systemInitialized": "System Initialized. Awaiting input...",
+      "processing": "Processing...",
+      "moveExecuted": "Move executed.",
+      "logicFailure": "Logic Failure. Human Victory.",
+      "resourceDepletion": "Resource Depletion. Draw.",
+      "victoryAchieved": "Victory Achieved.",
+      "timeExpiredDuringCalculation": "Time expired during calculation. AI defeat.",
+      "calculationError": "Calculation error. No valid moves.",
+      "calculationErrorKo": "Calculation error: No valid moves available.",
+      "calculationErrorNoSelection": "Calculation error: Unable to select a valid move.",
+      "psychology": {
+        "capturedPiece1": "You captured my piece. Expected behavior.",
+        "capturedPiece2": "Pursuing material gain. But that's the trap.",
+        "capturedPiece3": "You were targeting my piece. Already calculated.",
+        "capturedPiece4": "Aggressive choice, but countermeasures are prepared.",
+        "kingForward1": "I see your plan to advance the king. That path is blocked.",
+        "kingForward2": "A direct path to victory. Expected behavior.",
+        "kingForward3": "Your intent to move the king forward is clear. I will block it.",
+        "knightThreat1": "You're targeting my piece. Expected behavior.",
+        "knightThreat2": "Aggressive movement. Already calculated.",
+        "knightThreat3": "Attempting to threaten with the knight. Futile.",
+        "pawnDefensive1": "Defensive positioning. But that's the trap.",
+        "pawnDefensive2": "Seeking safety. That is your weakness.",
+        "pawnDefensive3": "Cautious move, but already too late.",
+        "aggressive1": "Aggressive strategy. But I've calculated all possibilities.",
+        "aggressive2": "Active movement. Within expected range.",
+        "aggressive3": "Preparing an attack. Countermeasures are already prepared.",
+        "defensive1": "Focusing on defense. But that's the trap.",
+        "defensive2": "Prudent choice. But already too late.",
+        "defensive3": "Defensive posture detected. Expected behavior.",
+        "defensive4": "I've already calculated your next move."
+      }
+    },
+    "errors": {
+      "illegalMove": "Illegal move",
+      "gameNotFound": "Game not found",
+      "gameOver": "Game over",
+      "notYourTurn": "Not your turn",
+      "invalidGameId": "Invalid game ID"
+    },
+    "chart": {
+      "player": "Player",
+      "tactics": "Tactics",
+      "aggression": "Aggression",
+      "speed": "Speed",
+      "sacrifice": "Sacrifice",
+      "defense": "Defense",
+      "endgame": "Endgame"
+    },
+    "accessibility": {
+      "languageSettings": "Language Settings"
+    },
+    "confirmLeave": "Game in progress. Are you sure you want to return to the lobby?",
+    "confirmLeaveSubtext": "Your current game will not be saved."
+  },
+  "tutorial": {
+    "title": "TUTORIAL // SYSTEM TRAINING",
+    "step": "STEP {{current}} / {{total}}",
+    "next": "Next",
+    "prev": "Previous",
+    "complete": "Complete",
+    "steps": {
+      "goal": {
+        "title": "Game Objective",
+        "description": "A strategic game on a 5x5 board against AI. Win by capturing the enemy king or moving your king to the opponent's end (top row)."
+      },
+      "pieces": {
+        "title": "Piece Types",
+        "description": "Each side has 5 pieces:\n• King (K): The most important piece. If captured, you lose.\n• Knight (N): Moves in an L-shape.\n• Pawn (P): Moves forward only, attacks diagonally."
+      },
+      "king": {
+        "title": "King Movement",
+        "description": "The king can move one square in any direction (up, down, left, right, or diagonally). Win by moving your king to the opponent's end (top row)!"
+      },
+      "knight": {
+        "title": "Knight Movement",
+        "description": "The knight moves in an L-shape. It can jump over other pieces, making it strategically useful."
+      },
+      "pawn": {
+        "title": "Pawn Movement",
+        "description": "The pawn moves forward one square only. However, it can only attack diagonally."
+      },
+      "victory": {
+        "title": "Victory Conditions",
+        "description": "There are two ways to win:\n1. Capture the enemy king\n2. Move your king to the top row (row 0)\n\nIf no winner is determined within 30 turns, it's a draw.\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
+      },
+      "start": {
+        "title": "Starting the Game",
+        "description": "Click a piece to select it, then click the square you want to move to. Valid move squares are highlighted in blue. You're now ready to face the AI!"
+      }
+    },
+    "legend": {
+      "king": {
+        "name": "King",
+        "move": "1 square in any direction"
+      },
+      "knight": {
+        "name": "Knight",
+        "move": "L-shaped movement"
+      },
+      "pawn": {
+        "name": "Pawn",
+        "move": "1 square forward, diagonal attack"
+      }
+    }
+  },
+  "notFound": {
+    "title": "SECTOR NOT FOUND",
+    "message": "The coordinates you specified do not exist in this system.",
+    "returnToBase": "Return to Base"
+  }
+}

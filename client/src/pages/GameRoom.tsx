@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGame, useMakeMove, useCreateGame } from "@/hooks/use-game";
@@ -14,6 +15,7 @@ import { parseFen } from "@shared/gameLogic";
 import { gameStorage, handleVictoryUnlock, getUnlockedDifficulties } from "@/lib/storage";
 
 export default function GameRoom() {
+  const { t } = useTranslation();
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [gameId, setGameId] = useState<number | null>(() => gameStorage.getCurrentGameId());
@@ -52,12 +54,12 @@ export default function GameRoom() {
     if (game && logHistory.length === 0) {
       const initialTime = new Date();
       setLogHistory([
-        { message: "// Monitoring neural activity...", timestamp: initialTime },
-        { message: "// Connection established.", timestamp: initialTime },
-        { message: "// Access level: UNRESTRICTED", timestamp: initialTime }
+        { message: t("gameRoom.log.monitoring"), timestamp: initialTime },
+        { message: t("gameRoom.log.connectionEstablished"), timestamp: initialTime },
+        { message: t("gameRoom.log.accessLevel"), timestamp: initialTime }
       ]);
     }
-  }, [game, logHistory.length]);
+  }, [game, logHistory.length, t]);
 
   // Update logs when game updates
   useEffect(() => {
@@ -65,9 +67,11 @@ export default function GameRoom() {
       // Check if this is a new AI log (not already in history)
       setLogHistory(prev => {
         // Only add if it's a new psychological insight (not system messages)
+        const analyzingText = t("gameRoom.log.analyzing");
+        const systemInitializedText = t("gameRoom.log.systemInitialized");
         const isNewInsight = game.aiLog && 
-          game.aiLog !== "Analyzing..." && 
-          game.aiLog !== "System Initialized. Awaiting input..." &&
+          game.aiLog !== analyzingText && 
+          game.aiLog !== systemInitializedText &&
           !prev.some(log => log.message === game.aiLog);
         
         if (isNewInsight) {
@@ -76,7 +80,7 @@ export default function GameRoom() {
         return prev;
       });
     }
-  }, [game?.aiLog]);
+  }, [game?.aiLog, t]);
 
   // Handle victory unlock when player wins
   useEffect(() => {
@@ -89,12 +93,12 @@ export default function GameRoom() {
       const unlocked = getUnlockedDifficulties();
       if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
         setLogHistory(prev => [...prev, { 
-          message: ">> NEXUS-5 UNLOCKED. Next challenge available.", 
+          message: t("gameRoom.log.nexusUnlocked", { level: "5", message: t("gameRoom.log.nexus5Unlocked") }), 
           timestamp: new Date() 
         }]);
       } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
         setLogHistory(prev => [...prev, { 
-          message: ">> NEXUS-7 UNLOCKED. Final challenge available.", 
+          message: t("gameRoom.log.nexusUnlocked", { level: "7", message: t("gameRoom.log.nexus7Unlocked") }), 
           timestamp: new Date() 
         }]);
       }
@@ -169,7 +173,7 @@ export default function GameRoom() {
           if (playerTime <= 0) {
             await gameStorage.updateGame(game.id, {
               winner: 'ai',
-              aiLog: "Time expired. Human defeat."
+              aiLog: t("gameRoom.log.timeExpiredHuman")
             });
             // Invalidate query to refresh
             queryClient.invalidateQueries({ queryKey: ["game", game.id] });
@@ -192,7 +196,7 @@ export default function GameRoom() {
           if (aiTime <= 0) {
             await gameStorage.updateGame(game.id, {
               winner: 'player',
-              aiLog: "Time expired. AI defeat."
+              aiLog: t("gameRoom.log.timeExpiredAI")
             });
             // Invalidate query to refresh
             queryClient.invalidateQueries({ queryKey: ["game", game.id] });
@@ -232,7 +236,7 @@ export default function GameRoom() {
       if (isGameInProgress && !isNavigatingAwayRef.current) {
         // popstate는 이미 발생한 후이므로, 즉시 확인 창을 표시하고 취소하면 현재 페이지로 다시 이동
         const confirmed = window.confirm(
-          "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?\n\n진행 중인 게임은 저장되지 않습니다."
+          `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
         );
         
         if (!confirmed) {
@@ -274,7 +278,7 @@ export default function GameRoom() {
     if (isGameInProgress && wasOnGamePage && isLeavingGamePage && !isNavigatingAwayRef.current) {
       // 경로가 이미 변경된 경우, 확인 창을 표시하고 취소하면 다시 /game으로 이동
       const confirmed = window.confirm(
-        "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?\n\n진행 중인 게임은 저장되지 않습니다."
+        `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
       );
       
       if (!confirmed) {
@@ -302,7 +306,7 @@ export default function GameRoom() {
 
     if (isGameInProgress && !isNavigatingAwayRef.current) {
       const confirmed = window.confirm(
-        "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?\n\n진행 중인 게임은 저장되지 않습니다."
+        `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
       );
       
       if (!confirmed) {
@@ -346,25 +350,25 @@ export default function GameRoom() {
     <div className="h-screen w-full bg-background flex items-center justify-center text-primary font-mono">
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="w-8 h-8 animate-spin" />
-        <TerminalText text="CONNECTING TO NEURAL LINK..." />
+        <TerminalText text={t("gameRoom.connecting")} />
       </div>
       <Scanlines />
     </div>
   );
 
   if (hasErrorState) {
-    let errorTitle = "CRITICAL SYSTEM FAILURE";
-    let errorMessage = "Connection Lost.";
+    let errorTitle = t("gameRoom.criticalFailure");
+    let errorMessage = t("gameRoom.connectionLost");
     
     if (isInvalidGameId) {
-      errorTitle = "NO ACTIVE GAME";
-      errorMessage = "No active game session found.";
+      errorTitle = t("gameRoom.noActiveGame");
+      errorMessage = t("gameRoom.noActiveGameMessage");
     } else if (isGameNotFound) {
-      errorTitle = "GAME NOT FOUND";
-      errorMessage = `Game data for ID #${gameId} is missing or corrupted.`;
+      errorTitle = t("gameRoom.gameNotFound");
+      errorMessage = t("gameRoom.gameNotFoundMessage", { id: gameId });
     } else if (error) {
-      errorTitle = "SYSTEM ERROR";
-      errorMessage = "An unexpected error occurred.";
+      errorTitle = t("gameRoom.systemError");
+      errorMessage = t("gameRoom.systemErrorMessage");
     }
 
     return (
@@ -373,7 +377,7 @@ export default function GameRoom() {
         <h2 className="text-xl">{errorTitle}</h2>
         <p>{errorMessage}</p>
         <GlitchButton onClick={() => setLocation("/")} variant="outline">
-          ABORT
+          {t("gameRoom.abort")}
         </GlitchButton>
         <Scanlines />
       </div>
@@ -415,7 +419,7 @@ export default function GameRoom() {
       try {
         // Double-check gameId is valid before making move
         if (!gameId) {
-          throw new Error("Invalid game ID");
+          throw new Error(t("gameRoom.errors.invalidGameId"));
         }
 
         const result = await makeMove.mutateAsync({
@@ -522,7 +526,7 @@ export default function GameRoom() {
             </h1>
             <div className="hidden lg:flex text-xs text-muted-foreground mt-1 items-center gap-2">
               <Radio className="w-3 h-3 text-accent animate-pulse" />
-              CONNECTED: {game.id}
+              {t("gameRoom.connected", { id: game.id })}
             </div>
           </div>
 
@@ -532,10 +536,10 @@ export default function GameRoom() {
               "px-3 py-2 lg:p-4 border transition-all duration-300 min-w-[120px] lg:min-w-0",
               isPlayerTurn ? "border-primary bg-primary/5 shadow-[0_0_15px_rgba(0,243,255,0.1)]" : "border-white/10 opacity-50"
             )}>
-              <h3 className="text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal">PLAYER (YOU)</h3>
+              <h3 className="text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal">{t("gameRoom.player")}</h3>
               <div className="flex items-center gap-2 text-[8px] lg:text-xs">
                 <div className={cn("w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
-                <span className="hidden sm:inline">{isPlayerTurn ? "AWAITING INPUT" : "STANDBY"}</span>
+                <span className="hidden sm:inline">{isPlayerTurn ? t("gameRoom.awaitingInput") : t("gameRoom.standby")}</span>
               </div>
               <div className={cn(
                 "text-[10px] lg:text-xs mt-1 font-mono",
@@ -558,7 +562,7 @@ export default function GameRoom() {
                 "text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal",
                 difficultyColors.text
               )}>
-                {difficulty} (AI)
+                {difficulty} ({t("gameRoom.aiLabel")})
               </h3>
               <div className={cn("flex items-center gap-2 text-[8px] lg:text-xs", difficultyColors.text)}>
                 <div className={cn(
@@ -567,7 +571,7 @@ export default function GameRoom() {
                     ? cn(difficultyColors.bgPulse, "animate-pulse") 
                     : "bg-gray-600"
                 )} />
-                <span className="hidden sm:inline">{makeMove.isPending ? "ANALYZING MOVES..." : !isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}</span>
+                <span className="hidden sm:inline">{makeMove.isPending ? t("gameRoom.analyzingMoves") : !isPlayerTurn ? t("gameRoom.calculatingProbabilities") : t("gameRoom.observing")}</span>
               </div>
               <div className={cn(
                 "text-[10px] lg:text-xs mt-1 font-mono",
@@ -593,7 +597,7 @@ export default function GameRoom() {
              )}
              onClick={() => handleNavigateAway("/")}
            >
-             SURRENDER
+             {t("gameRoom.surrender")}
            </GlitchButton>
         </div>
       </aside>
@@ -616,9 +620,9 @@ export default function GameRoom() {
                    "text-destructive border-destructive"
                  )}
                >
-                 {game.winner === 'player' ? "VICTORY" : 
-                  game.winner === 'draw' ? "DRAW" :
-                  "DEFEAT"}
+                 {game.winner === 'player' ? t("gameRoom.victory") : 
+                  game.winner === 'draw' ? t("gameRoom.draw") :
+                  t("gameRoom.defeat")}
                </motion.div>
             ) : (
               <motion.div
@@ -635,7 +639,7 @@ export default function GameRoom() {
                     : difficultyColors.text
                 )}
               >
-                {makeMove.isPending ? ">> AI ANALYZING" : game.turn === 'player' ? ">> YOUR TURN" : ">> OPPONENT THINKING"}
+                {makeMove.isPending ? t("gameRoom.aiAnalyzing") : game.turn === 'player' ? t("gameRoom.yourTurn") : t("gameRoom.opponentThinking")}
               </motion.div>
             )}
           </AnimatePresence>
@@ -666,7 +670,7 @@ export default function GameRoom() {
              )}
              onClick={() => handleNavigateAway("/")}
            >
-             [ SURRENDER ]
+             [ {t("gameRoom.surrender")} ]
            </button>
         </div>
 
@@ -692,16 +696,16 @@ export default function GameRoom() {
                  game.winner === 'draw' ? "text-secondary" :
                  difficultyColors.text
                )}>
-                 {game.winner === 'player' ? "YOU WON" : 
-                  game.winner === 'draw' ? "DRAW" :
-                  "YOU LOST"}
+                 {game.winner === 'player' ? t("gameRoom.youWon") : 
+                  game.winner === 'draw' ? t("gameRoom.draw") :
+                  t("gameRoom.youLost")}
                </h2>
                <p className="font-mono text-sm text-muted-foreground">
                  {game.winner === 'player' 
-                   ? "Unexpected outcome. The machine is humbled." 
+                   ? t("gameRoom.victoryMessage")
                    : game.winner === 'draw'
-                   ? "Resource depletion. Neither side achieved victory."
-                   : "Logic prevails. Human error detected."}
+                   ? t("gameRoom.drawMessage")
+                   : t("gameRoom.defeatMessage")}
                </p>
                {game.winner === 'player' && game.difficulty && (() => {
                  const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
@@ -709,13 +713,13 @@ export default function GameRoom() {
                  if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
                    return (
                      <p className="font-mono text-xs text-primary border border-primary/30 px-4 py-2 bg-primary/5">
-                       {">> NEXUS-5 UNLOCKED"}
+                       {t("gameRoom.unlocked", { level: "5" })}
                      </p>
                    );
                  } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
                    return (
                      <p className="font-mono text-xs text-primary border border-primary/30 px-4 py-2 bg-primary/5">
-                       {">> NEXUS-7 UNLOCKED"}
+                       {t("gameRoom.unlocked", { level: "7" })}
                      </p>
                    );
                  }
@@ -728,7 +732,7 @@ export default function GameRoom() {
                    window.dispatchEvent(new Event('storage'));
                    setLocation("/");
                  }}>
-                   RETURN TO LOBBY
+                   {t("gameRoom.returnToLobby")}
                  </GlitchButton>
                  <GlitchButton variant="outline" onClick={async () => {
                    try {
@@ -773,7 +777,7 @@ export default function GameRoom() {
                    }
                  }}>
                    {(() => {
-                     if (!game.winner) return "NEW GAME";
+                     if (!game.winner) return t("gameRoom.newGame");
                      
                      const currentDiff = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
                      const unlocked = getUnlockedDifficulties();
@@ -789,22 +793,22 @@ export default function GameRoom() {
                      
                      // 졌을 때는 항상 PLAY AGAIN (다음 레벨이 잠겨있든 열려있든 상관없이)
                      if (game.winner !== 'player' && game.winner !== 'draw') {
-                       return "PLAY AGAIN";
+                       return t("gameRoom.playAgain");
                      }
                      
                      // NEXUS-7에서 이겼으면 PLAY AGAIN
                      if (currentDiff === "NEXUS-7" && game.winner === 'player') {
-                       return "PLAY AGAIN";
+                       return t("gameRoom.playAgain");
                      }
                      
                      // 이겼고 다음 레벨이 있으면 NEXT LEVEL
                      // (승리 시 잠금 해제되므로, 승리 후에는 다음 레벨이 열려있음)
                      if (game.winner === 'player' && nextLevel) {
-                       return "NEXT LEVEL";
+                       return t("gameRoom.nextLevel");
                      }
                      
                      // 그 외 (이겼지만 다음 레벨이 없거나, 무승부, 기본)
-                     return "NEW GAME";
+                     return t("gameRoom.newGame");
                    })()}
                  </GlitchButton>
                </div>
@@ -818,7 +822,7 @@ export default function GameRoom() {
         <div className="p-2 lg:p-3 border-b border-border bg-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TerminalIcon className="w-3 h-3 lg:w-4 lg:h-4 text-accent" />
-            <span className="text-[10px] lg:text-xs font-bold tracking-widest text-accent">SYSTEM LOG</span>
+            <span className="text-[10px] lg:text-xs font-bold tracking-widest text-accent">{t("gameRoom.systemLog")}</span>
           </div>
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-red-500/20" />
@@ -852,7 +856,9 @@ export default function GameRoom() {
                      ? "text-muted-foreground opacity-50" 
                      : "text-foreground"
                  )}>
-                   {log.message}
+                   {log.message.startsWith("gameRoom.") || log.message.startsWith("lobby.") || log.message.startsWith("tutorial.") 
+                     ? t(log.message as any) 
+                     : log.message}
                  </span>
                </div>
              );

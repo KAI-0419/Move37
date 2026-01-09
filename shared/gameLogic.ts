@@ -264,41 +264,41 @@ function analyzePlayerPsychology(
 
   if (capturedAIPiece) {
     psychologyMessages.push(
-      "제 기물을 잡았군요. 예상된 행동입니다.",
-      "물질적 이득을 추구하는군요. 하지만 그게 함정입니다.",
-      "제 기물을 노리고 있었군요. 이미 계산에 포함되어 있습니다.",
-      "공격적인 선택이지만, 이미 대응책이 준비되어 있습니다."
+      "gameRoom.log.psychology.capturedPiece1",
+      "gameRoom.log.psychology.capturedPiece2",
+      "gameRoom.log.psychology.capturedPiece3",
+      "gameRoom.log.psychology.capturedPiece4"
     );
   } else if (isKingMove && isForward) {
     psychologyMessages.push(
-      "킹을 전진시키려는 계획이 보입니다. 하지만 그 길은 막혀있습니다.",
-      "승리를 향한 직진이군요. 예상된 행동입니다.",
-      "킹을 앞으로 보내려는 의도가 명확합니다. 막겠습니다."
+      "gameRoom.log.psychology.kingForward1",
+      "gameRoom.log.psychology.kingForward2",
+      "gameRoom.log.psychology.kingForward3"
     );
   } else if (isKnightMove && threatenedPieces > 0) {
     psychologyMessages.push(
-      "제 기물을 노리고 있군요. 예상된 행동입니다.",
-      "공격적인 움직임이군요. 하지만 이미 계산에 포함되어 있습니다.",
-      "나이트로 위협하려는 시도입니다. 무의미합니다."
+      "gameRoom.log.psychology.knightThreat1",
+      "gameRoom.log.psychology.knightThreat2",
+      "gameRoom.log.psychology.knightThreat3"
     );
   } else if (isPawnMove && isForward) {
     psychologyMessages.push(
-      "방어적 포지셔닝입니다. 하지만 그게 함정입니다.",
-      "안전을 추구하는군요. 그게 바로 당신의 약점입니다.",
-      "신중한 움직임이지만, 이미 늦었습니다."
+      "gameRoom.log.psychology.pawnDefensive1",
+      "gameRoom.log.psychology.pawnDefensive2",
+      "gameRoom.log.psychology.pawnDefensive3"
     );
   } else if (isAggressive) {
     psychologyMessages.push(
-      "공격적인 전략이군요. 하지만 모든 경우의 수를 계산했습니다.",
-      "적극적인 움직임입니다. 예상 범위 내입니다.",
-      "공격을 준비하고 있군요. 이미 대응책이 준비되어 있습니다."
+      "gameRoom.log.psychology.aggressive1",
+      "gameRoom.log.psychology.aggressive2",
+      "gameRoom.log.psychology.aggressive3"
     );
   } else {
     psychologyMessages.push(
-      "수비에 집중하고 있군요. 하지만 그게 함정입니다.",
-      "신중한 선택입니다. 하지만 이미 늦었습니다.",
-      "방어적 자세가 보입니다. 예상된 행동입니다.",
-      "당신의 다음 수를 이미 계산했습니다."
+      "gameRoom.log.psychology.defensive1",
+      "gameRoom.log.psychology.defensive2",
+      "gameRoom.log.psychology.defensive3",
+      "gameRoom.log.psychology.defensive4"
     );
   }
 
@@ -743,7 +743,7 @@ export function getAIMove(
     if (aiMoves.length === 0) {
       return { 
         move: null, 
-        logs: ["계산 오류: 유효한 수가 없습니다."]
+        logs: ["gameRoom.log.calculationErrorKo"]
       };
     }
     
@@ -824,7 +824,7 @@ export function getAIMove(
     if (aiMoves.length === 0) {
       return { 
         move: null, 
-        logs: ["계산 오류: 유효한 수가 없습니다."]
+        logs: ["gameRoom.log.calculationErrorKo"]
       };
     }
     
@@ -1133,7 +1133,7 @@ export function getAIMove(
   if (moves.length === 0) {
     return { 
       move: null, 
-      logs: ["계산 오류: 유효한 수가 없습니다."]
+      logs: ["gameRoom.log.calculationErrorKo"]
     };
   }
 
@@ -1202,7 +1202,7 @@ export function getAIMove(
   if (!selectedMove) {
     return {
       move: null,
-      logs: ["계산 오류: 유효한 수를 선택할 수 없습니다."]
+      logs: ["gameRoom.log.calculationErrorNoSelection"]
     };
   }
   
