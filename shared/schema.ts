@@ -9,6 +9,7 @@ export const games = pgTable("games", {
   history: jsonb("history").$type<string[]>().default([]),
   winner: text("winner"), // "player", "ai", "draw"
   aiLog: text("ai_log"), // Last AI thought/reasoning
+  turnCount: integer("turn_count").default(0), // Track number of turns for draw condition
   createdAt: timestamp("created_at").defaultNow(),
 });
 

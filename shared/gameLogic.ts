@@ -60,15 +60,21 @@ export function isValidMove(board: Board, from: { r: number; c: number }, to: { 
   if (!piece) return false;
 
   // Check ownership
-  const isWhite = piece === piece.toLowerCase();
-  if (isPlayer && !isWhite) return false;
-  if (!isPlayer && isWhite) return false;
+  // Player uses lowercase (n, p, k), AI uses uppercase (N, P, K)
+  const isPlayerPiece = piece === piece.toLowerCase() && piece !== piece.toUpperCase();
+  const isAiPiece = piece === piece.toUpperCase() && piece !== piece.toLowerCase();
+  
+  if (isPlayer && !isPlayerPiece) return false;
+  if (!isPlayer && !isAiPiece) return false;
 
   // Check target (cannot capture own piece)
   const target = board[to.r][to.c];
   if (target) {
-    const isTargetWhite = target === target.toLowerCase();
-    if (isWhite === isTargetWhite) return false;
+    const isTargetPlayerPiece = target === target.toLowerCase() && target !== target.toUpperCase();
+    const isTargetAiPiece = target === target.toUpperCase() && target !== target.toLowerCase();
+    if ((isPlayerPiece && isTargetPlayerPiece) || (isAiPiece && isTargetAiPiece)) {
+      return false; // Cannot capture own piece
+    }
   }
 
   const dr = to.r - from.r;
@@ -83,8 +89,8 @@ export function isValidMove(board: Board, from: { r: number; c: number }, to: { 
     return (Math.abs(dr) === 2 && Math.abs(dc) === 1) || (Math.abs(dr) === 1 && Math.abs(dc) === 2);
   } else if (type === 'p') {
     // Pawn: Forward 1 step (or capture diagonal)
-    // White moves UP (-1), Black moves DOWN (+1)
-    const direction = isWhite ? -1 : 1;
+    // Player (lowercase) moves UP (-1), AI (uppercase) moves DOWN (+1)
+    const direction = isPlayerPiece ? -1 : 1;
     
     // Move forward 1
     if (dc === 0 && dr === direction) {
@@ -125,28 +131,29 @@ export function getValidMoves(board: Board, from: { r: number; c: number }, isPl
 
 export function checkWinner(board: Board, turnCount?: number): 'player' | 'ai' | 'draw' | null {
   // Check if kings exist
-  let whiteKing = false;
-  let blackKing = false;
-  let whiteKingPos: { r: number; c: number } | null = null;
-  let blackKingPos: { r: number; c: number } | null = null;
+  // 'k' (lowercase) = Player's King, 'K' (uppercase) = AI's King
+  let playerKing = false;
+  let aiKing = false;
+  let playerKingPos: { r: number; c: number } | null = null;
+  let aiKingPos: { r: number; c: number } | null = null;
   
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 5; c++) {
       if (board[r][c] === 'k') {
-        whiteKing = true;
-        whiteKingPos = { r, c };
-        if (r === 0) return 'player'; // Reached end
+        playerKing = true;
+        playerKingPos = { r, c };
+        if (r === 0) return 'player'; // Player King reached row 0 (AI side)
       }
       if (board[r][c] === 'K') {
-        blackKing = true;
-        blackKingPos = { r, c };
-        if (r === 4) return 'ai'; // Reached end
+        aiKing = true;
+        aiKingPos = { r, c };
+        if (r === 4) return 'ai'; // AI King reached row 4 (Player side)
       }
     }
   }
 
-  if (!whiteKing) return 'ai';
-  if (!blackKing) return 'player';
+  if (!playerKing) return 'ai'; // Player's King captured
+  if (!aiKing) return 'player'; // AI's King captured
   
   // Check for draw condition: 30 turns without winner
   if (turnCount !== undefined && turnCount >= 30) {
@@ -159,7 +166,8 @@ export function checkWinner(board: Board, turnCount?: number): 'player' | 'ai' |
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 5; c++) {
       const piece = board[r][c];
-      if (piece && piece === piece.toLowerCase()) { // Player piece
+      // Player uses lowercase pieces
+      if (piece && piece === piece.toLowerCase() && piece !== piece.toUpperCase()) {
         const moves = getValidMoves(board, { r, c }, true);
         if (moves.length > 0) {
           playerHasMoves = true;
@@ -175,7 +183,8 @@ export function checkWinner(board: Board, turnCount?: number): 'player' | 'ai' |
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 5; c++) {
       const piece = board[r][c];
-      if (piece && piece === piece.toUpperCase()) { // AI piece
+      // AI uses uppercase pieces
+      if (piece && piece === piece.toUpperCase() && piece !== piece.toLowerCase()) {
         const moves = getValidMoves(board, { r, c }, false);
         if (moves.length > 0) {
           aiHasMoves = true;
@@ -259,7 +268,8 @@ export function getAIMove(board: Board): { from: { r: number, c: number }, to: {
                 for (let tc2 = 0; tc2 < 5; tc2++) {
                   if (isValidMove(testBoard, { r: tr, c: tc }, { r: tr2, c: tc2 }, false)) {
                     const threatTarget = testBoard[tr2][tc2];
-                    if (threatTarget && threatTarget === threatTarget.toLowerCase()) {
+                    // Player pieces are lowercase
+                    if (threatTarget && threatTarget === threatTarget.toLowerCase() && threatTarget !== threatTarget.toUpperCase()) {
                       threatCount++;
                     }
                   }

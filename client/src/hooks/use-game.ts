@@ -1,37 +1,33 @@
+// Client-side game hooks using localStorage (100% offline)
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl } from "@shared/routes";
-import type { CreateGameRequest, MoveRequest, GameResponse } from "@shared/schema";
+import type { MoveRequest } from "@shared/schema";
+import { createGame, getGame, makeGameMove } from "@/lib/gameEngine";
+import { gameStorage } from "@/lib/storage";
 
 export function useGame(id: number | null) {
   return useQuery({
-    queryKey: [api.games.get.path, id],
+    queryKey: ["game", id],
     queryFn: async () => {
       if (!id) return null;
-      const url = buildUrl(api.games.get.path, { id });
-      const res = await fetch(url);
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch game");
-      return api.games.get.responses[200].parse(await res.json());
+      return await getGame(id);
     },
     enabled: !!id,
-    refetchInterval: (query) => {
-      // Poll faster if it's AI's turn
-      return query.state.data?.turn === 'ai' ? 1000 : 5000;
-    },
+    // No polling needed - state is managed locally
   });
 }
 
 export function useCreateGame() {
+  const queryClient = useQueryClient();
+  
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(api.games.create.path, {
-        method: api.games.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({} as CreateGameRequest),
-      });
-      
-      if (!res.ok) throw new Error("Failed to initialize system");
-      return api.games.create.responses[201].parse(await res.json());
+      const game = await createGame();
+      return game;
+    },
+    onSuccess: (game) => {
+      // Update cache and set as current game
+      queryClient.setQueryData(["game", game.id], game);
+      gameStorage.setCurrentGameId(game.id);
     },
   });
 }
@@ -41,26 +37,17 @@ export function useMakeMove(gameId: number) {
   
   return useMutation({
     mutationFn: async (move: MoveRequest) => {
-      const url = buildUrl(api.games.move.path, { id: gameId });
-      const res = await fetch(url, {
-        method: api.games.move.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(move),
-      });
-
-      if (!res.ok) {
-        if (res.status === 400) {
-          const error = api.games.move.responses[400].parse(await res.json());
-          throw new Error(error.message);
-        }
-        throw new Error("Failed to execute move");
-      }
-      
-      return api.games.move.responses[200].parse(await res.json());
+      const result = await makeGameMove(gameId, move.from, move.to);
+      return result;
     },
     onSuccess: (data) => {
       // Immediately update the game state in cache
-      queryClient.setQueryData([api.games.get.path, gameId], data);
+      queryClient.setQueryData(["game", gameId], data);
+      // Also invalidate to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => {
+      console.error("Move mutation error:", error);
     },
   });
 }

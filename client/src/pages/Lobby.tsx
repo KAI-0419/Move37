@@ -6,6 +6,7 @@ import { TerminalText } from "@/components/TerminalText";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import { motion } from "framer-motion";
 import { Cpu, Skull, Brain, Zap } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // Mock data for radar chart
 const statsData = [
@@ -20,15 +21,27 @@ const statsData = [
 export default function Lobby() {
   const [, setLocation] = useLocation();
   const createGame = useCreateGame();
+  const { toast } = useToast();
 
   const handleStart = async () => {
     try {
       const game = await createGame.mutateAsync();
       setLocation(`/game/${game.id}`);
-    } catch (error) {
-      console.error(error);
-      // Toast would go here
+    } catch (error: any) {
+      console.error("Failed to create game:", error);
+      toast({
+        title: "System Error",
+        description: error?.message || "Failed to initialize game. Please try again.",
+        variant: "destructive",
+      });
     }
+  };
+
+  const handleTutorial = () => {
+    toast({
+      title: "Tutorial",
+      description: "Select a piece and click a valid move. Capture the enemy King or move your King to row 0 to win!",
+    });
   };
 
   return (
@@ -75,7 +88,11 @@ export default function Lobby() {
               {createGame.isPending ? "INITIALIZING..." : "INITIATE SYSTEM"}
             </GlitchButton>
             
-            <GlitchButton variant="outline" className="w-full sm:w-auto py-6">
+            <GlitchButton 
+              variant="outline" 
+              className="w-full sm:w-auto py-6"
+              onClick={handleTutorial}
+            >
               TUTORIAL
             </GlitchButton>
           </div>

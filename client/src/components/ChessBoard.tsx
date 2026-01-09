@@ -14,6 +14,7 @@ interface ChessBoardProps {
   turn: "player" | "ai";
   selectedSquare: { r: number, c: number } | null;
   lastMove: { from: { r: number, c: number }, to: { r: number, c: number } } | null;
+  validMoves?: { r: number, c: number }[];
   onSquareClick: (r: number, c: number) => void;
   isProcessing?: boolean;
 }
@@ -23,19 +24,38 @@ export function ChessBoard({
   turn, 
   selectedSquare, 
   lastMove,
+  validMoves = [],
   onSquareClick,
   isProcessing 
 }: ChessBoardProps) {
   
-  // Parse board string into 2D grid
-  // Assuming standard FEN-like or raw string of length 25
-  const rows = [];
+  // Parse board string (FEN format: "NPKPN/5/5/5/npkpn")
+  const rows: string[][] = [];
+  const fenRows = boardString.split('/');
+  
   for (let r = 0; r < 5; r++) {
-    const row = [];
-    for (let c = 0; c < 5; c++) {
-      const idx = r * 5 + c;
-      row.push(boardString[idx] || '.');
+    const row: string[] = [];
+    const fenRow = fenRows[r] || '';
+    
+    for (let i = 0; i < fenRow.length; i++) {
+      const char = fenRow[i];
+      if (char >= '1' && char <= '5') {
+        // Empty squares
+        const emptyCount = parseInt(char);
+        for (let j = 0; j < emptyCount; j++) {
+          row.push('.');
+        }
+      } else {
+        // Piece
+        row.push(char);
+      }
     }
+    
+    // Ensure row has exactly 5 columns
+    while (row.length < 5) {
+      row.push('.');
+    }
+    
     rows.push(row);
   }
 
@@ -61,9 +81,11 @@ export function ChessBoard({
       <div className="grid grid-cols-5 gap-1 bg-background">
         {rows.map((row, r) => (
           row.map((pieceChar, c) => {
-            const isPlayerPiece = pieceChar !== '.' && pieceChar === pieceChar.toUpperCase();
-            const isAiPiece = pieceChar !== '.' && pieceChar === pieceChar.toLowerCase();
+            // Player uses lowercase (n, p, k), AI uses uppercase (N, P, K)
+            const isPlayerPiece = pieceChar !== '.' && pieceChar === pieceChar.toLowerCase() && pieceChar !== pieceChar.toUpperCase();
+            const isAiPiece = pieceChar !== '.' && pieceChar === pieceChar.toUpperCase() && pieceChar !== pieceChar.toLowerCase();
             const isSelected = selectedSquare?.r === r && selectedSquare?.c === c;
+            const isValidMoveTarget = validMoves.some(m => m.r === r && m.c === c);
             
             // Highlight logic
             const isLastMoveSource = lastMove?.from.r === r && lastMove?.from.c === c;
@@ -76,24 +98,33 @@ export function ChessBoard({
             return (
               <motion.div
                 key={`${r}-${c}`}
-                onClick={() => onSquareClick(r, c)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isProcessing && (turn === 'player' || isSelected || isValidMoveTarget)) {
+                    onSquareClick(r, c);
+                  }
+                }}
                 initial={false}
                 animate={{
                   backgroundColor: isSelected 
                     ? "rgba(0, 243, 255, 0.2)" 
-                    : isLastMove 
-                      ? "rgba(255, 170, 0, 0.15)"
-                      : isDarkSquare 
-                        ? "rgba(255,255,255,0.03)" 
-                        : "transparent"
+                    : isValidMoveTarget
+                      ? "rgba(0, 243, 255, 0.1)"
+                      : isLastMove 
+                        ? "rgba(255, 170, 0, 0.15)"
+                        : isDarkSquare 
+                          ? "rgba(255,255,255,0.03)" 
+                          : "transparent"
                 }}
                 className={cn(
                   "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex items-center justify-center cursor-pointer relative",
                   "border border-white/5 hover:border-white/20 transition-colors",
                   isSelected && "border-primary shadow-[inset_0_0_15px_rgba(0,243,255,0.3)]",
-                  isLastMove && !isSelected && "border-secondary/50",
+                  isValidMoveTarget && !isSelected && "border-primary/50",
+                  isLastMove && !isSelected && !isValidMoveTarget && "border-secondary/50",
                   // Disable interaction if processing or AI turn (unless it's just selection visual)
-                  (isProcessing || turn === 'ai') && !isSelected && "cursor-default"
+                  (isProcessing || turn === 'ai') && !isSelected && !isValidMoveTarget && "cursor-default"
                 )}
               >
                 {/* Coordinates overlay (optional detail) */}
@@ -123,6 +154,17 @@ export function ChessBoard({
                     className="absolute inset-0 border-2 border-primary"
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
+                )}
+                
+                {/* Valid Move Indicator */}
+                {isValidMoveTarget && !isSelected && (
+                  <motion.div
+                    className="absolute inset-0 flex items-center justify-center"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-primary/60" />
+                  </motion.div>
                 )}
               </motion.div>
             );

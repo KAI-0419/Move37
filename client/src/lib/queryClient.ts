@@ -44,7 +44,8 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      // Don't set default queryFn - let each query define its own
+      // queryFn: getQueryFn({ on401: "throw" }), // Disabled for localStorage usage
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
