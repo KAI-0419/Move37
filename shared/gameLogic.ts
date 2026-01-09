@@ -525,17 +525,17 @@ export function getAIMove(
   
   if (difficulty === "NEXUS-3") {
     // 쉬움: 더 많은 실수, 랜덤성 증가
-    // 상위 50%의 수 중에서 랜덤 선택 (최적 수 선택 확률 25%)
-    const midPoint = Math.floor(moves.length / 2);
-    const candidateMoves = moves.slice(0, Math.max(1, midPoint));
+    // 상위 60%의 수 중에서 랜덤 선택 (최적 수 선택 확률 15%)
+    const candidateRange = Math.floor(moves.length * 0.6);
+    const candidateMoves = moves.slice(0, Math.max(1, candidateRange));
     const random = Math.random();
-    if (random < 0.25 && scoreGroups[0] && scoreGroups[0].length > 0) {
-      // 25% 확률로 최적 수 그룹에서 랜덤 선택
+    if (random < 0.15 && scoreGroups[0] && scoreGroups[0].length > 0) {
+      // 15% 확률로 최적 수 그룹에서 랜덤 선택
       const bestGroup = scoreGroups[0];
       const randomIndex = Math.floor(Math.random() * bestGroup.length);
       selectedMove = bestGroup[randomIndex];
     } else {
-      // 75% 확률로 중간 수준의 수 선택
+      // 85% 확률로 중간~하위 수준의 수 선택
       const randomIndex = Math.floor(Math.random() * candidateMoves.length);
       selectedMove = candidateMoves[randomIndex];
     }
