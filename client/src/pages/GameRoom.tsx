@@ -610,21 +610,80 @@ export default function GameRoom() {
                  </GlitchButton>
                  <GlitchButton variant="outline" onClick={async () => {
                    try {
-                     // Use current game's difficulty, or default to NEXUS-3 if not available
                      const currentDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
-                     const newGame = await createGame.mutateAsync(currentDifficulty);
+                     
+                     // Get next level
+                     const getNextLevel = (diff: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" | null => {
+                       if (diff === "NEXUS-3") return "NEXUS-5";
+                       if (diff === "NEXUS-5") return "NEXUS-7";
+                       return null;
+                     };
+                     
+                     const unlocked = getUnlockedDifficulties();
+                     const nextLevel = getNextLevel(currentDifficulty);
+                     let targetDifficulty = currentDifficulty;
+                     
+                     // Determine button text and target difficulty
+                     // 졌을 때는 항상 현재 레벨로 새 게임 생성 (다음 레벨이 잠겨있든 열려있든 상관없이)
+                     if (game.winner && game.winner !== 'player' && game.winner !== 'draw') {
+                       targetDifficulty = currentDifficulty;
+                     }
+                     // 이겼을 때
+                     else if (game.winner === 'player') {
+                       // NEXUS-7에서 이겼으면 PLAY AGAIN (다음 레벨 없음)
+                       if (currentDifficulty === "NEXUS-7") {
+                         targetDifficulty = currentDifficulty;
+                       } 
+                       // 이겼고 다음 레벨이 있으면 NEXT LEVEL (승리 시 잠금 해제되었으므로)
+                       else if (nextLevel) {
+                         targetDifficulty = nextLevel;
+                       }
+                     }
+                     
+                     const newGame = await createGame.mutateAsync(targetDifficulty);
                      setGameId(newGame.id);
                      // Reset game state for new game
                      setSelectedSquare(null);
                      setLogHistory([]);
                      setHasError(false);
-                     // setLocation will trigger a re-render/refetch if we're already on /game
-                     // but we might need to reset state manually or rely on the gameId effect
                    } catch (error) {
                      console.error("Failed to create new game:", error);
                    }
                  }}>
-                   NEW GAME
+                   {(() => {
+                     if (!game.winner) return "NEW GAME";
+                     
+                     const currentDiff = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
+                     const unlocked = getUnlockedDifficulties();
+                     
+                     // Get next level
+                     const getNextLevel = (diff: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" | null => {
+                       if (diff === "NEXUS-3") return "NEXUS-5";
+                       if (diff === "NEXUS-5") return "NEXUS-7";
+                       return null;
+                     };
+                     
+                     const nextLevel = getNextLevel(currentDiff);
+                     
+                     // 졌을 때는 항상 PLAY AGAIN (다음 레벨이 잠겨있든 열려있든 상관없이)
+                     if (game.winner !== 'player' && game.winner !== 'draw') {
+                       return "PLAY AGAIN";
+                     }
+                     
+                     // NEXUS-7에서 이겼으면 PLAY AGAIN
+                     if (currentDiff === "NEXUS-7" && game.winner === 'player') {
+                       return "PLAY AGAIN";
+                     }
+                     
+                     // 이겼고 다음 레벨이 있으면 NEXT LEVEL
+                     // (승리 시 잠금 해제되므로, 승리 후에는 다음 레벨이 열려있음)
+                     if (game.winner === 'player' && nextLevel) {
+                       return "NEXT LEVEL";
+                     }
+                     
+                     // 그 외 (이겼지만 다음 레벨이 없거나, 무승부, 기본)
+                     return "NEW GAME";
+                   })()}
                  </GlitchButton>
                </div>
              </div>

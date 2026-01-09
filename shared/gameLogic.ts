@@ -551,6 +551,95 @@ export function getAIMove(
     };
   }
   
+  // For NEXUS-5, use minimax algorithm with depth 2 for improved play
+  if (difficulty === "NEXUS-5") {
+    const aiMoves = getAllMoves(board, false);
+    
+    if (aiMoves.length === 0) {
+      return { 
+        move: null, 
+        logs: ["계산 오류: 유효한 수가 없습니다."]
+      };
+    }
+    
+    // 즉시 승리 조건 우선 탐지
+    const immediateWinMoves: Array<{ from: { r: number, c: number }, to: { r: number, c: number } }> = [];
+    
+    for (const move of aiMoves) {
+      const piece = board[move.from.r][move.from.c];
+      // AI 킹이 행 4에 도달하면 즉시 승리
+      if (piece === 'K' && move.to.r === 4) {
+        immediateWinMoves.push(move);
+      }
+      // 플레이어 킹을 잡으면 즉시 승리
+      const target = board[move.to.r][move.to.c];
+      if (target === 'k') {
+        immediateWinMoves.push(move);
+      }
+    }
+    
+    // 즉시 승리 수가 있으면 무조건 선택
+    if (immediateWinMoves.length > 0) {
+      const testBoard = makeMove(board, immediateWinMoves[0].from, immediateWinMoves[0].to);
+      const winner = checkWinner(testBoard, turnCount);
+      if (winner === 'ai') {
+        const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+        return { 
+          move: immediateWinMoves[0],
+          logs: [psychologicalInsight]
+        };
+      }
+    }
+    
+    // 미니맥스 알고리즘 적용 (깊이 2 - NEXUS-7보다 낮지만 훨씬 강함)
+    const depth = 2;
+    const movesWithScores: Array<{
+      move: { from: { r: number, c: number }, to: { r: number, c: number } };
+      score: number;
+    }> = [];
+    
+    // 각 수를 미니맥스로 평가
+    for (const move of aiMoves) {
+      const newBoard = makeMove(board, move.from, move.to);
+      const score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      movesWithScores.push({ move, score });
+    }
+    
+    // 점수순 정렬
+    movesWithScores.sort((a, b) => b.score - a.score);
+    
+    // 최적 수 선택 확률 85% (기존 60%에서 대폭 증가)
+    let selectedMove;
+    const bestScore = movesWithScores[0]?.score ?? -Infinity;
+    const secondBestScore = movesWithScores[1]?.score ?? -Infinity;
+    const scoreDifference = bestScore - secondBestScore;
+    
+    // 명확한 승리 조건이거나 점수 차이가 크면 항상 최적 수 선택
+    if (bestScore > 5000 || scoreDifference > 500 || movesWithScores.length === 1) {
+      selectedMove = movesWithScores[0].move;
+    } else {
+      // 그 외에는 85% 확률로 최적 수 선택
+      const random = Math.random();
+      if (random < 0.85) {
+        selectedMove = movesWithScores[0].move;
+      } else {
+        // 15% 확률로 2번째 최적 수 선택
+        if (movesWithScores.length > 1) {
+          selectedMove = movesWithScores[1].move;
+        } else {
+          selectedMove = movesWithScores[0].move;
+        }
+      }
+    }
+    
+    const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+    
+    return { 
+      move: selectedMove,
+      logs: [psychologicalInsight]
+    };
+  }
+  
   // For NEXUS-3 and NEXUS-5, use the original heuristic-based approach
   const moves: { 
     from: { r: number, c: number }, 
@@ -782,23 +871,8 @@ export function getAIMove(
       const randomIndex = Math.floor(Math.random() * candidateMoves.length);
       selectedMove = candidateMoves[randomIndex];
     }
-  } else if (difficulty === "NEXUS-5") {
-    // 보통: 중간 수준, 약간의 실수 가능
-    // 상위 2개 그룹 중에서 선택하되, 최적 수 선택 확률 60%
-    const topGroups = scoreGroups.slice(0, Math.min(2, scoreGroups.length));
-    const topMoves = topGroups.flat();
-    const random = Math.random();
-    if (random < 0.6 && topGroups[0] && topGroups[0].length > 0) {
-      // 60% 확률로 최적 수 그룹에서 랜덤 선택
-      const bestGroup = topGroups[0];
-      const randomIndex = Math.floor(Math.random() * bestGroup.length);
-      selectedMove = bestGroup[randomIndex];
-    } else {
-      // 40% 확률로 상위 2개 그룹 중 랜덤 선택
-      const randomIndex = Math.floor(Math.random() * topMoves.length);
-      selectedMove = topMoves[randomIndex];
-    }
   }
+  // NEXUS-5는 위에서 이미 처리됨 (미니맥스 알고리즘 사용)
   
   // Generate single psychological insight message
   const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
