@@ -11,6 +11,10 @@ export const games = pgTable("games", {
   aiLog: text("ai_log"), // Last AI thought/reasoning
   turnCount: integer("turn_count").default(0), // Track number of turns for draw condition
   difficulty: text("difficulty").notNull().default("NEXUS-7"), // AI difficulty: "NEXUS-3", "NEXUS-5", "NEXUS-7"
+  playerTimeRemaining: integer("player_time_remaining").default(180), // Player's remaining time in seconds
+  aiTimeRemaining: integer("ai_time_remaining").default(180), // AI's remaining time in seconds
+  timePerMove: integer("time_per_move").default(5), // Time added per move in seconds
+  lastMoveTimestamp: timestamp("last_move_timestamp"), // Timestamp of last move
   createdAt: timestamp("created_at").defaultNow(),
 });
 

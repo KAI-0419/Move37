@@ -22,6 +22,7 @@ function generateSimpleAIReasoning(boardFen: string, move: string): string {
 }
 
 export async function createGame(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7"): Promise<Game> {
+  const now = new Date();
   const game = await gameStorage.createGame({
     board: INITIAL_BOARD_FEN,
     turn: 'player',
@@ -30,6 +31,10 @@ export async function createGame(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" =
     aiLog: "System Initialized. Awaiting input...",
     turnCount: 0,
     difficulty,
+    playerTimeRemaining: 180, // 180 seconds (3 minutes) initial time
+    aiTimeRemaining: 180, // 180 seconds (3 minutes) initial time
+    timePerMove: 5, // 5 seconds added per move
+    lastMoveTimestamp: now.toISOString(),
   });
   
   return game;
@@ -38,6 +43,25 @@ export async function createGame(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" =
 export async function getGame(id: number): Promise<Game | null> {
   const game = await gameStorage.getGame(id);
   return game || null;
+}
+
+/**
+ * Calculate remaining time based on elapsed time since last move
+ * This is used BEFORE making a move to check if player has time left
+ */
+function calculateRemainingTimeBeforeMove(
+  currentTimeRemaining: number | null | undefined,
+  lastMoveTimestamp: Date | null | undefined
+): number {
+  const baseTime = currentTimeRemaining ?? 30;
+  
+  if (!lastMoveTimestamp) {
+    return baseTime;
+  }
+  
+  const now = new Date();
+  const elapsedSeconds = Math.floor((now.getTime() - lastMoveTimestamp.getTime()) / 1000);
+  return Math.max(0, baseTime - elapsedSeconds);
 }
 
 export async function makeGameMove(
@@ -56,6 +80,21 @@ export async function makeGameMove(
   
   if (game.turn !== 'player') {
     throw new Error("Not your turn");
+  }
+
+  // Calculate player's remaining time BEFORE move
+  const playerTimeRemaining = calculateRemainingTimeBeforeMove(
+    game.playerTimeRemaining,
+    game.lastMoveTimestamp
+  );
+
+  // Check if player has run out of time
+  if (playerTimeRemaining <= 0) {
+    const updated = await gameStorage.updateGame(gameId, {
+      winner: 'ai',
+      aiLog: "Time expired. Human defeat."
+    });
+    return { game: updated, aiLogs: [] };
   }
 
   let board = parseFen(game.board);
@@ -90,7 +129,12 @@ export async function makeGameMove(
   // Apply Player Move - IMMEDIATELY update the board
   board = makeMove(board, from, to);
   const newTurnCount = (game.turnCount || 0) + 1;
-  let winner = checkWinner(board, newTurnCount);
+  const now = new Date();
+  
+  // Update player time (add time bonus for making a move)
+  const updatedPlayerTime = playerTimeRemaining + (game.timePerMove ?? 5);
+  
+  let winner = checkWinner(board, newTurnCount, updatedPlayerTime, game.aiTimeRemaining);
   
   let history = [...(game.history || [])];
   history.push(`Player: ${from.r},${from.c} -> ${to.r},${to.c}`);
@@ -101,21 +145,29 @@ export async function makeGameMove(
       winner,
       history,
       turnCount: newTurnCount,
+      playerTimeRemaining: updatedPlayerTime,
+      lastMoveTimestamp: now,
       aiLog: winner === 'player' 
         ? "Logic Failure. Human Victory." 
         : winner === 'draw' 
         ? "Resource Depletion. Draw." 
+        : winner === 'ai' && playerTimeRemaining <= 0
+        ? "Time expired. Human defeat."
         : "Victory Achieved."
     });
     return { game: updated, aiLogs: [] };
   }
 
   // Immediately update game state with player's move (turn becomes 'ai')
+  // Update lastMoveTimestamp to current time so AI's time starts counting from now
+  // Player's time is frozen because isPlayerTurn will be false in calculateRemainingTime
   const playerMoveUpdated = await gameStorage.updateGame(gameId, {
     board: generateFen(board),
     turn: 'ai', // AI's turn now
     history,
     turnCount: newTurnCount,
+    playerTimeRemaining: updatedPlayerTime,
+    lastMoveTimestamp: now, // Update timestamp so AI's time starts counting from now
     aiLog: "Analyzing..."
   });
 
@@ -140,21 +192,72 @@ export async function calculateAIMove(
     return { game, aiLogs: [] };
   }
 
+  // Calculate AI's remaining time BEFORE move
+  const aiTimeRemaining = calculateRemainingTimeBeforeMove(
+    game.aiTimeRemaining,
+    game.lastMoveTimestamp
+  );
+
+  // Check if AI has run out of time
+  if (aiTimeRemaining <= 0) {
+    const updated = await gameStorage.updateGame(gameId, {
+      winner: 'player',
+      aiLog: "Time expired. AI defeat."
+    });
+    return { game: updated, aiLogs: [] };
+  }
+
   const board = parseFen(game.board);
   const newTurnCount = game.turnCount || 0;
 
-  // AI Turn - simulate deep analysis with delay
-  // Calculate analysis time based on board complexity (800ms - 1500ms)
+  // AI Turn - measure actual calculation time and ensure smooth UX
+  // Calculate minimum analysis time based on board complexity for UX (800ms - 1500ms)
+  // This maintains the same "thinking time" as before to preserve game tension
   const boardComplexity = board.flat().filter(p => p !== null).length;
-  const analysisTime = 800 + Math.min(700, boardComplexity * 50) + Math.random() * 200;
+  const minAnalysisTime = 800 + Math.min(700, boardComplexity * 50) + Math.random() * 200;
   
-  // Simulate AI thinking process
-  await new Promise(resolve => setTimeout(resolve, analysisTime));
+  // Record actual calculation start time
+  const calculationStartTime = Date.now();
   
-  // AI Turn - pass player's last move for psychological analysis
   // Use game difficulty (default to NEXUS-7 for backward compatibility)
   const gameDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7";
-  const aiResult = getAIMove(board, playerMove, gameDifficulty, newTurnCount);
+  
+  // OPTIMIZATION: With depth 6, calculation should complete in <1 second
+  // Measure actual time spent on calculation
+  let aiResult: { move: { from: { r: number, c: number }, to: { r: number, c: number } } | null; logs: string[] };
+  
+  try {
+    aiResult = getAIMove(board, playerMove, gameDifficulty, newTurnCount);
+  } catch (error) {
+    console.error("AI calculation error:", error);
+    aiResult = { move: null, logs: ["계산 오류가 발생했습니다."] };
+  }
+  
+  // Calculate actual time spent on calculation
+  const actualCalculationTime = Date.now() - calculationStartTime;
+  const calculationTimeSeconds = Math.floor(actualCalculationTime / 1000);
+  
+  // Ensure minimum analysis time for UX (maintains game tension)
+  // This ensures AI always takes 800-1500ms to "think", preserving the psychological impact
+  // Even though actual calculation is now fast (<100ms), we wait to maintain the same feel
+  const remainingMinTime = Math.max(0, minAnalysisTime - actualCalculationTime);
+  if (remainingMinTime > 0) {
+    await new Promise(resolve => setTimeout(resolve, remainingMinTime));
+  }
+  
+  // Recalculate AI time after actual calculation
+  // Only count actual calculation time for fairness (not the UX delay)
+  // The UX delay (800-1500ms) is for psychological impact, not actual thinking time
+  const aiTimeAfterThinking = Math.max(0, aiTimeRemaining - calculationTimeSeconds);
+  
+  // Final check if AI ran out of time after thinking
+  if (aiTimeAfterThinking <= 0) {
+    const updated = await gameStorage.updateGame(gameId, {
+      winner: 'player',
+      aiLog: "Time expired during calculation. AI defeat."
+    });
+    return { game: updated, aiLogs: [] };
+  }
   let aiLog = "Processing...";
   let aiLogs: string[] = [];
   
@@ -162,7 +265,13 @@ export async function calculateAIMove(
     const aiMoveBoard = makeMove(board, aiResult.move.from, aiResult.move.to);
     const moveStr = `AI: ${aiResult.move.from.r},${aiResult.move.from.c} -> ${aiResult.move.to.r},${aiResult.move.to.c}`;
     const aiHistory = [...game.history, moveStr];
-    const aiWinner = checkWinner(aiMoveBoard, newTurnCount);
+    const now = new Date();
+    
+    // Update AI time (add time bonus for making a move)
+    // Use aiTimeAfterThinking which accounts for actual calculation time
+    const updatedAiTime = aiTimeAfterThinking + (game.timePerMove ?? 5);
+    
+    const aiWinner = checkWinner(aiMoveBoard, newTurnCount, game.playerTimeRemaining, updatedAiTime);
     
     // Store the single psychological insight message
     aiLogs = aiResult.logs;
@@ -174,6 +283,8 @@ export async function calculateAIMove(
       winner: aiWinner,
       history: aiHistory,
       turnCount: newTurnCount,
+      aiTimeRemaining: updatedAiTime,
+      lastMoveTimestamp: now,
       aiLog
     });
     

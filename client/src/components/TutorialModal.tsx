@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ChevronLeft, Crown, Component, Circle, Target, Zap } from "lucide-react";
+import { ChevronRight, ChevronLeft, Crown, Component, Circle, Target, Zap, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GlitchButton } from "@/components/GlitchButton";
 import { ChessBoard } from "@/components/ChessBoard";
@@ -75,7 +75,7 @@ const tutorialSteps: TutorialStep[] = [
   },
   {
     title: "승리 조건",
-    description: "승리하는 방법은 두 가지입니다:\n1. 적의 킹을 잡기\n2. 당신의 킹을 맨 위 줄(행 0)로 보내기\n\n30턴 안에 승부가 나지 않으면 무승부입니다.",
+    description: "승리하는 방법은 두 가지입니다:\n1. 적의 킹을 잡기\n2. 당신의 킹을 맨 위 줄(행 0)로 보내기\n\n30턴 안에 승부가 나지 않으면 무승부입니다.\n\n⏱️ 시간 제한:\n• 초기 시간: 180초 (3분)\n• 매 수마다 5초 추가\n• 시간이 0이 되면 즉시 패배\n• 양쪽 모두 동일한 시간 제한 적용",
     boardState: INITIAL_BOARD_FEN,
   },
   {
@@ -257,7 +257,7 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
                   {currentStep === 2 && <Crown className="w-4 h-4" />}
                   {currentStep === 3 && <Component className="w-4 h-4" />}
                   {currentStep === 4 && <Circle className="w-4 h-4" />}
-                  {currentStep === 5 && <Zap className="w-4 h-4" />}
+                  {currentStep === 5 && <Clock className="w-4 h-4" />}
                   {currentStep === 6 && <Target className="w-4 h-4" />}
                   {step.title}
                 </h3>

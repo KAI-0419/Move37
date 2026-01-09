@@ -60,28 +60,34 @@ export function useMakeMove(gameId: number) {
       queryClient.setQueryData(["game", gameId], data.game);
       
       // If AI needs to move, calculate it asynchronously
+      // Wait for piece movement animation to complete before starting AI calculation
       if (data.playerMove && data.game.turn === 'ai') {
         // Store the gameId at the time of starting AI calculation
         const currentGameId = gameId;
         
-        // Start AI calculation in background
-        calculateAIMove(currentGameId, data.playerMove)
-          .then((aiResult) => {
-            // Only update if we're still on the same game
-            // This prevents updating cache for a game that user has navigated away from
-            const currentGame = queryClient.getQueryData(["game", currentGameId]);
-            if (currentGame) {
-              queryClient.setQueryData(["game", currentGameId], aiResult.game);
-              queryClient.invalidateQueries({ queryKey: ["game", currentGameId] });
-            }
-          })
-          .catch((error) => {
-            // Only log if we're still on the same game
-            const currentGame = queryClient.getQueryData(["game", currentGameId]);
-            if (currentGame) {
-              console.error("AI move calculation error:", error);
-            }
-          });
+        // Wait for piece movement animation to complete (600ms)
+        // ChessBoard uses framer-motion layout animation with spring transition (~500ms)
+        // Adding 100ms buffer to ensure animation is fully complete
+        setTimeout(() => {
+          // Start AI calculation after animation completes
+          calculateAIMove(currentGameId, data.playerMove!)
+            .then((aiResult) => {
+              // Only update if we're still on the same game
+              // This prevents updating cache for a game that user has navigated away from
+              const currentGame = queryClient.getQueryData(["game", currentGameId]);
+              if (currentGame) {
+                queryClient.setQueryData(["game", currentGameId], aiResult.game);
+                queryClient.invalidateQueries({ queryKey: ["game", currentGameId] });
+              }
+            })
+            .catch((error) => {
+              // Only log if we're still on the same game
+              const currentGame = queryClient.getQueryData(["game", currentGameId]);
+              if (currentGame) {
+                console.error("AI move calculation error:", error);
+              }
+            });
+        }, 600); // Wait 600ms for piece movement animation to complete
       }
       
       // Also invalidate to ensure fresh data

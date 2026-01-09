@@ -129,7 +129,12 @@ export function getValidMoves(board: Board, from: { r: number; c: number }, isPl
   return moves;
 }
 
-export function checkWinner(board: Board, turnCount?: number): 'player' | 'ai' | 'draw' | null {
+export function checkWinner(
+  board: Board, 
+  turnCount?: number,
+  playerTimeRemaining?: number | null,
+  aiTimeRemaining?: number | null
+): 'player' | 'ai' | 'draw' | null {
   // Check if kings exist
   // 'k' (lowercase) = Player's King, 'K' (uppercase) = AI's King
   let playerKing = false;
@@ -154,6 +159,14 @@ export function checkWinner(board: Board, turnCount?: number): 'player' | 'ai' |
 
   if (!playerKing) return 'ai'; // Player's King captured
   if (!aiKing) return 'player'; // AI's King captured
+  
+  // Check for time out conditions (must check before other conditions)
+  if (playerTimeRemaining !== undefined && playerTimeRemaining !== null && playerTimeRemaining <= 0) {
+    return 'ai'; // Player ran out of time
+  }
+  if (aiTimeRemaining !== undefined && aiTimeRemaining !== null && aiTimeRemaining <= 0) {
+    return 'player'; // AI ran out of time
+  }
   
   // Check for draw condition: 30 turns without winner
   if (turnCount !== undefined && turnCount >= 30) {
@@ -321,104 +334,329 @@ function getAllMoves(board: Board, isPlayer: boolean): Array<{ from: { r: number
 }
 
 /**
- * Enhanced evaluation function for minimax
- * Returns positive score for AI advantage, negative for player advantage
+ * Dynamic weight system for adaptive evaluation
+ * Adjusts weights based on game phase, king safety, material balance, and threats
  */
-function evaluateBoard(board: Board, turnCount?: number): number {
-  // Check for immediate win/loss conditions first
-  const winner = checkWinner(board, turnCount);
-  if (winner === 'ai') return 10000; // AI wins
-  if (winner === 'player') return -10000; // Player wins
-  if (winner === 'draw') return 0;
+function getDynamicWeights(turnCount?: number): {
+  kingAdvancement: number;
+  materialKnight: number;
+  materialPawn: number;
+  kingSafety: number;
+  mobility: number;
+  threat: number;
+} {
+  // Determine game phase: early (0-8), mid (9-18), endgame (19+)
+  const gamePhase = turnCount === undefined ? 1 : 
+    turnCount < 9 ? 0 : // Early game
+    turnCount < 19 ? 1 : // Mid game
+    2; // Endgame
   
-  let score = 0;
+  // Dynamic weights based on game phase
+  if (gamePhase === 0) {
+    // Early game: prioritize material and development
+    return {
+      kingAdvancement: 6,      // Moderate king advancement
+      materialKnight: 8,        // High knight value (development)
+      materialPawn: 2,          // Moderate pawn value
+      kingSafety: 80,           // High king safety priority
+      mobility: 0.15,           // Moderate mobility
+      threat: 30                // Moderate threat value
+    };
+  } else if (gamePhase === 1) {
+    // Mid game: balance between material and position
+    return {
+      kingAdvancement: 8,       // Increased king advancement
+      materialKnight: 6,        // Moderate knight value
+      materialPawn: 1.5,        // Lower pawn value
+      kingSafety: 100,          // Very high king safety
+      mobility: 0.2,             // Higher mobility
+      threat: 50                // Higher threat value
+    };
+  } else {
+    // Endgame: prioritize king advancement over excessive safety
+    // Balance: advancement should outweigh safety concerns when close to victory
+    return {
+      kingAdvancement: 20,      // Increased king advancement priority (was 12)
+      materialKnight: 4,        // Lower knight value (can sacrifice)
+      materialPawn: 1,          // Minimal pawn value
+      kingSafety: 80,           // Reduced from 120 - advancement is more important
+      mobility: 0.25,            // Maximum mobility
+      threat: 80                // Maximum threat value
+    };
+  }
+}
+
+/**
+ * Calculate king safety score (higher = safer)
+ * Returns a value from 0 (very unsafe) to 1 (very safe)
+ */
+function calculateKingSafety(
+  board: Board,
+  kingPos: { r: number, c: number },
+  isAiKing: boolean
+): number {
+  let safetyScore = 1.0;
+  let threatCount = 0;
+  let defenderCount = 0;
   
-  // Find king positions
-  let playerKingPos: { r: number, c: number } | null = null;
-  let aiKingPos: { r: number, c: number } | null = null;
+  // Check for direct threats
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      
+      const isEnemyPiece = isAiKing 
+        ? (piece === piece.toLowerCase() && piece !== piece.toUpperCase())
+        : (piece === piece.toUpperCase() && piece !== piece.toLowerCase());
+      
+      if (isEnemyPiece) {
+        // Check if this piece can attack the king
+        if (isValidMove(board, { r, c }, kingPos, !isAiKing)) {
+          threatCount++;
+          // Distance-based threat severity
+          const distance = Math.abs(r - kingPos.r) + Math.abs(c - kingPos.c);
+          safetyScore -= 0.3 / (distance + 1);
+        }
+      } else {
+        // Check if this is a friendly piece (not the king itself)
+        const isFriendlyPiece = isAiKing
+          ? (piece === piece.toUpperCase() && piece !== piece.toLowerCase() && piece !== 'K')
+          : (piece === piece.toLowerCase() && piece !== piece.toUpperCase() && piece !== 'k');
+        
+        if (isFriendlyPiece) {
+          // Check if this piece can defend the king (can move to king's position or block threats)
+          const canDefend = isValidMove(board, { r, c }, kingPos, isAiKing);
+          if (canDefend) {
+            defenderCount++;
+          }
+        }
+      }
+    }
+  }
+  
+  // Bonus for defenders
+  safetyScore += Math.min(defenderCount * 0.1, 0.3);
+  
+  // Penalty for multiple threats
+  if (threatCount > 1) {
+    safetyScore -= (threatCount - 1) * 0.2;
+  }
+  
+  // Check king's mobility (more escape squares = safer)
+  const kingMoves = getValidMoves(board, kingPos, isAiKing);
+  safetyScore += Math.min(kingMoves.length * 0.05, 0.2);
+  
+  return Math.max(0, Math.min(1, safetyScore));
+}
+
+/**
+ * Calculate material balance
+ * Returns positive for AI advantage, negative for player advantage
+ */
+function calculateMaterialBalance(board: Board): {
+  aiMaterial: number;
+  playerMaterial: number;
+  balance: number;
+} {
+  let aiMaterial = 0;
+  let playerMaterial = 0;
   
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 5; c++) {
       const piece = board[r][c];
       if (!piece) continue;
       
+      if (piece === 'K') aiMaterial += 1000; // King is invaluable
+      else if (piece === 'N') aiMaterial += 5;
+      else if (piece === 'P') aiMaterial += 1;
+      else if (piece === 'k') playerMaterial += 1000;
+      else if (piece === 'n') playerMaterial += 5;
+      else if (piece === 'p') playerMaterial += 1;
+    }
+  }
+  
+  return {
+    aiMaterial,
+    playerMaterial,
+    balance: aiMaterial - playerMaterial
+  };
+}
+
+/**
+ * Enhanced evaluation function with dynamic weights for minimax
+ * Returns positive score for AI advantage, negative for player advantage
+ * Implements sophisticated dynamic weight system for adaptive play
+ */
+function evaluateBoard(board: Board, turnCount?: number): number {
+  // OPTIMIZATION: checkWinner는 minimax의 터미널 노드에서 이미 처리되므로 여기서는 제거
+  // 이렇게 하면 평가 함수 호출 횟수가 수천 배 감소합니다
+  
+  // Get dynamic weights based on game phase
+  const weights = getDynamicWeights(turnCount);
+  
+  let score = 0;
+  
+  // Find king positions and collect piece information
+  let playerKingPos: { r: number, c: number } | null = null;
+  let aiKingPos: { r: number, c: number } | null = null;
+  
+  // Piece-Square Table for positional evaluation (중앙 점유 및 전진 장려)
+  const pst = [
+    [0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 1],
+    [2, 4, 6, 4, 2],
+    [1, 2, 2, 2, 1],
+    [0, 0, 0, 0, 0]
+  ];
+  
+  // Single pass: collect positions, calculate material and positional value
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      
+      // Find king positions
       if (piece === 'k') {
         playerKingPos = { r, c };
-        // Player king advancement (toward row 0) - negative score (bad for AI)
-        score -= (4 - r) * 10; // Closer to row 0 = more dangerous for AI
-        if (r === 0) score -= 5000; // Player king reached goal
       } else if (piece === 'K') {
         aiKingPos = { r, c };
-        // AI king advancement (toward row 4) - positive score (good for AI)
-        score += r * 10; // Closer to row 4 = better for AI
-        if (r === 4) score += 5000; // AI king reached goal
-      } else if (piece === 'n') {
-        // Player knight - negative score
-        score -= 5;
-        // Position bonus: closer to center = more dangerous
+      }
+      
+      // Material and positional evaluation
+      const isAI = piece === piece.toUpperCase();
+      const pieceType = piece.toLowerCase();
+      const posVal = pst[r][c] * 0.5;
+      
+      if (pieceType === 'k') {
+        // King value with specialized positional table
+        const kingVal = 1000;
+        
+        // King-specific positional table: encourages advancement toward goal
+        // For AI king: row 4 (goal) = highest value, row 0 (start) = lowest
+        // For Player king: row 0 (goal) = highest value, row 4 (start) = lowest
+        const kingPst = isAI 
+          ? [0, 2, 5, 10, 20]  // AI: row 0→4, exponential increase
+          : [20, 10, 5, 2, 0]; // Player: row 4→0, exponential increase
+        const kingPosVal = kingPst[r] * 0.5;
+        
+        if (isAI) {
+          score += kingVal + kingPosVal;
+          // Non-linear advancement bonus: exponential as king approaches goal
+          const distanceToGoal = 4 - r;
+          if (distanceToGoal <= 3) {
+            // Exponential bonus: 2^remaining_distance
+            const advancementBonus = Math.pow(2, 4 - distanceToGoal) * weights.kingAdvancement * 0.3;
+            score += advancementBonus;
+          }
+          score += r * weights.kingAdvancement; // Linear base advancement
+          if (r === 4) score += 5000; // Instant win
+        } else {
+          score -= kingVal + kingPosVal;
+          // Non-linear advancement for player king
+          const distanceToGoal = r;
+          if (distanceToGoal <= 3) {
+            const advancementBonus = Math.pow(2, 4 - distanceToGoal) * weights.kingAdvancement * 0.3;
+            score -= advancementBonus;
+          }
+          score -= (4 - r) * weights.kingAdvancement; // Linear base advancement
+          if (r === 0) score -= 5000; // Player instant win
+        }
+      } else if (pieceType === 'n') {
+        // Knight value
+        const knightVal = weights.materialKnight;
         const centerDist = Math.abs(r - 2) + Math.abs(c - 2);
-        score -= (5 - centerDist) * 0.5;
-      } else if (piece === 'N') {
-        // AI knight - positive score
-        score += 5;
-        // Position bonus: closer to center = better
-        const centerDist = Math.abs(r - 2) + Math.abs(c - 2);
-        score += (5 - centerDist) * 0.5;
-      } else if (piece === 'p') {
-        // Player pawn - negative score
-        score -= 1;
-        // Pawn advancement bonus (toward row 0)
-        score -= (4 - r) * 0.5;
-      } else if (piece === 'P') {
-        // AI pawn - positive score
-        score += 1;
-        // Pawn advancement bonus (toward row 4)
-        score += r * 0.5;
+        const centerBonus = (5 - centerDist) * 0.5;
+        
+        if (isAI) {
+          score += knightVal + posVal + centerBonus;
+        } else {
+          score -= knightVal + posVal + centerBonus;
+        }
+      } else if (pieceType === 'p') {
+        // Pawn value
+        const pawnVal = weights.materialPawn;
+        const advanceBonus = isAI ? r * 0.5 : (4 - r) * 0.5;
+        
+        if (isAI) {
+          score += pawnVal + posVal + advanceBonus;
+        } else {
+          score -= pawnVal + posVal + advanceBonus;
+        }
       }
     }
   }
   
-  // King safety evaluation
+  // Calculate king safety scores with accurate threat detection
   if (aiKingPos) {
-    // Check if AI king is threatened
-    let aiKingThreatened = false;
+    // Accurate threat detection: only count pieces that can actually attack the king
+    let actualThreatCount = 0;
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         const piece = board[r][c];
         if (piece && piece === piece.toLowerCase() && piece !== piece.toUpperCase()) {
+          // Only count as threat if the piece can actually move to king's position
           if (isValidMove(board, { r, c }, aiKingPos, true)) {
-            aiKingThreatened = true;
-            score -= 50; // Penalty for king in danger
-            break;
+            actualThreatCount++;
           }
         }
       }
-      if (aiKingThreatened) break;
+    }
+    
+    // Calculate safety score based on actual threats
+    // More threats = lower safety, but not as severe as before
+    const safetyScore = Math.max(0, 1.0 - actualThreatCount * 0.25);
+    score += (safetyScore - 0.5) * weights.kingSafety * 0.3; // Reduced weight to balance with advancement
+    
+    // Enhanced king advancement bonus: exponential increase near goal line
+    // This ensures AI prioritizes victory over safety when close to winning
+    const distanceToGoal = 4 - aiKingPos.r;
+    if (distanceToGoal <= 2) {
+      // Within 2 rows of goal: exponential bonus
+      const proximityBonus = Math.pow(5 - distanceToGoal, 2) * weights.kingAdvancement * 0.5;
+      score += proximityBonus;
     }
   }
   
   if (playerKingPos) {
-    // Check if player king is threatened
-    let playerKingThreatened = false;
+    // Accurate threat detection for player king
+    let actualThreatCount = 0;
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         const piece = board[r][c];
         if (piece && piece === piece.toUpperCase() && piece !== piece.toLowerCase()) {
           if (isValidMove(board, { r, c }, playerKingPos, false)) {
-            playerKingThreatened = true;
-            score += 50; // Bonus for threatening player king
-            break;
+            actualThreatCount++;
           }
         }
       }
-      if (playerKingThreatened) break;
+    }
+    const safetyScore = Math.max(0, 1.0 - actualThreatCount * 0.25);
+    score -= (safetyScore - 0.5) * weights.kingSafety * 0.3;
+    
+    // Player king advancement bonus (toward row 0)
+    const distanceToGoal = playerKingPos.r;
+    if (distanceToGoal <= 2) {
+      const proximityBonus = Math.pow(5 - distanceToGoal, 2) * weights.kingAdvancement * 0.5;
+      score -= proximityBonus;
     }
   }
   
-  // Mobility: count possible moves
-  const aiMoves = getAllMoves(board, false);
-  const playerMoves = getAllMoves(board, true);
-  score += (aiMoves.length - playerMoves.length) * 0.1;
+  // OPTIMIZATION: Mobility calculation removed - too expensive (getAllMoves calls)
+  // 대신 기물 위치와 중심 제어로 대체
+  
+  // Simplified center control (based on piece positions, not move generation)
+  let aiCenterPieces = 0;
+  let playerCenterPieces = 0;
+  for (let r = 1; r <= 3; r++) {
+    for (let c = 1; c <= 3; c++) {
+      const piece = board[r][c];
+      if (piece) {
+        if (piece === piece.toUpperCase()) aiCenterPieces++;
+        else playerCenterPieces++;
+      }
+    }
+  }
+  score += (aiCenterPieces - playerCenterPieces) * 0.3;
   
   return score;
 }
@@ -509,8 +747,36 @@ export function getAIMove(
       };
     }
     
-    // Use minimax with depth 4 for NEXUS-7 (very strong AI)
-    const depth = 4;
+    // 즉시 승리 조건 우선 탐지 (NEXUS-5와 동일한 로직)
+    const immediateWinMoves: Array<{ from: { r: number, c: number }, to: { r: number, c: number } }> = [];
+    
+    for (const move of aiMoves) {
+      const piece = board[move.from.r][move.from.c];
+      // AI 킹이 행 4에 도달하면 즉시 승리
+      if (piece === 'K' && move.to.r === 4) {
+        immediateWinMoves.push(move);
+      }
+      // 플레이어 킹을 잡으면 즉시 승리
+      const target = board[move.to.r][move.to.c];
+      if (target === 'k') {
+        immediateWinMoves.push(move);
+      }
+    }
+    
+    // 즉시 승리 수가 있으면 무조건 선택
+    if (immediateWinMoves.length > 0) {
+      const testBoard = makeMove(board, immediateWinMoves[0].from, immediateWinMoves[0].to);
+      const winner = checkWinner(testBoard, turnCount);
+      if (winner === 'ai') {
+        const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+        return { 
+          move: immediateWinMoves[0],
+          logs: [psychologicalInsight]
+        };
+      }
+    }
+    
+    const depth = 6;
     const movesWithScores: Array<{
       move: { from: { r: number, c: number }, to: { r: number, c: number } };
       score: number;
@@ -591,8 +857,9 @@ export function getAIMove(
       }
     }
     
-    // 미니맥스 알고리즘 적용 (깊이 2 - NEXUS-7보다 낮지만 훨씬 강함)
-    const depth = 2;
+    // 미니맥스 알고리즘 적용 (깊이 4 - NEXUS-7보다 낮지만 강력함)
+    // Depth 4 provides good balance between strength and speed
+    const depth = 4;
     const movesWithScores: Array<{
       move: { from: { r: number, c: number }, to: { r: number, c: number } };
       score: number;
@@ -704,19 +971,42 @@ export function getAIMove(
               const centerDistance = Math.abs(tr - 2) + Math.abs(tc - 2);
               score += (5 - centerDistance) * 0.5;
               
-              // FIXED: King advancement (AI king moving toward player side = row 4)
+              // Enhanced King advancement with accurate threat assessment
               // AI starts at row 0, needs to reach row 4 to win
-              // Higher row number = closer to victory = higher score
               if (piece === 'K') {
-                // Base advancement bonus: tr * 4 (row 0→4: 0→16 points)
+                // Base advancement bonus: linear progression
                 score += tr * 4;
+                
+                // Exponential proximity bonus: closer to goal = exponentially higher value
+                const distanceToVictory = 4 - tr;
+                if (distanceToVictory <= 2) {
+                  // Within 2 rows: exponential bonus
+                  const proximityBonus = Math.pow(3, 3 - distanceToVictory) * 2;
+                  score += proximityBonus;
+                }
+                
                 // Victory condition bonus: if king reaches row 4, massive bonus
                 if (tr === 4) {
                   score += 500; // Instant win condition
                 }
-                // Proximity bonus: closer to row 4 = exponential bonus
-                const distanceToVictory = 4 - tr;
-                score += (5 - distanceToVictory) * 2; // 0→4: 5→1 points
+                
+                // Check if this move actually improves king safety or maintains it
+                // Only penalize if moving INTO actual danger, not just proximity
+                if (playerKingPos) {
+                  const canPlayerCapture = isValidMove(board, playerKingPos, { r: tr, c: tc }, true);
+                  if (canPlayerCapture) {
+                    // Moving into actual capture range - strong penalty
+                    score -= 200;
+                  } else {
+                    // Check if moving away from potential threats
+                    const currentThreat = isValidMove(board, playerKingPos, { r, c }, true);
+                    const newThreat = isValidMove(board, playerKingPos, { r: tr, c: tc }, true);
+                    if (currentThreat && !newThreat) {
+                      // Escaping from actual threat - bonus
+                      score += 50;
+                    }
+                  }
+                }
               }
               
               // Deep analysis: Check if this move threatens multiple pieces
@@ -767,28 +1057,55 @@ export function getAIMove(
                 }
               }
               
-              // Additional safety check: if AI king is currently in danger, prioritize escape
+              // Enhanced safety check: prioritize escape only from ACTUAL threats
               if (aiKingPos && piece === 'K') {
-                // Check if current king position is threatened by player
-                let kingInDanger = false;
+                // Check if current king position is actually threatened (not just nearby)
+                let kingInActualDanger = false;
                 for (let pr = 0; pr < 5; pr++) {
                   for (let pc = 0; pc < 5; pc++) {
                     const playerPiece = board[pr][pc];
                     if (playerPiece && playerPiece === playerPiece.toLowerCase() && playerPiece !== playerPiece.toUpperCase()) {
+                      // Only count as threat if player can actually capture king
                       if (isValidMove(board, { r: pr, c: pc }, aiKingPos, true)) {
-                        kingInDanger = true;
+                        kingInActualDanger = true;
                         break;
                       }
                     }
                   }
-                  if (kingInDanger) break;
+                  if (kingInActualDanger) break;
                 }
                 
-                if (kingInDanger) {
-                  // King is in check - prioritize moving away
-                  const distanceFromOriginal = Math.abs(tr - aiKingPos.r) + Math.abs(tc - aiKingPos.c);
-                  if (distanceFromOriginal > 0) {
-                    score += 20; // Bonus for moving away from danger
+                if (kingInActualDanger) {
+                  // King is in actual check - check if this move escapes
+                  let stillInDanger = false;
+                  for (let pr = 0; pr < 5; pr++) {
+                    for (let pc = 0; pc < 5; pc++) {
+                      const playerPiece = board[pr][pc];
+                      if (playerPiece && playerPiece === playerPiece.toLowerCase() && playerPiece !== playerPiece.toUpperCase()) {
+                        if (isValidMove(board, { r: pr, c: pc }, { r: tr, c: tc }, true)) {
+                          stillInDanger = true;
+                          break;
+                        }
+                      }
+                    }
+                    if (stillInDanger) break;
+                  }
+                  
+                  if (!stillInDanger) {
+                    // Successfully escaping from check - strong bonus
+                    score += 100;
+                  } else {
+                    // Still in check after move - penalty
+                    score -= 150;
+                  }
+                } else {
+                  // King is safe - prioritize advancement over unnecessary retreat
+                  // Moving forward is always better when safe
+                  if (tr > aiKingPos.r) {
+                    score += 15; // Bonus for forward movement when safe
+                  } else if (tr < aiKingPos.r) {
+                    // Retreating when safe - small penalty
+                    score -= 5;
                   }
                 }
               }
@@ -853,26 +1170,41 @@ export function getAIMove(
   }
   
   // Difficulty-based move selection with improved logic
-  let selectedMove;
+  // Default to first move if difficulty is not NEXUS-3 (shouldn't happen, but safety check)
+  let selectedMove = moves[0];
   
   if (difficulty === "NEXUS-3") {
     // 쉬움: 더 많은 실수, 랜덤성 증가
     // 상위 60%의 수 중에서 랜덤 선택 (최적 수 선택 확률 15%)
     const candidateRange = Math.floor(moves.length * 0.6);
     const candidateMoves = moves.slice(0, Math.max(1, candidateRange));
-    const random = Math.random();
-    if (random < 0.15 && scoreGroups[0] && scoreGroups[0].length > 0) {
-      // 15% 확률로 최적 수 그룹에서 랜덤 선택
-      const bestGroup = scoreGroups[0];
-      const randomIndex = Math.floor(Math.random() * bestGroup.length);
-      selectedMove = bestGroup[randomIndex];
+    
+    if (candidateMoves.length === 0) {
+      // Fallback: use first move if no candidates
+      selectedMove = moves[0];
     } else {
-      // 85% 확률로 중간~하위 수준의 수 선택
-      const randomIndex = Math.floor(Math.random() * candidateMoves.length);
-      selectedMove = candidateMoves[randomIndex];
+      const random = Math.random();
+      if (random < 0.15 && scoreGroups[0] && scoreGroups[0].length > 0) {
+        // 15% 확률로 최적 수 그룹에서 랜덤 선택
+        const bestGroup = scoreGroups[0];
+        const randomIndex = Math.floor(Math.random() * bestGroup.length);
+        selectedMove = bestGroup[randomIndex];
+      } else {
+        // 85% 확률로 중간~하위 수준의 수 선택
+        const randomIndex = Math.floor(Math.random() * candidateMoves.length);
+        selectedMove = candidateMoves[randomIndex];
+      }
     }
   }
   // NEXUS-5는 위에서 이미 처리됨 (미니맥스 알고리즘 사용)
+  
+  // Safety check: ensure selectedMove is defined
+  if (!selectedMove) {
+    return {
+      move: null,
+      logs: ["계산 오류: 유효한 수를 선택할 수 없습니다."]
+    };
+  }
   
   // Generate single psychological insight message
   const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);

@@ -14,6 +14,10 @@ export interface LocalGame {
   aiLog: string | null;
   turnCount: number;
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+  playerTimeRemaining?: number | null;
+  aiTimeRemaining?: number | null;
+  timePerMove?: number | null;
+  lastMoveTimestamp?: string | null;
   createdAt: string;
 }
 
@@ -28,6 +32,10 @@ function toGame(localGame: LocalGame): Game {
     aiLog: localGame.aiLog,
     turnCount: localGame.turnCount,
     difficulty: localGame.difficulty || "NEXUS-7", // Default to NEXUS-7 for backward compatibility
+    playerTimeRemaining: localGame.playerTimeRemaining ?? 180,
+    aiTimeRemaining: localGame.aiTimeRemaining ?? 180,
+    timePerMove: localGame.timePerMove ?? 5,
+    lastMoveTimestamp: localGame.lastMoveTimestamp ? new Date(localGame.lastMoveTimestamp) : null,
     createdAt: new Date(localGame.createdAt),
   };
 }

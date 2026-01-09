@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGame, useMakeMove, useCreateGame } from "@/hooks/use-game";
 import { ChessBoard } from "@/components/ChessBoard";
 import { Scanlines } from "@/components/Scanlines";
@@ -14,6 +15,7 @@ import { gameStorage, handleVictoryUnlock, getUnlockedDifficulties } from "@/lib
 
 export default function GameRoom() {
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const [gameId, setGameId] = useState<number | null>(() => gameStorage.getCurrentGameId());
   const { data: game, isLoading, error } = useGame(gameId);
   // Only create makeMove hook if gameId is valid
@@ -23,6 +25,7 @@ export default function GameRoom() {
   const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
   const [logHistory, setLogHistory] = useState<Array<{ message: string; timestamp: Date }>>([]);
   const [hasError, setHasError] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const logEndRef = useRef<HTMLDivElement>(null);
   const prevGameIdRef = useRef<number | null>(null);
   const isNavigatingAwayRef = useRef(false);
@@ -102,6 +105,110 @@ export default function GameRoom() {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logHistory]);
+
+  // Timer: Update current time every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate remaining time for display (real-time calculation)
+  // Only count down time for the current player's turn
+  // Timer stops immediately when game ends (winner is set)
+  const calculateRemainingTime = (
+    baseTime: number | null | undefined, 
+    lastMoveTimestamp: Date | null | undefined,
+    isCurrentPlayer: boolean,
+    hasWinner: boolean
+  ): number => {
+    const base = baseTime ?? 180;
+    if (base <= 0) return 0;
+    
+    // Stop timer immediately when game ends
+    if (hasWinner) {
+      return base; // Return frozen time when game is over
+    }
+    
+    if (!lastMoveTimestamp) return base;
+    
+    // Only count down time if it's this player's turn
+    if (!isCurrentPlayer) {
+      return base; // Time is frozen when it's not this player's turn
+    }
+    
+    // Calculate elapsed time, ensuring it's never negative (in case of timing issues)
+    const elapsedMs = currentTime.getTime() - lastMoveTimestamp.getTime();
+    const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+    return Math.max(0, base - elapsedSeconds);
+  };
+
+  const isPlayerTurn = game?.turn === 'player';
+  const hasWinner = !!game?.winner;
+  const playerTimeRemaining = game ? calculateRemainingTime(game.playerTimeRemaining, game.lastMoveTimestamp, isPlayerTurn, hasWinner) : 180;
+  const aiTimeRemaining = game ? calculateRemainingTime(game.aiTimeRemaining, game.lastMoveTimestamp, !isPlayerTurn, hasWinner) : 180;
+
+  // Check for timeout and handle automatically
+  useEffect(() => {
+    if (!game || game.winner) return;
+
+    // Only check timeout for the current player
+    if (isPlayerTurn && playerTimeRemaining <= 0) {
+      // Player timeout - end game immediately
+      const checkPlayerTimeout = async () => {
+        const currentGame = await gameStorage.getGame(game.id);
+        if (currentGame && currentGame.turn === 'player' && !currentGame.winner) {
+          // Recalculate to be sure
+          const playerTime = calculateRemainingTime(
+            currentGame.playerTimeRemaining, 
+            currentGame.lastMoveTimestamp, 
+            true,
+            false // hasWinner: false (game is still ongoing)
+          );
+          if (playerTime <= 0) {
+            await gameStorage.updateGame(game.id, {
+              winner: 'ai',
+              aiLog: "Time expired. Human defeat."
+            });
+            // Invalidate query to refresh
+            queryClient.invalidateQueries({ queryKey: ["game", game.id] });
+          }
+        }
+      };
+      checkPlayerTimeout();
+    } else if (!isPlayerTurn && aiTimeRemaining <= 0) {
+      // AI timeout - check and update immediately
+      const checkAITimeout = async () => {
+        const currentGame = await gameStorage.getGame(game.id);
+        if (currentGame && currentGame.turn === 'ai' && !currentGame.winner) {
+          // Recalculate to be sure
+          const aiTime = calculateRemainingTime(
+            currentGame.aiTimeRemaining, 
+            currentGame.lastMoveTimestamp, 
+            true,
+            false // hasWinner: false (game is still ongoing)
+          );
+          if (aiTime <= 0) {
+            await gameStorage.updateGame(game.id, {
+              winner: 'player',
+              aiLog: "Time expired. AI defeat."
+            });
+            // Invalidate query to refresh
+            queryClient.invalidateQueries({ queryKey: ["game", game.id] });
+          }
+        }
+      };
+      checkAITimeout();
+    }
+  }, [playerTimeRemaining, aiTimeRemaining, isPlayerTurn, game?.turn, game?.winner, game?.id]);
+
+  // Format time as MM:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // 페이지 이탈 방지: 게임이 진행 중일 때만 확인 창 표시
   useEffect(() => {
@@ -344,7 +451,6 @@ export default function GameRoom() {
     return null;
   }
 
-  const isPlayerTurn = game.turn === 'player';
   const lastMove = (game.history && game.history.length > 0) 
     ? parseHistoryString(game.history[game.history.length - 1]) 
     : null;
@@ -431,6 +537,14 @@ export default function GameRoom() {
                 <div className={cn("w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
                 <span className="hidden sm:inline">{isPlayerTurn ? "AWAITING INPUT" : "STANDBY"}</span>
               </div>
+              <div className={cn(
+                "text-[10px] lg:text-xs mt-1 font-mono",
+                playerTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
+                playerTimeRemaining <= 30 ? "text-yellow-500" : 
+                "text-muted-foreground"
+              )}>
+                {formatTime(playerTimeRemaining)}
+              </div>
             </div>
 
             {/* AI Card */}
@@ -454,6 +568,14 @@ export default function GameRoom() {
                     : "bg-gray-600"
                 )} />
                 <span className="hidden sm:inline">{makeMove.isPending ? "ANALYZING MOVES..." : !isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}</span>
+              </div>
+              <div className={cn(
+                "text-[10px] lg:text-xs mt-1 font-mono",
+                aiTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
+                aiTimeRemaining <= 30 ? "text-yellow-500" : 
+                difficultyColors.text
+              )}>
+                {formatTime(aiTimeRemaining)}
               </div>
             </div>
           </div>
