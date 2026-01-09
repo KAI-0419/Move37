@@ -42,22 +42,46 @@ export function useMakeMove(gameId: number) {
   
   return useMutation({
     mutationFn: async (move: MoveRequest) => {
+      // Validate gameId before attempting move
+      if (!gameId || gameId <= 0) {
+        throw new Error("Invalid game ID");
+      }
       const result = await makeGameMove(gameId, move.from, move.to);
       return result;
     },
     onSuccess: async (data) => {
+      // Validate gameId is still valid before updating cache
+      if (!gameId || gameId <= 0) {
+        console.warn("Skipping cache update: invalid game ID");
+        return;
+      }
+
       // Immediately update the game state in cache with player's move
       queryClient.setQueryData(["game", gameId], data.game);
       
       // If AI needs to move, calculate it asynchronously
       if (data.playerMove && data.game.turn === 'ai') {
+        // Store the gameId at the time of starting AI calculation
+        const currentGameId = gameId;
+        
         // Start AI calculation in background
-        calculateAIMove(gameId, data.playerMove).then((aiResult) => {
-          queryClient.setQueryData(["game", gameId], aiResult.game);
-          queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-        }).catch((error) => {
-          console.error("AI move calculation error:", error);
-        });
+        calculateAIMove(currentGameId, data.playerMove)
+          .then((aiResult) => {
+            // Only update if we're still on the same game
+            // This prevents updating cache for a game that user has navigated away from
+            const currentGame = queryClient.getQueryData(["game", currentGameId]);
+            if (currentGame) {
+              queryClient.setQueryData(["game", currentGameId], aiResult.game);
+              queryClient.invalidateQueries({ queryKey: ["game", currentGameId] });
+            }
+          })
+          .catch((error) => {
+            // Only log if we're still on the same game
+            const currentGame = queryClient.getQueryData(["game", currentGameId]);
+            if (currentGame) {
+              console.error("AI move calculation error:", error);
+            }
+          });
       }
       
       // Also invalidate to ensure fresh data

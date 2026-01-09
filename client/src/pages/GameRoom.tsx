@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { useParams, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useGame, useMakeMove, useCreateGame } from "@/hooks/use-game";
 import { ChessBoard } from "@/components/ChessBoard";
 import { Scanlines } from "@/components/Scanlines";
@@ -10,19 +10,28 @@ import { Loader2, AlertTriangle, Trophy, Radio, Terminal as TerminalIcon, Skull 
 import { cn } from "@/lib/utils";
 import { parseBoardString, getValidMovesClient } from "@/lib/gameLogic";
 import { parseFen } from "@shared/gameLogic";
+import { gameStorage } from "@/lib/storage";
 
 export default function GameRoom() {
-  const { id } = useParams();
   const [, setLocation] = useLocation();
-  const gameId = id ? parseInt(id) : null;
+  const [gameId, setGameId] = useState<number | null>(() => gameStorage.getCurrentGameId());
   const { data: game, isLoading, error } = useGame(gameId);
-  const makeMove = useMakeMove(gameId!);
+  // Only create makeMove hook if gameId is valid
+  const makeMove = useMakeMove(gameId ?? 0);
   const createGame = useCreateGame();
 
   const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
   const [logHistory, setLogHistory] = useState<Array<{ message: string; timestamp: Date }>>([]);
   const [hasError, setHasError] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const prevGameIdRef = useRef<number | null>(null);
+
+  // Redirect if no game found in storage
+  useEffect(() => {
+    if (!gameId && !isLoading) {
+      setLocation("/");
+    }
+  }, [gameId, isLoading, setLocation]);
 
   // Initialize logs when game loads
   useEffect(() => {
@@ -60,6 +69,33 @@ export default function GameRoom() {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logHistory]);
 
+  // Calculate valid moves for selected piece
+  // MUST be before early returns to maintain consistent hook order
+  const validMoves = useMemo(() => {
+    // Early return if game data is not available
+    if (!game || !game.board) return [];
+    
+    // Early return if no square is selected
+    if (!selectedSquare) return [];
+    
+    // Early return if it's not player's turn
+    if (game.turn !== 'player') return [];
+    
+    // Calculate valid moves
+    try {
+      const board = parseBoardString(game.board);
+      return getValidMovesClient(board, selectedSquare, true);
+    } catch (error) {
+      console.error("Error calculating valid moves:", error);
+      return [];
+    }
+  }, [selectedSquare, game?.board, game?.turn]);
+
+  // Determine error state and message
+  const isInvalidGameId = gameId === null;
+  const isGameNotFound = gameId !== null && !isLoading && !error && !game;
+  const hasErrorState = error || isGameNotFound || (isInvalidGameId && !isLoading);
+
   if (isLoading) return (
     <div className="h-screen w-full bg-background flex items-center justify-center text-primary font-mono">
       <div className="flex flex-col items-center gap-4">
@@ -70,19 +106,41 @@ export default function GameRoom() {
     </div>
   );
 
-  if (error || !game) return (
-    <div className="h-screen w-full bg-background flex flex-col items-center justify-center text-destructive font-mono gap-4">
-      <AlertTriangle className="w-12 h-12" />
-      <h2 className="text-xl">CRITICAL SYSTEM FAILURE</h2>
-      <p>Connection Lost.</p>
-      <GlitchButton onClick={() => setLocation("/")} variant="outline">
-        ABORT
-      </GlitchButton>
-      <Scanlines />
-    </div>
-  );
+  if (hasErrorState) {
+    let errorTitle = "CRITICAL SYSTEM FAILURE";
+    let errorMessage = "Connection Lost.";
+    
+    if (isInvalidGameId) {
+      errorTitle = "NO ACTIVE GAME";
+      errorMessage = "No active game session found.";
+    } else if (isGameNotFound) {
+      errorTitle = "GAME NOT FOUND";
+      errorMessage = `Game data for ID #${gameId} is missing or corrupted.`;
+    } else if (error) {
+      errorTitle = "SYSTEM ERROR";
+      errorMessage = "An unexpected error occurred.";
+    }
+
+    return (
+      <div className="h-screen w-full bg-background flex flex-col items-center justify-center text-destructive font-mono gap-4">
+        <AlertTriangle className="w-12 h-12" />
+        <h2 className="text-xl">{errorTitle}</h2>
+        <p>{errorMessage}</p>
+        <GlitchButton onClick={() => setLocation("/")} variant="outline">
+          ABORT
+        </GlitchButton>
+        <Scanlines />
+      </div>
+    );
+  }
 
   const handleSquareClick = async (r: number, c: number) => {
+    // Safety check: ensure gameId is valid and game exists
+    if (!gameId || !game) {
+      console.error("Cannot make move: invalid game ID or game not loaded");
+      return;
+    }
+
     // Prevent clicks during processing or when game is over
     if (makeMove.isPending || game.turn === 'ai' || game.winner) {
       return;
@@ -109,6 +167,11 @@ export default function GameRoom() {
       }
 
       try {
+        // Double-check gameId is valid before making move
+        if (!gameId) {
+          throw new Error("Invalid game ID");
+        }
+
         const result = await makeMove.mutateAsync({
           from: selectedSquare,
           to: { r, c }
@@ -141,13 +204,6 @@ export default function GameRoom() {
   const lastMove = (game.history && game.history.length > 0) 
     ? parseHistoryString(game.history[game.history.length - 1]) 
     : null;
-
-  // Calculate valid moves for selected piece
-  const validMoves = useMemo(() => {
-    if (!selectedSquare || !isPlayerTurn) return [];
-    const board = parseBoardString(game.board);
-    return getValidMovesClient(board, selectedSquare, true);
-  }, [selectedSquare, game.board, isPlayerTurn]);
 
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col lg:flex-row overflow-hidden font-mono relative">
@@ -310,7 +366,9 @@ export default function GameRoom() {
                  <GlitchButton variant="outline" onClick={async () => {
                    try {
                      const newGame = await createGame.mutateAsync();
-                     setLocation(`/game/${newGame.id}`);
+                     setGameId(newGame.id);
+                     // setLocation will trigger a re-render/refetch if we're already on /game
+                     // but we might need to reset state manually or rely on the gameId effect
                    } catch (error) {
                      console.error("Failed to create new game:", error);
                    }

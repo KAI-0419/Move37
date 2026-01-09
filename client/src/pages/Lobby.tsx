@@ -68,7 +68,7 @@ export default function Lobby() {
   const handleStart = async () => {
     try {
       const game = await createGame.mutateAsync(selectedDifficulty);
-      setLocation(`/game/${game.id}`);
+      setLocation("/game");
     } catch (error: any) {
       console.error("Failed to create game:", error);
       toast({
