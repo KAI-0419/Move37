@@ -154,7 +154,7 @@ export async function calculateAIMove(
   // AI Turn - pass player's last move for psychological analysis
   // Use game difficulty (default to NEXUS-7 for backward compatibility)
   const gameDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7";
-  const aiResult = getAIMove(board, playerMove, gameDifficulty);
+  const aiResult = getAIMove(board, playerMove, gameDifficulty, newTurnCount);
   let aiLog = "Processing...";
   let aiLogs: string[] = [];
   

@@ -295,6 +295,194 @@ function analyzePlayerPsychology(
 }
 
 /**
+ * Get all possible moves for a player
+ */
+function getAllMoves(board: Board, isPlayer: boolean): Array<{ from: { r: number, c: number }, to: { r: number, c: number } }> {
+  const moves: Array<{ from: { r: number, c: number }, to: { r: number, c: number } }> = [];
+  
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      
+      const isPlayerPiece = piece === piece.toLowerCase() && piece !== piece.toUpperCase();
+      const isAiPiece = piece === piece.toUpperCase() && piece !== piece.toLowerCase();
+      
+      if ((isPlayer && isPlayerPiece) || (!isPlayer && isAiPiece)) {
+        const validMoves = getValidMoves(board, { r, c }, isPlayer);
+        for (const move of validMoves) {
+          moves.push({ from: { r, c }, to: move });
+        }
+      }
+    }
+  }
+  
+  return moves;
+}
+
+/**
+ * Enhanced evaluation function for minimax
+ * Returns positive score for AI advantage, negative for player advantage
+ */
+function evaluateBoard(board: Board, turnCount?: number): number {
+  // Check for immediate win/loss conditions first
+  const winner = checkWinner(board, turnCount);
+  if (winner === 'ai') return 10000; // AI wins
+  if (winner === 'player') return -10000; // Player wins
+  if (winner === 'draw') return 0;
+  
+  let score = 0;
+  
+  // Find king positions
+  let playerKingPos: { r: number, c: number } | null = null;
+  let aiKingPos: { r: number, c: number } | null = null;
+  
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      
+      if (piece === 'k') {
+        playerKingPos = { r, c };
+        // Player king advancement (toward row 0) - negative score (bad for AI)
+        score -= (4 - r) * 10; // Closer to row 0 = more dangerous for AI
+        if (r === 0) score -= 5000; // Player king reached goal
+      } else if (piece === 'K') {
+        aiKingPos = { r, c };
+        // AI king advancement (toward row 4) - positive score (good for AI)
+        score += r * 10; // Closer to row 4 = better for AI
+        if (r === 4) score += 5000; // AI king reached goal
+      } else if (piece === 'n') {
+        // Player knight - negative score
+        score -= 5;
+        // Position bonus: closer to center = more dangerous
+        const centerDist = Math.abs(r - 2) + Math.abs(c - 2);
+        score -= (5 - centerDist) * 0.5;
+      } else if (piece === 'N') {
+        // AI knight - positive score
+        score += 5;
+        // Position bonus: closer to center = better
+        const centerDist = Math.abs(r - 2) + Math.abs(c - 2);
+        score += (5 - centerDist) * 0.5;
+      } else if (piece === 'p') {
+        // Player pawn - negative score
+        score -= 1;
+        // Pawn advancement bonus (toward row 0)
+        score -= (4 - r) * 0.5;
+      } else if (piece === 'P') {
+        // AI pawn - positive score
+        score += 1;
+        // Pawn advancement bonus (toward row 4)
+        score += r * 0.5;
+      }
+    }
+  }
+  
+  // King safety evaluation
+  if (aiKingPos) {
+    // Check if AI king is threatened
+    let aiKingThreatened = false;
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const piece = board[r][c];
+        if (piece && piece === piece.toLowerCase() && piece !== piece.toUpperCase()) {
+          if (isValidMove(board, { r, c }, aiKingPos, true)) {
+            aiKingThreatened = true;
+            score -= 50; // Penalty for king in danger
+            break;
+          }
+        }
+      }
+      if (aiKingThreatened) break;
+    }
+  }
+  
+  if (playerKingPos) {
+    // Check if player king is threatened
+    let playerKingThreatened = false;
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const piece = board[r][c];
+        if (piece && piece === piece.toUpperCase() && piece !== piece.toLowerCase()) {
+          if (isValidMove(board, { r, c }, playerKingPos, false)) {
+            playerKingThreatened = true;
+            score += 50; // Bonus for threatening player king
+            break;
+          }
+        }
+      }
+      if (playerKingThreatened) break;
+    }
+  }
+  
+  // Mobility: count possible moves
+  const aiMoves = getAllMoves(board, false);
+  const playerMoves = getAllMoves(board, true);
+  score += (aiMoves.length - playerMoves.length) * 0.1;
+  
+  return score;
+}
+
+/**
+ * Minimax algorithm with alpha-beta pruning
+ * Returns the best score for the maximizing player (AI)
+ */
+function minimax(
+  board: Board,
+  depth: number,
+  alpha: number,
+  beta: number,
+  isMaximizing: boolean,
+  turnCount?: number
+): number {
+  // Terminal conditions
+  const winner = checkWinner(board, turnCount);
+  if (winner === 'ai') return 10000 - depth; // Prefer faster wins
+  if (winner === 'player') return -10000 + depth; // Prefer slower losses
+  if (winner === 'draw') return 0;
+  
+  // Depth limit
+  if (depth === 0) {
+    return evaluateBoard(board, turnCount);
+  }
+  
+  const moves = getAllMoves(board, !isMaximizing);
+  
+  // If no moves available (stalemate)
+  if (moves.length === 0) {
+    return isMaximizing ? -5000 : 5000; // Stalemate is bad for the side to move
+  }
+  
+  if (isMaximizing) {
+    // AI's turn - maximize score
+    let maxScore = -Infinity;
+    for (const move of moves) {
+      const newBoard = makeMove(board, move.from, move.to);
+      const score = minimax(newBoard, depth - 1, alpha, beta, false, turnCount);
+      maxScore = Math.max(maxScore, score);
+      alpha = Math.max(alpha, score);
+      if (beta <= alpha) {
+        break; // Alpha-beta pruning
+      }
+    }
+    return maxScore;
+  } else {
+    // Player's turn - minimize score
+    let minScore = Infinity;
+    for (const move of moves) {
+      const newBoard = makeMove(board, move.from, move.to);
+      const score = minimax(newBoard, depth - 1, alpha, beta, true, turnCount);
+      minScore = Math.min(minScore, score);
+      beta = Math.min(beta, score);
+      if (beta <= alpha) {
+        break; // Alpha-beta pruning
+      }
+    }
+    return minScore;
+  }
+}
+
+/**
  * Enhanced AI with sacrifice tactics and positional awareness
  * Implements "Move 37" philosophy: sometimes losing a piece is necessary
  * Returns both the move and a single psychological insight message
@@ -304,11 +492,66 @@ function analyzePlayerPsychology(
 export function getAIMove(
   board: Board,
   playerLastMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } | null = null,
-  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7"
+  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
+  turnCount?: number
 ): { 
   move: { from: { r: number, c: number }, to: { r: number, c: number } } | null;
   logs: string[];
 } {
+  // For NEXUS-7, use minimax algorithm for optimal play
+  if (difficulty === "NEXUS-7") {
+    const aiMoves = getAllMoves(board, false);
+    
+    if (aiMoves.length === 0) {
+      return { 
+        move: null, 
+        logs: ["계산 오류: 유효한 수가 없습니다."]
+      };
+    }
+    
+    // Use minimax with depth 4 for NEXUS-7 (very strong AI)
+    const depth = 4;
+    const movesWithScores: Array<{
+      move: { from: { r: number, c: number }, to: { r: number, c: number } };
+      score: number;
+    }> = [];
+    
+    // Evaluate each move using minimax
+    for (const move of aiMoves) {
+      const newBoard = makeMove(board, move.from, move.to);
+      // Pass turnCount to minimax for accurate draw detection
+      const score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      movesWithScores.push({ move, score });
+    }
+    
+    // Sort by score (descending - higher is better for AI)
+    movesWithScores.sort((a, b) => b.score - a.score);
+    
+    // Select best move with 99% probability, or second best with 1% (for minimal variety)
+    let selectedMove;
+    const random = Math.random();
+    if (random < 0.99 || movesWithScores.length === 1) {
+      // 99% 확률로 최적 수 선택
+      selectedMove = movesWithScores[0].move;
+    } else {
+      // 1% 확률로 2번째 최적 수 선택 (최소한의 다양성)
+      if (movesWithScores.length > 1) {
+        selectedMove = movesWithScores[1].move;
+      } else {
+        selectedMove = movesWithScores[0].move;
+      }
+    }
+    
+    // Generate single psychological insight message
+    const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+    
+    return { 
+      move: selectedMove,
+      logs: [psychologicalInsight]
+    };
+  }
+  
+  // For NEXUS-3 and NEXUS-5, use the original heuristic-based approach
   const moves: { 
     from: { r: number, c: number }, 
     to: { r: number, c: number }, 
@@ -554,32 +797,6 @@ export function getAIMove(
       // 40% 확률로 상위 2개 그룹 중 랜덤 선택
       const randomIndex = Math.floor(Math.random() * topMoves.length);
       selectedMove = topMoves[randomIndex];
-    }
-  } else {
-    // NEXUS-7 (어려움): 최적 수 선택 확률 90%, 상위 그룹에서만 선택
-    // But still add variety within top moves to prevent deterministic play
-    const topGroup = scoreGroups[0];
-    if (!topGroup || topGroup.length === 0) {
-      selectedMove = moves[0];
-    } else {
-      const random = Math.random();
-      if (random < 0.9 || topGroup.length === 1) {
-        // 90% 확률로 최적 수 그룹에서 선택
-        // Within top group, prefer highest score but allow some variety
-        if (topGroup.length === 1) {
-          selectedMove = topGroup[0];
-        } else {
-          // Weighted random: higher scores more likely, but not deterministic
-          const sortedTopGroup = [...topGroup].sort((a, b) => b.score - a.score);
-          const top3InGroup = sortedTopGroup.slice(0, Math.min(3, sortedTopGroup.length));
-          const randomIndex = Math.floor(Math.random() * top3InGroup.length);
-          selectedMove = top3InGroup[randomIndex];
-        }
-      } else {
-        // 10% 확률로도 최적 수 그룹 내에서 선택 (but more variety)
-        const randomIndex = Math.floor(Math.random() * topGroup.length);
-        selectedMove = topGroup[randomIndex];
-      }
     }
   }
   
