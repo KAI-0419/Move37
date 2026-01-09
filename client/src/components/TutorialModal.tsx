@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft, Crown, Component, Circle, Target, Zap, Clock } from "lucide-react";
@@ -132,21 +132,21 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
     }
   }, [currentStep]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
       setShowAnimation(false);
     } else {
       onOpenChange(false);
     }
-  };
+  }, [currentStep, onOpenChange]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
       setShowAnimation(false);
     }
-  };
+  }, [currentStep]);
 
   // Reset when modal closes
   useEffect(() => {
@@ -156,6 +156,27 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
       setAnimatedBoard(INITIAL_BOARD_FEN);
     }
   }, [open]);
+
+  // Keyboard navigation (arrow keys)
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent default behavior only for arrow keys
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+      }
+
+      if (e.key === 'ArrowLeft') {
+        handlePrev();
+      } else if (e.key === 'ArrowRight') {
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, handlePrev, handleNext]);
 
   const displayBoard = showAnimation && step.animation ? animatedBoard : (step.boardState || INITIAL_BOARD_FEN);
 
@@ -167,7 +188,11 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
       }
       onOpenChange(isOpen);
     }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-black/95 border-2 border-primary/30 backdrop-blur-sm shadow-[0_0_30px_rgba(0,243,255,0.2)]">
+      <DialogContent className={cn(
+        "max-w-3xl max-h-[85vh] bg-black/95 border-2 border-primary/30 backdrop-blur-sm shadow-[0_0_30px_rgba(0,243,255,0.2)]",
+        // 모바일에서는 항상 스크롤 허용, 데스크톱(lg 이상)에서만 6번째 페이지 스크롤 숨김
+        currentStep === 5 ? "overflow-y-auto lg:overflow-y-hidden" : "overflow-y-auto"
+      )}>
         <DialogHeader className="pb-3">
           <DialogTitle className="text-lg font-display font-black text-primary tracking-wider flex items-center gap-2">
             <Zap className="w-5 h-5" />

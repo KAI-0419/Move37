@@ -168,7 +168,7 @@
       },
       "victory": {
         "title": "Victory Conditions",
-        "description": "There are two ways to win:\n1. Capture the enemy king\n2. Move your king to the top row (row 0)\n\nIf no winner is determined within 30 turns, it's a draw.\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
+        "description": "There are two ways to win:\n1. Capture the enemy king\n2. Move your king to the top row (row 0)\n\n📊 30-Turn Judgement:\n• At 30 turns, winner is determined by king advancement and material score\n• Closer to goal and more pieces = advantage\n• Draws are extremely rare\n\n🔄 Threefold Repetition Rule:\n• Moves that repeat the same board state 3 times are forbidden\n• Prevents repetitive strategies and maintains game tension\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
       },
       "start": {
         "title": "Starting the Game",
