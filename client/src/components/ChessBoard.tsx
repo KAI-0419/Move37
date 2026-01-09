@@ -221,11 +221,23 @@ export function ChessBoard({
                 {pieceChar !== '.' && (
                   <motion.div
                     key={`piece-${pieceChar}-${r}-${c}`}
+                    layout
+                    layoutId={lastMove && isLastMoveDest ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}` : undefined}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0 }}
+                    transition={{
+                      layout: { 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 25,
+                        duration: 0.5
+                      },
+                      scale: { duration: 0.2 },
+                      opacity: { duration: 0.2 }
+                    }}
                     className={cn(
-                      "transition-all duration-300 z-10",
+                      "z-10 flex items-center justify-center w-full h-full",
                       isPlayerPiece 
                         ? "text-primary drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" 
                         : getAiPieceColor()

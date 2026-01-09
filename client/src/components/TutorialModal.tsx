@@ -100,9 +100,10 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
       setShowAnimation(false);
       setAnimatedBoard(currentStepData.boardState || INITIAL_BOARD_FEN);
       
+      // Start animation after delay
       const timer = setTimeout(() => {
         setShowAnimation(true);
-        // Simulate move
+        // Simulate move with smooth transition
         const currentBoard = parseFen(currentStepData.boardState || INITIAL_BOARD_FEN);
         const newBoard = makeMove(
           currentBoard,
@@ -245,18 +246,6 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
                   )}
                 </div>
               </div>
-              
-              {/* Animation indicator */}
-              {step.animation && !showAnimation && (
-                <motion.div
-                  className="mt-2 text-[10px] font-mono text-primary/70 flex items-center gap-1.5"
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                >
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                  이동 시뮬레이션 준비 중...
-                </motion.div>
-              )}
             </div>
 
             {/* Right: Description */}
