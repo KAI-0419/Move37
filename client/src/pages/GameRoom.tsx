@@ -339,10 +339,69 @@ export default function GameRoom() {
     }
   };
 
+  // Early return if game is not loaded
+  if (!game) {
+    return null;
+  }
+
   const isPlayerTurn = game.turn === 'player';
   const lastMove = (game.history && game.history.length > 0) 
     ? parseHistoryString(game.history[game.history.length - 1]) 
     : null;
+
+  // Get difficulty-based color classes
+  const difficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7";
+  const getDifficultyColor = () => {
+    switch (difficulty) {
+      case "NEXUS-3":
+        return {
+          text: "text-primary",
+          border: "border-primary",
+          bg: "bg-primary/5",
+          bgHover: "hover:bg-primary/10",
+          shadow: "shadow-[0_0_15px_rgba(0,243,255,0.1)]",
+          borderOpacity: "border-primary/50",
+          textOpacity: "text-primary/80",
+          textOpacity90: "text-primary/90",
+          bgOpacity: "bg-primary/5",
+          borderOpacity30: "border-primary/30",
+          icon: "text-primary",
+          bgPulse: "bg-primary",
+        };
+      case "NEXUS-5":
+        return {
+          text: "text-secondary",
+          border: "border-secondary",
+          bg: "bg-secondary/5",
+          bgHover: "hover:bg-secondary/10",
+          shadow: "shadow-[0_0_15px_rgba(255,200,0,0.1)]",
+          borderOpacity: "border-secondary/50",
+          textOpacity: "text-secondary/80",
+          textOpacity90: "text-secondary/90",
+          bgOpacity: "bg-secondary/5",
+          borderOpacity30: "border-secondary/30",
+          icon: "text-secondary",
+          bgPulse: "bg-secondary",
+        };
+      case "NEXUS-7":
+      default:
+        return {
+          text: "text-destructive",
+          border: "border-destructive",
+          bg: "bg-destructive/5",
+          bgHover: "hover:bg-destructive/10",
+          shadow: "shadow-[0_0_15px_rgba(255,0,60,0.1)]",
+          borderOpacity: "border-destructive/50",
+          textOpacity: "text-destructive/80",
+          textOpacity90: "text-destructive/90",
+          bgOpacity: "bg-destructive/5",
+          borderOpacity30: "border-destructive/30",
+          icon: "text-destructive",
+          bgPulse: "bg-destructive",
+        };
+    }
+  };
+  const difficultyColors = getDifficultyColor();
 
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col lg:flex-row overflow-hidden font-mono relative">
@@ -377,13 +436,23 @@ export default function GameRoom() {
             {/* AI Card */}
             <div className={cn(
               "px-3 py-2 lg:p-4 border transition-all duration-300 min-w-[120px] lg:min-w-0",
-              !isPlayerTurn || makeMove.isPending ? "border-destructive bg-destructive/5 shadow-[0_0_15px_rgba(255,0,60,0.1)]" : "border-white/10 opacity-50"
+              !isPlayerTurn || makeMove.isPending 
+                ? `${difficultyColors.border} ${difficultyColors.bg} ${difficultyColors.shadow}` 
+                : "border-white/10 opacity-50"
             )}>
-              <h3 className="text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 text-destructive uppercase tracking-tighter lg:tracking-normal">
-                {(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"} (AI)
+              <h3 className={cn(
+                "text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal",
+                difficultyColors.text
+              )}>
+                {difficulty} (AI)
               </h3>
-              <div className="flex items-center gap-2 text-[8px] lg:text-xs text-destructive">
-                <div className={cn("w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", (!isPlayerTurn || makeMove.isPending) ? "bg-destructive animate-pulse" : "bg-gray-600")} />
+              <div className={cn("flex items-center gap-2 text-[8px] lg:text-xs", difficultyColors.text)}>
+                <div className={cn(
+                  "w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", 
+                  (!isPlayerTurn || makeMove.isPending) 
+                    ? cn(difficultyColors.bgPulse, "animate-pulse") 
+                    : "bg-gray-600"
+                )} />
                 <span className="hidden sm:inline">{makeMove.isPending ? "ANALYZING MOVES..." : !isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}</span>
               </div>
             </div>
@@ -394,7 +463,12 @@ export default function GameRoom() {
         <div className="hidden lg:block space-y-2">
            <GlitchButton 
              variant="outline" 
-             className="w-full text-sm py-4 border-destructive/50 text-destructive/80 hover:bg-destructive/10"
+             className={cn(
+               "w-full text-sm py-4",
+               difficultyColors.borderOpacity,
+               difficultyColors.textOpacity,
+               difficultyColors.bgHover
+             )}
              onClick={() => handleNavigateAway("/")}
            >
              SURRENDER
@@ -432,7 +506,11 @@ export default function GameRoom() {
                 exit={{ opacity: 0, y: 5 }}
                 className={cn(
                   "text-xs lg:text-lg tracking-widest font-bold uppercase",
-                  makeMove.isPending ? "text-destructive" : game.turn === 'player' ? "text-primary" : "text-destructive"
+                  makeMove.isPending 
+                    ? difficultyColors.text 
+                    : game.turn === 'player' 
+                    ? "text-primary" 
+                    : difficultyColors.text
                 )}
               >
                 {makeMove.isPending ? ">> AI ANALYZING" : game.turn === 'player' ? ">> YOUR TURN" : ">> OPPONENT THINKING"}
@@ -458,7 +536,12 @@ export default function GameRoom() {
         {/* Mobile Action Buttons - Visible only on mobile bottom */}
         <div className="mt-4 lg:hidden w-full max-w-[280px]">
            <button 
-             className="w-full text-[10px] py-2 border border-destructive/50 text-destructive/80 font-bold uppercase tracking-widest bg-destructive/5"
+             className={cn(
+               "w-full text-[10px] py-2 border font-bold uppercase tracking-widest",
+               difficultyColors.borderOpacity,
+               difficultyColors.textOpacity,
+               difficultyColors.bgOpacity
+             )}
              onClick={() => handleNavigateAway("/")}
            >
              [ SURRENDER ]
@@ -479,13 +562,13 @@ export default function GameRoom() {
                ) : game.winner === 'draw' ? (
                  <AlertTriangle className="w-16 h-16 text-secondary mx-auto mb-4" />
                ) : (
-                 <Skull className="w-16 h-16 text-destructive mx-auto mb-4" />
+                 <Skull className={cn("w-16 h-16 mx-auto mb-4", difficultyColors.icon)} />
                )}
                <h2 className={cn(
                  "text-4xl font-display font-black", 
                  game.winner === 'player' ? "text-primary" : 
                  game.winner === 'draw' ? "text-secondary" :
-                 "text-destructive"
+                 difficultyColors.text
                )}>
                  {game.winner === 'player' ? "YOU WON" : 
                   game.winner === 'draw' ? "DRAW" :
@@ -527,8 +610,14 @@ export default function GameRoom() {
                  </GlitchButton>
                  <GlitchButton variant="outline" onClick={async () => {
                    try {
-                     const newGame = await createGame.mutateAsync();
+                     // Use current game's difficulty, or default to NEXUS-3 if not available
+                     const currentDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
+                     const newGame = await createGame.mutateAsync(currentDifficulty);
                      setGameId(newGame.id);
+                     // Reset game state for new game
+                     setSelectedSquare(null);
+                     setLogHistory([]);
+                     setHasError(false);
                      // setLocation will trigger a re-render/refetch if we're already on /game
                      // but we might need to reset state manually or rely on the gameId effect
                    } catch (error) {
@@ -566,7 +655,9 @@ export default function GameRoom() {
                  key={i} 
                  className={cn(
                    "border-l-2 pl-3 py-1 transition-all",
-                   isAILog ? "border-destructive/30 bg-destructive/5" : "border-accent/20"
+                   isAILog 
+                     ? `${difficultyColors.borderOpacity30} ${difficultyColors.bgOpacity}` 
+                     : "border-accent/20"
                  )}
                >
                  {!isSystemLog && (
@@ -574,7 +665,11 @@ export default function GameRoom() {
                  )}
                  <span className={cn(
                    "text-xs font-mono",
-                   isAILog ? "text-destructive/90" : isSystemLog ? "text-muted-foreground opacity-50" : "text-foreground"
+                   isAILog 
+                     ? difficultyColors.textOpacity90 
+                     : isSystemLog 
+                     ? "text-muted-foreground opacity-50" 
+                     : "text-foreground"
                  )}>
                    {log.message}
                  </span>

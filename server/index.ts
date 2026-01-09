@@ -91,8 +91,8 @@ app.use((req, res, next) => {
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
   
-  // Windows doesn't support 0.0.0.0, use localhost instead
-  const host = process.platform === "win32" ? "localhost" : "0.0.0.0";
+  // Bind to 0.0.0.0 to allow external access from other devices on the network
+  const host = "0.0.0.0";
   
   httpServer.listen(
     port,
