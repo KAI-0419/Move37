@@ -10,7 +10,7 @@ import { Loader2, AlertTriangle, Trophy, Radio, Terminal as TerminalIcon, Skull 
 import { cn } from "@/lib/utils";
 import { parseBoardString, getValidMovesClient } from "@/lib/gameLogic";
 import { parseFen } from "@shared/gameLogic";
-import { gameStorage } from "@/lib/storage";
+import { gameStorage, handleVictoryUnlock, getUnlockedDifficulties } from "@/lib/storage";
 
 export default function GameRoom() {
   const [location, setLocation] = useLocation();
@@ -26,6 +26,15 @@ export default function GameRoom() {
   const logEndRef = useRef<HTMLDivElement>(null);
   const prevGameIdRef = useRef<number | null>(null);
   const isNavigatingAwayRef = useRef(false);
+  const hasUnlockedRef = useRef(false); // Track if we've already unlocked for this game
+
+  // Reset unlock tracking when game changes
+  useEffect(() => {
+    if (gameId !== prevGameIdRef.current) {
+      hasUnlockedRef.current = false;
+      prevGameIdRef.current = gameId;
+    }
+  }, [gameId]);
 
   // Redirect if no game found in storage
   useEffect(() => {
@@ -65,6 +74,29 @@ export default function GameRoom() {
       });
     }
   }, [game?.aiLog]);
+
+  // Handle victory unlock when player wins
+  useEffect(() => {
+    if (game?.winner === 'player' && game?.difficulty && !hasUnlockedRef.current) {
+      const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+      handleVictoryUnlock(difficulty);
+      hasUnlockedRef.current = true;
+      
+      // Log unlock message
+      const unlocked = getUnlockedDifficulties();
+      if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
+        setLogHistory(prev => [...prev, { 
+          message: ">> NEXUS-5 UNLOCKED. Next challenge available.", 
+          timestamp: new Date() 
+        }]);
+      } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
+        setLogHistory(prev => [...prev, { 
+          message: ">> NEXUS-7 UNLOCKED. Final challenge available.", 
+          timestamp: new Date() 
+        }]);
+      }
+    }
+  }, [game?.winner, game?.difficulty]);
 
   // Auto scroll logs
   useEffect(() => {
@@ -466,9 +498,29 @@ export default function GameRoom() {
                    ? "Resource depletion. Neither side achieved victory."
                    : "Logic prevails. Human error detected."}
                </p>
+               {game.winner === 'player' && game.difficulty && (() => {
+                 const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+                 const unlocked = getUnlockedDifficulties();
+                 if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
+                   return (
+                     <p className="font-mono text-xs text-primary border border-primary/30 px-4 py-2 bg-primary/5">
+                       {">> NEXUS-5 UNLOCKED"}
+                     </p>
+                   );
+                 } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
+                   return (
+                     <p className="font-mono text-xs text-primary border border-primary/30 px-4 py-2 bg-primary/5">
+                       {">> NEXUS-7 UNLOCKED"}
+                     </p>
+                   );
+                 }
+                 return null;
+               })()}
                <div className="flex gap-4 justify-center">
                  <GlitchButton onClick={() => {
                    isNavigatingAwayRef.current = true;
+                   // Force reload unlock status when returning to lobby
+                   window.dispatchEvent(new Event('storage'));
                    setLocation("/");
                  }}>
                    RETURN TO LOBBY

@@ -6,10 +6,11 @@ import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import { motion } from "framer-motion";
-import { Cpu, Skull, Brain, Zap } from "lucide-react";
+import { Cpu, Skull, Brain, Zap, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TutorialModal } from "@/components/TutorialModal";
+import { isDifficultyUnlocked, getUnlockedDifficulties } from "@/lib/storage";
 
 // LocalStorage key for selected difficulty
 const DIFFICULTY_STORAGE_KEY = "move37_selected_difficulty";
@@ -50,17 +51,64 @@ export default function Lobby() {
   const [, setLocation] = useLocation();
   const createGame = useCreateGame();
   const { toast } = useToast();
-  const [selectedDifficulty, setSelectedDifficulty] = useState<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">(() => loadDifficulty());
+  const [selectedDifficulty, setSelectedDifficulty] = useState<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">(() => {
+    // Only select unlocked difficulty
+    const unlocked = getUnlockedDifficulties();
+    const saved = loadDifficulty();
+    // If saved difficulty is unlocked, use it; otherwise use first unlocked
+    if (unlocked.has(saved)) {
+      return saved;
+    }
+    // Default to first unlocked difficulty (should be NEXUS-3)
+    return Array.from(unlocked)[0] || "NEXUS-3";
+  });
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [unlockedDifficulties, setUnlockedDifficulties] = useState<Set<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">>(() => getUnlockedDifficulties());
 
-  // Load saved difficulty on mount
+  // Load saved difficulty and unlock status on mount
   useEffect(() => {
-    const savedDifficulty = loadDifficulty();
-    setSelectedDifficulty(savedDifficulty);
+    const loadUnlockStatus = () => {
+      const savedDifficulty = loadDifficulty();
+      const unlocked = getUnlockedDifficulties();
+      setUnlockedDifficulties(unlocked);
+      
+      // Only set selected difficulty if it's unlocked
+      if (unlocked.has(savedDifficulty)) {
+        setSelectedDifficulty(savedDifficulty);
+      } else {
+        // Default to first unlocked difficulty
+        const firstUnlocked = Array.from(unlocked)[0] || "NEXUS-3";
+        setSelectedDifficulty(firstUnlocked);
+        saveDifficulty(firstUnlocked);
+      }
+    };
+
+    loadUnlockStatus();
+
+    // Listen for storage changes (when unlock status is updated from GameRoom)
+    const handleStorageChange = () => {
+      loadUnlockStatus();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    // Also listen for custom event (for same-window updates)
+    window.addEventListener('unlock-updated', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('unlock-updated', handleStorageChange);
+    };
   }, []);
 
-  // Save difficulty whenever it changes
+  // Save difficulty whenever it changes (only if unlocked)
   const handleDifficultyChange = (difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
+    if (!isDifficultyUnlocked(difficulty)) {
+      toast({
+        title: "Locked",
+        description: `NEXUS-${difficulty.split('-')[1]}을(를) 해제하려면 이전 난이도를 완료해야 합니다.`,
+        variant: "default",
+      });
+      return;
+    }
     setSelectedDifficulty(difficulty);
     saveDifficulty(difficulty);
   };
@@ -142,42 +190,102 @@ export default function Lobby() {
             <div className="grid grid-cols-3 gap-2 lg:gap-3">
               <button
                 onClick={() => handleDifficultyChange("NEXUS-3")}
+                disabled={!isDifficultyUnlocked("NEXUS-3")}
                 className={cn(
-                  "p-2 lg:p-4 border transition-all duration-300 text-left",
-                  selectedDifficulty === "NEXUS-3"
+                  "p-2 lg:p-4 border transition-all duration-300 text-left relative",
+                  !isDifficultyUnlocked("NEXUS-3")
+                    ? "border-primary/20 bg-primary/5 opacity-75 cursor-not-allowed"
+                    : selectedDifficulty === "NEXUS-3"
                     ? "border-primary bg-primary/10 shadow-[0_0_15px_rgba(0,243,255,0.2)]"
                     : "border-white/10 bg-white/5 hover:border-white/20"
                 )}
               >
-                <Cpu className="w-4 h-4 lg:w-5 lg:h-5 text-primary mb-1 lg:mb-2" />
-                <h4 className="text-[8px] lg:text-xs font-bold text-muted-foreground mb-0.5 lg:mb-1">NEXUS-3</h4>
-                <p className="hidden sm:block text-[8px] lg:text-xs text-muted-foreground">쉬움</p>
+                {!isDifficultyUnlocked("NEXUS-3") && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
+                    <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
+                    <span className="text-[7px] lg:text-[8px] text-primary/30 font-mono">LOCKED</span>
+                  </div>
+                )}
+                <Cpu className={cn(
+                  "w-4 h-4 lg:w-5 lg:h-5 mb-1 lg:mb-2",
+                  isDifficultyUnlocked("NEXUS-3") ? "text-primary" : "text-primary/30"
+                )} />
+                <h4 className={cn(
+                  "text-[8px] lg:text-xs font-bold mb-0.5 lg:mb-1",
+                  isDifficultyUnlocked("NEXUS-3") ? "text-muted-foreground" : "text-primary/40"
+                )}>NEXUS-3</h4>
+                <p className={cn(
+                  "hidden sm:block text-[8px] lg:text-xs",
+                  isDifficultyUnlocked("NEXUS-3") ? "text-muted-foreground" : "text-primary/30"
+                )}>쉬움</p>
               </button>
               <button
                 onClick={() => handleDifficultyChange("NEXUS-5")}
+                disabled={!isDifficultyUnlocked("NEXUS-5")}
                 className={cn(
-                  "p-2 lg:p-4 border transition-all duration-300 text-left",
-                  selectedDifficulty === "NEXUS-5"
+                  "p-2 lg:p-4 border transition-all duration-300 text-left relative",
+                  !isDifficultyUnlocked("NEXUS-5")
+                    ? "border-secondary/20 bg-secondary/5 opacity-75 cursor-not-allowed"
+                    : selectedDifficulty === "NEXUS-5"
                     ? "border-secondary bg-secondary/10 shadow-[0_0_15px_rgba(255,200,0,0.2)]"
                     : "border-white/10 bg-white/5 hover:border-white/20"
                 )}
               >
-                <Cpu className="w-4 h-4 lg:w-5 lg:h-5 text-secondary mb-1 lg:mb-2" />
-                <h4 className="text-[8px] lg:text-xs font-bold text-muted-foreground mb-0.5 lg:mb-1">NEXUS-5</h4>
-                <p className="hidden sm:block text-[8px] lg:text-xs text-muted-foreground">보통</p>
+                {!isDifficultyUnlocked("NEXUS-5") && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
+                    <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
+                    <span className="text-[7px] lg:text-[8px] text-secondary/30 font-mono">LOCKED</span>
+                  </div>
+                )}
+                <Cpu className={cn(
+                  "w-4 h-4 lg:w-5 lg:h-5 mb-1 lg:mb-2",
+                  isDifficultyUnlocked("NEXUS-5") ? "text-secondary" : "text-secondary/30"
+                )} />
+                <h4 className={cn(
+                  "text-[8px] lg:text-xs font-bold mb-0.5 lg:mb-1",
+                  isDifficultyUnlocked("NEXUS-5") ? "text-muted-foreground" : "text-secondary/40"
+                )}>NEXUS-5</h4>
+                <p className={cn(
+                  "hidden sm:block text-[8px] lg:text-xs",
+                  isDifficultyUnlocked("NEXUS-5") ? "text-muted-foreground" : "text-secondary/30"
+                )}>보통</p>
+                {!isDifficultyUnlocked("NEXUS-5") && (
+                  <p className="hidden sm:block text-[7px] lg:text-[8px] text-secondary/30 mt-0.5">NEXUS-3 완료 필요</p>
+                )}
               </button>
               <button
                 onClick={() => handleDifficultyChange("NEXUS-7")}
+                disabled={!isDifficultyUnlocked("NEXUS-7")}
                 className={cn(
-                  "p-2 lg:p-4 border transition-all duration-300 text-left",
-                  selectedDifficulty === "NEXUS-7"
+                  "p-2 lg:p-4 border transition-all duration-300 text-left relative",
+                  !isDifficultyUnlocked("NEXUS-7")
+                    ? "border-destructive/20 bg-destructive/5 opacity-75 cursor-not-allowed"
+                    : selectedDifficulty === "NEXUS-7"
                     ? "border-destructive bg-destructive/10 shadow-[0_0_15px_rgba(255,0,60,0.2)]"
                     : "border-white/10 bg-white/5 hover:border-white/20"
                 )}
               >
-                <Skull className="w-4 h-4 lg:w-5 lg:h-5 text-destructive mb-1 lg:mb-2" />
-                <h4 className="text-[8px] lg:text-xs font-bold text-muted-foreground mb-0.5 lg:mb-1">NEXUS-7</h4>
-                <p className="hidden sm:block text-[8px] lg:text-xs text-muted-foreground">어려움</p>
+                {!isDifficultyUnlocked("NEXUS-7") && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
+                    <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
+                    <span className="text-[7px] lg:text-[8px] text-destructive/30 font-mono">LOCKED</span>
+                  </div>
+                )}
+                <Skull className={cn(
+                  "w-4 h-4 lg:w-5 lg:h-5 mb-1 lg:mb-2",
+                  isDifficultyUnlocked("NEXUS-7") ? "text-destructive" : "text-destructive/30"
+                )} />
+                <h4 className={cn(
+                  "text-[8px] lg:text-xs font-bold mb-0.5 lg:mb-1",
+                  isDifficultyUnlocked("NEXUS-7") ? "text-muted-foreground" : "text-destructive/40"
+                )}>NEXUS-7</h4>
+                <p className={cn(
+                  "hidden sm:block text-[8px] lg:text-xs",
+                  isDifficultyUnlocked("NEXUS-7") ? "text-muted-foreground" : "text-destructive/30"
+                )}>어려움</p>
+                {!isDifficultyUnlocked("NEXUS-7") && (
+                  <p className="hidden sm:block text-[7px] lg:text-[8px] text-destructive/30 mt-0.5">NEXUS-5 완료 필요</p>
+                )}
               </button>
             </div>
           </div>

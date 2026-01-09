@@ -3,6 +3,7 @@ import type { Game } from "@shared/schema";
 
 const STORAGE_KEY = "move37_games";
 const CURRENT_GAME_KEY = "move37_current_game";
+const UNLOCK_STORAGE_KEY = "move37_unlocked_difficulties";
 
 export interface LocalGame {
   id: number;
@@ -117,3 +118,64 @@ export const gameStorage = {
     }
   },
 };
+
+// Unlock state management for difficulty levels
+export type Difficulty = "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+
+/**
+ * Get unlocked difficulties
+ * Initially, only NEXUS-3 is unlocked
+ */
+export function getUnlockedDifficulties(): Set<Difficulty> {
+  try {
+    const data = storage.getItem(UNLOCK_STORAGE_KEY);
+    if (data) {
+      const unlocked = JSON.parse(data) as Difficulty[];
+      return new Set(unlocked);
+    }
+  } catch (error) {
+    console.error("Failed to load unlocked difficulties:", error);
+  }
+  // Default: only NEXUS-3 is unlocked
+  return new Set<Difficulty>(["NEXUS-3"]);
+}
+
+/**
+ * Check if a difficulty is unlocked
+ */
+export function isDifficultyUnlocked(difficulty: Difficulty): boolean {
+  const unlocked = getUnlockedDifficulties();
+  return unlocked.has(difficulty);
+}
+
+/**
+ * Unlock a difficulty level
+ */
+export function unlockDifficulty(difficulty: Difficulty): void {
+  try {
+    const unlocked = getUnlockedDifficulties();
+    unlocked.add(difficulty);
+    const unlockedArray = Array.from(unlocked);
+    storage.setItem(UNLOCK_STORAGE_KEY, JSON.stringify(unlockedArray));
+  } catch (error) {
+    console.error("Failed to unlock difficulty:", error);
+  }
+}
+
+/**
+ * Handle victory unlock logic
+ * When player wins:
+ * - NEXUS-3 victory -> unlock NEXUS-5
+ * - NEXUS-5 victory -> unlock NEXUS-7
+ */
+export function handleVictoryUnlock(difficulty: Difficulty): void {
+  if (difficulty === "NEXUS-3") {
+    unlockDifficulty("NEXUS-5");
+  } else if (difficulty === "NEXUS-5") {
+    unlockDifficulty("NEXUS-7");
+  }
+  // NEXUS-7 has no next level
+  
+  // Dispatch custom event to notify other components
+  window.dispatchEvent(new Event('unlock-updated'));
+}
