@@ -12,6 +12,7 @@ export interface LocalGame {
   winner: "player" | "ai" | "draw" | null;
   aiLog: string | null;
   turnCount: number;
+  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
   createdAt: string;
 }
 
@@ -25,6 +26,7 @@ function toGame(localGame: LocalGame): Game {
     winner: localGame.winner,
     aiLog: localGame.aiLog,
     turnCount: localGame.turnCount,
+    difficulty: localGame.difficulty || "NEXUS-7", // Default to NEXUS-7 for backward compatibility
     createdAt: new Date(localGame.createdAt),
   };
 }

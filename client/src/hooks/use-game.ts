@@ -1,7 +1,8 @@
 // Client-side game hooks using localStorage (100% offline)
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MoveRequest } from "@shared/schema";
-import { createGame, getGame, makeGameMove } from "@/lib/gameEngine";
+import { createGame, getGame, makeGameMove, calculateAIMove } from "@/lib/gameEngine";
+import type { Piece } from "@shared/gameLogic";
 import { gameStorage } from "@/lib/storage";
 
 export function useGame(id: number | null) {
@@ -12,7 +13,11 @@ export function useGame(id: number | null) {
       return await getGame(id);
     },
     enabled: !!id,
-    // No polling needed - state is managed locally
+    // Poll when it's AI's turn to check for AI move completion
+    refetchInterval: (query) => {
+      const game = query.state.data;
+      return game && game.turn === 'ai' && !game.winner ? 200 : false;
+    },
   });
 }
 
@@ -20,8 +25,8 @@ export function useCreateGame() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async () => {
-      const game = await createGame();
+    mutationFn: async (difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
+      const game = await createGame(difficulty || "NEXUS-7");
       return game;
     },
     onSuccess: (game) => {
@@ -40,9 +45,21 @@ export function useMakeMove(gameId: number) {
       const result = await makeGameMove(gameId, move.from, move.to);
       return result;
     },
-    onSuccess: (data) => {
-      // Immediately update the game state in cache
-      queryClient.setQueryData(["game", gameId], data);
+    onSuccess: async (data) => {
+      // Immediately update the game state in cache with player's move
+      queryClient.setQueryData(["game", gameId], data.game);
+      
+      // If AI needs to move, calculate it asynchronously
+      if (data.playerMove && data.game.turn === 'ai') {
+        // Start AI calculation in background
+        calculateAIMove(gameId, data.playerMove).then((aiResult) => {
+          queryClient.setQueryData(["game", gameId], aiResult.game);
+          queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        }).catch((error) => {
+          console.error("AI move calculation error:", error);
+        });
+      }
+      
       // Also invalidate to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },

@@ -1,5 +1,5 @@
 // Client-side game engine (no server needed)
-import { parseFen, generateFen, isValidMove, makeMove, checkWinner, getAIMove, INITIAL_BOARD_FEN } from "@shared/gameLogic";
+import { parseFen, generateFen, isValidMove, makeMove, checkWinner, getAIMove, INITIAL_BOARD_FEN, type Piece } from "@shared/gameLogic";
 import type { Game } from "@shared/schema";
 import { gameStorage } from "./storage";
 
@@ -21,7 +21,7 @@ function generateSimpleAIReasoning(boardFen: string, move: string): string {
   return reasons[hash % reasons.length];
 }
 
-export async function createGame(): Promise<Game> {
+export async function createGame(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7"): Promise<Game> {
   const game = await gameStorage.createGame({
     board: INITIAL_BOARD_FEN,
     turn: 'player',
@@ -29,6 +29,7 @@ export async function createGame(): Promise<Game> {
     winner: null,
     aiLog: "System Initialized. Awaiting input...",
     turnCount: 0,
+    difficulty,
   });
   
   return game;
@@ -43,7 +44,7 @@ export async function makeGameMove(
   gameId: number,
   from: { r: number; c: number },
   to: { r: number; c: number }
-): Promise<Game> {
+): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } }> {
   const game = await gameStorage.getGame(gameId);
   if (!game) {
     throw new Error("Game not found");
@@ -81,7 +82,12 @@ export async function makeGameMove(
     throw new Error("Illegal move");
   }
 
-  // Apply Player Move
+  // Store player move info for AI analysis (before applying move)
+  const playerPiece = board[from.r][from.c];
+  const capturedPiece = board[to.r][to.c]; // Check if player captured an AI piece
+  const playerMove = { from, to, piece: playerPiece, captured: capturedPiece };
+  
+  // Apply Player Move - IMMEDIATELY update the board
   board = makeMove(board, from, to);
   const newTurnCount = (game.turnCount || 0) + 1;
   let winner = checkWinner(board, newTurnCount);
@@ -101,34 +107,83 @@ export async function makeGameMove(
         ? "Resource Depletion. Draw." 
         : "Victory Achieved."
     });
-    return updated;
+    return { game: updated, aiLogs: [] };
   }
 
-  // AI Turn
-  const aiMove = getAIMove(board);
-  let aiLog = "Processing...";
-  
-  if (aiMove) {
-    board = makeMove(board, aiMove.from, aiMove.to);
-    const moveStr = `AI: ${aiMove.from.r},${aiMove.from.c} -> ${aiMove.to.r},${aiMove.to.c}`;
-    history.push(moveStr);
-    winner = checkWinner(board, newTurnCount);
-    
-    // Generate AI reasoning (simple version, no OpenAI)
-    aiLog = generateSimpleAIReasoning(generateFen(board), moveStr);
-  } else {
-    winner = 'player';
-    aiLog = "Calculation error. No valid moves.";
-  }
-
-  const updated = await gameStorage.updateGame(gameId, {
+  // Immediately update game state with player's move (turn becomes 'ai')
+  const playerMoveUpdated = await gameStorage.updateGame(gameId, {
     board: generateFen(board),
-    turn: 'player', // Back to player
-    winner,
+    turn: 'ai', // AI's turn now
     history,
     turnCount: newTurnCount,
-    aiLog
+    aiLog: "Analyzing..."
   });
 
-  return updated;
+  // Return immediately with player's move applied
+  // AI calculation will be handled separately
+  return { game: playerMoveUpdated, aiLogs: [], playerMove };
+}
+
+/**
+ * Calculate and apply AI move (called separately after player move)
+ */
+export async function calculateAIMove(
+  gameId: number,
+  playerMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece }
+): Promise<{ game: Game; aiLogs: string[] }> {
+  const game = await gameStorage.getGame(gameId);
+  if (!game) {
+    throw new Error("Game not found");
+  }
+
+  if (game.winner || game.turn !== 'ai') {
+    return { game, aiLogs: [] };
+  }
+
+  const board = parseFen(game.board);
+  const newTurnCount = game.turnCount || 0;
+
+  // AI Turn - simulate deep analysis with delay
+  // Calculate analysis time based on board complexity (800ms - 1500ms)
+  const boardComplexity = board.flat().filter(p => p !== null).length;
+  const analysisTime = 800 + Math.min(700, boardComplexity * 50) + Math.random() * 200;
+  
+  // Simulate AI thinking process
+  await new Promise(resolve => setTimeout(resolve, analysisTime));
+  
+  // AI Turn - pass player's last move for psychological analysis
+  // Use game difficulty (default to NEXUS-7 for backward compatibility)
+  const gameDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7";
+  const aiResult = getAIMove(board, playerMove, gameDifficulty);
+  let aiLog = "Processing...";
+  let aiLogs: string[] = [];
+  
+  if (aiResult.move) {
+    const aiMoveBoard = makeMove(board, aiResult.move.from, aiResult.move.to);
+    const moveStr = `AI: ${aiResult.move.from.r},${aiResult.move.from.c} -> ${aiResult.move.to.r},${aiResult.move.to.c}`;
+    const aiHistory = [...game.history, moveStr];
+    const aiWinner = checkWinner(aiMoveBoard, newTurnCount);
+    
+    // Store the single psychological insight message
+    aiLogs = aiResult.logs;
+    aiLog = aiResult.logs[0] || "Move executed.";
+    
+    const updated = await gameStorage.updateGame(gameId, {
+      board: generateFen(aiMoveBoard),
+      turn: 'player', // Back to player
+      winner: aiWinner,
+      history: aiHistory,
+      turnCount: newTurnCount,
+      aiLog
+    });
+    
+    return { game: updated, aiLogs };
+  } else {
+    const updated = await gameStorage.updateGame(gameId, {
+      turn: 'player',
+      winner: 'player',
+      aiLog: "Calculation error. No valid moves."
+    });
+    return { game: updated, aiLogs: ["계산 오류: 유효한 수가 없습니다."] };
+  }
 }

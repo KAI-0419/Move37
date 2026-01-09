@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useCreateGame } from "@/hooks/use-game";
 import { GlitchButton } from "@/components/GlitchButton";
 import { Scanlines } from "@/components/Scanlines";
@@ -7,6 +8,33 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import { motion } from "framer-motion";
 import { Cpu, Skull, Brain, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { TutorialModal } from "@/components/TutorialModal";
+
+// LocalStorage key for selected difficulty
+const DIFFICULTY_STORAGE_KEY = "move37_selected_difficulty";
+
+// Load difficulty from localStorage
+function loadDifficulty(): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" {
+  try {
+    const saved = localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+    if (saved === "NEXUS-3" || saved === "NEXUS-5" || saved === "NEXUS-7") {
+      return saved;
+    }
+  } catch (error) {
+    console.error("Failed to load difficulty from localStorage:", error);
+  }
+  return "NEXUS-7"; // Default
+}
+
+// Save difficulty to localStorage
+function saveDifficulty(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): void {
+  try {
+    localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty);
+  } catch (error) {
+    console.error("Failed to save difficulty to localStorage:", error);
+  }
+}
 
 // Mock data for radar chart
 const statsData = [
@@ -22,10 +50,24 @@ export default function Lobby() {
   const [, setLocation] = useLocation();
   const createGame = useCreateGame();
   const { toast } = useToast();
+  const [selectedDifficulty, setSelectedDifficulty] = useState<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">(() => loadDifficulty());
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  // Load saved difficulty on mount
+  useEffect(() => {
+    const savedDifficulty = loadDifficulty();
+    setSelectedDifficulty(savedDifficulty);
+  }, []);
+
+  // Save difficulty whenever it changes
+  const handleDifficultyChange = (difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
+    setSelectedDifficulty(difficulty);
+    saveDifficulty(difficulty);
+  };
 
   const handleStart = async () => {
     try {
-      const game = await createGame.mutateAsync();
+      const game = await createGame.mutateAsync(selectedDifficulty);
       setLocation(`/game/${game.id}`);
     } catch (error: any) {
       console.error("Failed to create game:", error);
@@ -38,10 +80,7 @@ export default function Lobby() {
   };
 
   const handleTutorial = () => {
-    toast({
-      title: "Tutorial",
-      description: "Select a piece and click a valid move. Capture the enemy King or move your King to row 0 to win!",
-    });
+    setTutorialOpen(true);
   };
 
   return (
@@ -97,16 +136,49 @@ export default function Lobby() {
             </GlitchButton>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mt-8">
-            <div className="bg-white/5 border border-white/10 p-4 rounded-none">
-              <Cpu className="w-6 h-6 text-secondary mb-2" />
-              <h3 className="text-sm font-bold text-muted-foreground">AI MODEL</h3>
-              <p className="font-mono text-xl">NEXUS-7</p>
-            </div>
-            <div className="bg-white/5 border border-white/10 p-4 rounded-none">
-              <Skull className="w-6 h-6 text-destructive mb-2" />
-              <h3 className="text-sm font-bold text-muted-foreground">DIFFICULTY</h3>
-              <p className="font-mono text-xl text-destructive animate-pulse">EXTREME</p>
+          {/* Difficulty Selection */}
+          <div className="space-y-3 mt-8">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Select AI Difficulty</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => handleDifficultyChange("NEXUS-3")}
+                className={cn(
+                  "p-4 border transition-all duration-300 text-left",
+                  selectedDifficulty === "NEXUS-3"
+                    ? "border-primary bg-primary/10 shadow-[0_0_15px_rgba(0,243,255,0.2)]"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <Cpu className="w-5 h-5 text-primary mb-2" />
+                <h4 className="text-xs font-bold text-muted-foreground mb-1">NEXUS-3</h4>
+                <p className="text-xs text-muted-foreground">쉬움</p>
+              </button>
+              <button
+                onClick={() => handleDifficultyChange("NEXUS-5")}
+                className={cn(
+                  "p-4 border transition-all duration-300 text-left",
+                  selectedDifficulty === "NEXUS-5"
+                    ? "border-secondary bg-secondary/10 shadow-[0_0_15px_rgba(255,200,0,0.2)]"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <Cpu className="w-5 h-5 text-secondary mb-2" />
+                <h4 className="text-xs font-bold text-muted-foreground mb-1">NEXUS-5</h4>
+                <p className="text-xs text-muted-foreground">보통</p>
+              </button>
+              <button
+                onClick={() => handleDifficultyChange("NEXUS-7")}
+                className={cn(
+                  "p-4 border transition-all duration-300 text-left",
+                  selectedDifficulty === "NEXUS-7"
+                    ? "border-destructive bg-destructive/10 shadow-[0_0_15px_rgba(255,0,60,0.2)]"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <Skull className="w-5 h-5 text-destructive mb-2" />
+                <h4 className="text-xs font-bold text-muted-foreground mb-1">NEXUS-7</h4>
+                <p className="text-xs text-muted-foreground">어려움</p>
+              </button>
             </div>
           </div>
         </div>
@@ -151,8 +223,11 @@ export default function Lobby() {
       </main>
 
       <footer className="absolute bottom-4 text-xs font-mono text-white/20 text-center w-full">
-        MOVE 37 © 2025 // SYSTEM VERSION 0.9.1 BETA
+        MOVE 37 © 2026 // SYSTEM VERSION 0.9.1 BETA
       </footer>
+
+      {/* Tutorial Modal */}
+      <TutorialModal open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </div>
   );
 }

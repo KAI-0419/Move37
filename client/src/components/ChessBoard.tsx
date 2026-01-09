@@ -17,6 +17,8 @@ interface ChessBoardProps {
   validMoves?: { r: number, c: number }[];
   onSquareClick: (r: number, c: number) => void;
   isProcessing?: boolean;
+  size?: "small" | "medium" | "large";
+  difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
 }
 
 export function ChessBoard({ 
@@ -26,7 +28,9 @@ export function ChessBoard({
   lastMove,
   validMoves = [],
   onSquareClick,
-  isProcessing 
+  isProcessing,
+  size = "large",
+  difficulty = "NEXUS-7"
 }: ChessBoardProps) {
   
   // Parse board string (FEN format: "NPKPN/5/5/5/npkpn")
@@ -59,26 +63,65 @@ export function ChessBoard({
     rows.push(row);
   }
 
+  // Size configurations
+  const sizeConfig = {
+    small: {
+      boardSize: "w-[240px] h-[240px]",
+      iconSize: 20,
+      padding: "p-1",
+      paddingOffset: "6px" // p-1 (4px) + border (2px)
+    },
+    medium: {
+      boardSize: "w-[320px] h-[320px]",
+      iconSize: 28,
+      padding: "p-1.5",
+      paddingOffset: "8px" // p-1.5 (6px) + border (2px)
+    },
+    large: {
+      boardSize: "w-[320px] h-[320px] sm:w-[400px] sm:h-[400px] md:w-[480px] md:h-[480px]",
+      iconSize: 32,
+      padding: "p-1.5",
+      paddingOffset: "8px" // p-1.5 (6px) + border (2px)
+    }
+  };
+
+  const config = sizeConfig[size];
+  
+  // Get AI piece color based on difficulty
+  const getAiPieceColor = () => {
+    switch (difficulty) {
+      case "NEXUS-3":
+        // 쉬움: 파란색 계열 (primary와 구분되는 밝은 파란색)
+        return "text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]";
+      case "NEXUS-5":
+        // 보통: 노란색 계열 (secondary)
+        return "text-secondary drop-shadow-[0_0_8px_rgba(255,200,0,0.8)]";
+      case "NEXUS-7":
+      default:
+        // 어려움: 빨간색 계열 (destructive)
+        return "text-destructive drop-shadow-[0_0_8px_rgba(255,0,60,0.8)]";
+    }
+  };
+  
   const getPieceIcon = (char: string) => {
     const isPlayer = char === char.toUpperCase();
     const type = char.toLowerCase();
     
     // Icon props
-    const size = 32;
     const strokeWidth = 2.5;
     
     switch(type) {
-      case 'k': return <Crown size={size} strokeWidth={strokeWidth} />;
-      case 'n': return <Component size={size} strokeWidth={strokeWidth} className="rotate-45" />; // Abstract knight
-      case 'p': return <Circle size={size} strokeWidth={strokeWidth} />;
+      case 'k': return <Crown size={config.iconSize} strokeWidth={strokeWidth} />;
+      case 'n': return <Component size={config.iconSize} strokeWidth={strokeWidth} className="rotate-45" />; // Abstract knight
+      case 'p': return <Circle size={config.iconSize} strokeWidth={strokeWidth} />;
       default: return null;
     }
   };
 
   return (
-    <div className="relative p-1 bg-border border-2 border-border shadow-[0_0_30px_rgba(0,243,255,0.1)]">
-      {/* Grid Container */}
-      <div className="grid grid-cols-5 gap-1 bg-background">
+    <div className={cn("relative bg-border border-2 border-border shadow-[0_0_30px_rgba(0,243,255,0.1)] w-fit mx-auto", config.padding)}>
+      {/* Grid Container - Fixed size to ensure square cells */}
+      <div className={cn("grid grid-cols-5 grid-rows-5 gap-1 bg-background", config.boardSize)}>
         {rows.map((row, r) => (
           row.map((pieceChar, c) => {
             // Player uses lowercase (n, p, k), AI uses uppercase (N, P, K)
@@ -118,7 +161,7 @@ export function ChessBoard({
                           : "transparent"
                 }}
                 className={cn(
-                  "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex items-center justify-center cursor-pointer relative",
+                  "w-full h-full flex items-center justify-center cursor-pointer relative",
                   "border border-white/5 hover:border-white/20 transition-colors",
                   isSelected && "border-primary shadow-[inset_0_0_15px_rgba(0,243,255,0.3)]",
                   isValidMoveTarget && !isSelected && "border-primary/50",
@@ -134,13 +177,15 @@ export function ChessBoard({
 
                 {pieceChar !== '.' && (
                   <motion.div
-                    layoutId={`piece-${r}-${c}`} // Ideally unique ID if pieces moved, but grid coord works for simple state
+                    key={`piece-${pieceChar}-${r}-${c}`}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0 }}
                     className={cn(
-                      "transition-all duration-300",
-                      isPlayerPiece ? "text-primary drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" : "text-destructive drop-shadow-[0_0_8px_rgba(255,0,60,0.8)]"
+                      "transition-all duration-300 z-10",
+                      isPlayerPiece 
+                        ? "text-primary drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" 
+                        : getAiPieceColor()
                     )}
                   >
                     {getPieceIcon(pieceChar)}
@@ -151,7 +196,7 @@ export function ChessBoard({
                 {isSelected && (
                   <motion.div
                     layoutId="selection"
-                    className="absolute inset-0 border-2 border-primary"
+                    className="absolute inset-0 border-2 border-primary z-20"
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
                 )}
@@ -159,11 +204,11 @@ export function ChessBoard({
                 {/* Valid Move Indicator */}
                 {isValidMoveTarget && !isSelected && (
                   <motion.div
-                    className="absolute inset-0 flex items-center justify-center"
+                    className="absolute inset-0 flex items-center justify-center z-20"
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                   >
-                    <div className="w-2 h-2 rounded-full bg-primary/60" />
+                    <div className="w-2 h-2 rounded-full bg-primary/60 shadow-[0_0_8px_rgba(0,243,255,0.4)]" />
                   </motion.div>
                 )}
               </motion.div>

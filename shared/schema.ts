@@ -10,6 +10,7 @@ export const games = pgTable("games", {
   winner: text("winner"), // "player", "ai", "draw"
   aiLog: text("ai_log"), // Last AI thought/reasoning
   turnCount: integer("turn_count").default(0), // Track number of turns for draw condition
+  difficulty: text("difficulty").notNull().default("NEXUS-7"), // AI difficulty: "NEXUS-3", "NEXUS-5", "NEXUS-7"
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -18,7 +19,9 @@ export const insertGameSchema = createInsertSchema(games).omit({ id: true, creat
 export type Game = typeof games.$inferSelect;
 export type InsertGame = z.infer<typeof insertGameSchema>;
 
-export type CreateGameRequest = {}; // No input needed to start
+export type CreateGameRequest = {
+  difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"; // Optional difficulty selection
+};
 export type MoveRequest = {
   from: { r: number; c: number };
   to: { r: number; c: number };

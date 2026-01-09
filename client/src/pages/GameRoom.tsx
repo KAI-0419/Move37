@@ -22,13 +22,37 @@ export default function GameRoom() {
   const { toast } = useToast();
 
   const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
-  const [logHistory, setLogHistory] = useState<string[]>([]);
+  const [logHistory, setLogHistory] = useState<Array<{ message: string; timestamp: Date }>>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize logs when game loads
+  useEffect(() => {
+    if (game && logHistory.length === 0) {
+      const initialTime = new Date();
+      setLogHistory([
+        { message: "// Monitoring neural activity...", timestamp: initialTime },
+        { message: "// Connection established.", timestamp: initialTime },
+        { message: "// Access level: UNRESTRICTED", timestamp: initialTime }
+      ]);
+    }
+  }, [game, logHistory.length]);
 
   // Update logs when game updates
   useEffect(() => {
-    if (game?.aiLog && !logHistory.includes(game.aiLog)) {
-      setLogHistory(prev => [...prev, game.aiLog!]);
+    if (game?.aiLog) {
+      // Check if this is a new AI log (not already in history)
+      setLogHistory(prev => {
+        // Only add if it's a new psychological insight (not system messages)
+        const isNewInsight = game.aiLog && 
+          game.aiLog !== "Analyzing..." && 
+          game.aiLog !== "System Initialized. Awaiting input..." &&
+          !prev.some(log => log.message === game.aiLog);
+        
+        if (isNewInsight) {
+          return [...prev, { message: game.aiLog!, timestamp: new Date() }];
+        }
+        return prev;
+      });
     }
   }, [game?.aiLog]);
 
@@ -92,11 +116,14 @@ export default function GameRoom() {
         });
         setSelectedSquare(null);
         
+        // Player move is now immediately visible
+        // AI calculation will happen in background and update the game state
+        
         // Log for debugging
         console.log("Move successful:", {
           from: selectedSquare,
           to: { r, c },
-          updatedGame: result
+          updatedGame: result.game
         });
       } catch (err: any) {
         console.error("Move failed:", err);
@@ -155,12 +182,14 @@ export default function GameRoom() {
             {/* AI Card */}
             <div className={cn(
               "p-4 border transition-all duration-300",
-              !isPlayerTurn ? "border-destructive bg-destructive/5 shadow-[0_0_15px_rgba(255,0,60,0.1)]" : "border-white/10 opacity-50"
+              !isPlayerTurn || makeMove.isPending ? "border-destructive bg-destructive/5 shadow-[0_0_15px_rgba(255,0,60,0.1)]" : "border-white/10 opacity-50"
             )}>
-              <h3 className="text-sm font-bold mb-1 text-destructive">NEXUS-7 (AI)</h3>
+              <h3 className="text-sm font-bold mb-1 text-destructive">
+                {(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"} (AI)
+              </h3>
               <div className="flex items-center gap-2 text-xs text-destructive">
-                <div className={cn("w-2 h-2 rounded-full", !isPlayerTurn ? "bg-destructive animate-pulse" : "bg-gray-600")} />
-                {!isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}
+                <div className={cn("w-2 h-2 rounded-full", (!isPlayerTurn || makeMove.isPending) ? "bg-destructive animate-pulse" : "bg-gray-600")} />
+                {makeMove.isPending ? "ANALYZING MOVES..." : !isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}
               </div>
             </div>
           </div>
@@ -202,16 +231,16 @@ export default function GameRoom() {
                </motion.div>
             ) : (
               <motion.div
-                key={game.turn}
+                key={makeMove.isPending ? 'analyzing' : game.turn}
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 className={cn(
                   "text-lg tracking-widest font-bold",
-                  game.turn === 'player' ? "text-primary" : "text-destructive"
+                  makeMove.isPending ? "text-destructive" : game.turn === 'player' ? "text-primary" : "text-destructive"
                 )}
               >
-                {game.turn === 'player' ? ">> YOUR TURN" : ">> OPPONENT THINKING"}
+                {makeMove.isPending ? ">> AI ANALYZING..." : game.turn === 'player' ? ">> YOUR TURN" : ">> OPPONENT THINKING"}
               </motion.div>
             )}
           </AnimatePresence>
@@ -225,6 +254,7 @@ export default function GameRoom() {
           onSquareClick={handleSquareClick}
           lastMove={lastMove}
           isProcessing={makeMove.isPending}
+          difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
         />
 
         {/* Winner Overlay */}
@@ -294,18 +324,29 @@ export default function GameRoom() {
         </div>
         
         <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-3 custom-scrollbar">
-           <div className="text-muted-foreground opacity-50 mb-4">
-             // Monitoring neural activity...<br/>
-             // Connection established.<br/>
-             // Access level: UNRESTRICTED
-           </div>
-           
-           {logHistory.map((log, i) => (
-             <div key={i} className="border-l-2 border-accent/20 pl-3 py-1">
-               <span className="text-accent/50 mr-2">[{new Date().toLocaleTimeString()}]</span>
-               <TerminalText text={log} speed={10} className="text-foreground" />
-             </div>
-           ))}
+           {logHistory.map((log, i) => {
+             const isAILog = log.message.startsWith(">") || log.message.startsWith("---");
+             const isSystemLog = log.message.startsWith("//");
+             return (
+               <div 
+                 key={i} 
+                 className={cn(
+                   "border-l-2 pl-3 py-1 transition-all",
+                   isAILog ? "border-destructive/30 bg-destructive/5" : "border-accent/20"
+                 )}
+               >
+                 {!isSystemLog && (
+                   <span className="text-accent/50 mr-2 text-[10px]">[{log.timestamp.toLocaleTimeString()}]</span>
+                 )}
+                 <span className={cn(
+                   "text-xs font-mono",
+                   isAILog ? "text-destructive/90" : isSystemLog ? "text-muted-foreground opacity-50" : "text-foreground"
+                 )}>
+                   {log.message}
+                 </span>
+               </div>
+             );
+           })}
            <div ref={logEndRef} />
         </div>
       </aside>
