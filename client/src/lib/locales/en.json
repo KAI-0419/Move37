@@ -133,7 +133,8 @@
       "gameNotFound": "Game not found",
       "gameOver": "Game over",
       "notYourTurn": "Not your turn",
-      "invalidGameId": "Invalid game ID"
+      "invalidGameId": "Invalid game ID",
+      "threefoldRepetition": "Threefold repetition rule: The same board state cannot be repeated 3 times."
     },
     "confirmLeave": "Game in progress. Are you sure you want to return to the lobby?",
     "confirmLeaveSubtext": "Your current game will not be saved."

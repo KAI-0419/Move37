@@ -113,6 +113,28 @@ export function makeMove(board: Board, from: { r: number; c: number }, to: { r: 
 }
 
 /**
+ * Check if a move would result in a threefold repetition
+ * Returns true if the resulting board state has appeared 2 or more times before
+ * (meaning this move would be the 3rd occurrence)
+ */
+export function wouldCauseThreefoldRepetition(
+  board: Board,
+  from: { r: number; c: number },
+  to: { r: number; c: number },
+  boardHistory: string[]
+): boolean {
+  // Apply the move to get the resulting board state
+  const resultingBoard = makeMove(board, from, to);
+  const resultingFen = generateFen(resultingBoard);
+  
+  // Count how many times this board state has appeared
+  const occurrenceCount = boardHistory.filter(fen => fen === resultingFen).length;
+  
+  // If it has appeared 2 or more times, this move would be the 3rd occurrence
+  return occurrenceCount >= 2;
+}
+
+/**
  * Get all valid moves for a piece at the given position
  */
 export function getValidMoves(board: Board, from: { r: number; c: number }, isPlayer: boolean): { r: number; c: number }[] {
@@ -169,7 +191,33 @@ export function checkWinner(
   }
   
   // Check for draw condition: 30 turns without winner
+  // 판정승 시스템: 30턴 시 킹 전진도와 기물 점수로 승패 결정
   if (turnCount !== undefined && turnCount >= 30) {
+    // 킹이 존재하는지 확인 (이미 위에서 확인했지만 안전을 위해)
+    if (!playerKingPos || !aiKingPos) {
+      return 'draw'; // 킹 위치를 찾을 수 없으면 무승부
+    }
+    
+    // 기물 점수 계산 (King 제외)
+    const material = calculateMaterialBalance(board);
+    const playerMaterial = material.playerMaterial - 1000; // King 값 제외
+    const aiMaterial = material.aiMaterial - 1000; // King 값 제외
+    
+    // 킹의 전진 거리 계산 (목표 지점까지의 근접도)
+    // 플레이어 킹은 0행이 목표, AI 킹은 4행이 목표
+    const playerAdvancement = playerKingPos.r; // 0에 가까울수록 좋음 (최대 4)
+    const aiAdvancement = 4 - aiKingPos.r; // 4에 가까울수록 좋음 (최대 4)
+    
+    // 종합 점수 계산 (전진 거리에 더 높은 가중치 부여)
+    // 전진도는 승리 조건이므로 기물보다 훨씬 중요
+    const playerScore = (playerAdvancement * 3) + playerMaterial;
+    const aiScore = (aiAdvancement * 3) + aiMaterial;
+    
+    // 점수 비교로 승패 결정
+    if (playerScore > aiScore) return 'player';
+    if (aiScore > playerScore) return 'ai';
+    
+    // 점수가 완전히 같을 때만 무승부 (거의 발생하지 않음)
     return 'draw';
   }
   
@@ -731,20 +779,33 @@ export function getAIMove(
   board: Board,
   playerLastMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } | null = null,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
-  turnCount?: number
+  turnCount?: number,
+  boardHistory?: string[]
 ): { 
   move: { from: { r: number, c: number }, to: { r: number, c: number } } | null;
   logs: string[];
 } {
   // For NEXUS-7, use minimax algorithm for optimal play
   if (difficulty === "NEXUS-7") {
-    const aiMoves = getAllMoves(board, false);
+    let aiMoves = getAllMoves(board, false);
     
     if (aiMoves.length === 0) {
       return { 
         move: null, 
         logs: ["gameRoom.log.calculationErrorKo"]
       };
+    }
+    
+    // 반복 수 필터링: 3회 반복을 일으키는 수 제거
+    if (boardHistory && boardHistory.length > 0) {
+      aiMoves = aiMoves.filter(move => 
+        !wouldCauseThreefoldRepetition(board, move.from, move.to, boardHistory)
+      );
+      
+      // 모든 수가 반복 수라면 필터링하지 않음 (필수 수가 없는 경우)
+      if (aiMoves.length === 0) {
+        aiMoves = getAllMoves(board, false);
+      }
     }
     
     // 즉시 승리 조건 우선 탐지 (NEXUS-5와 동일한 로직)
@@ -786,7 +847,18 @@ export function getAIMove(
     for (const move of aiMoves) {
       const newBoard = makeMove(board, move.from, move.to);
       // Pass turnCount to minimax for accurate draw detection
-      const score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      let score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      
+      // 반복 수에 페널티 부여 (필터링되지 않은 경우)
+      if (boardHistory && boardHistory.length > 0) {
+        const resultingFen = generateFen(newBoard);
+        const occurrenceCount = boardHistory.filter(fen => fen === resultingFen).length;
+        if (occurrenceCount >= 1) {
+          // 이미 한 번 나타난 보드 상태면 페널티 (반복 경향)
+          score -= 50 * occurrenceCount;
+        }
+      }
+      
       movesWithScores.push({ move, score });
     }
     
@@ -819,13 +891,25 @@ export function getAIMove(
   
   // For NEXUS-5, use minimax algorithm with depth 2 for improved play
   if (difficulty === "NEXUS-5") {
-    const aiMoves = getAllMoves(board, false);
+    let aiMoves = getAllMoves(board, false);
     
     if (aiMoves.length === 0) {
       return { 
         move: null, 
         logs: ["gameRoom.log.calculationErrorKo"]
       };
+    }
+    
+    // 반복 수 필터링: 3회 반복을 일으키는 수 제거
+    if (boardHistory && boardHistory.length > 0) {
+      aiMoves = aiMoves.filter(move => 
+        !wouldCauseThreefoldRepetition(board, move.from, move.to, boardHistory)
+      );
+      
+      // 모든 수가 반복 수라면 필터링하지 않음 (필수 수가 없는 경우)
+      if (aiMoves.length === 0) {
+        aiMoves = getAllMoves(board, false);
+      }
     }
     
     // 즉시 승리 조건 우선 탐지
@@ -868,7 +952,18 @@ export function getAIMove(
     // 각 수를 미니맥스로 평가
     for (const move of aiMoves) {
       const newBoard = makeMove(board, move.from, move.to);
-      const score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      let score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      
+      // 반복 수에 페널티 부여 (필터링되지 않은 경우)
+      if (boardHistory && boardHistory.length > 0) {
+        const resultingFen = generateFen(newBoard);
+        const occurrenceCount = boardHistory.filter(fen => fen === resultingFen).length;
+        if (occurrenceCount >= 1) {
+          // 이미 한 번 나타난 보드 상태면 페널티 (반복 경향)
+          score -= 50 * occurrenceCount;
+        }
+      }
+      
       movesWithScores.push({ move, score });
     }
     
@@ -1111,6 +1206,17 @@ export function getAIMove(
               }
               
               score += opponentResponseScore;
+              
+              // 반복 수에 페널티 부여 (NEXUS-3)
+              if (boardHistory && boardHistory.length > 0) {
+                const testBoard = makeMove(board, { r, c }, { r: tr, c: tc });
+                const resultingFen = generateFen(testBoard);
+                const occurrenceCount = boardHistory.filter(fen => fen === resultingFen).length;
+                if (occurrenceCount >= 1) {
+                  // 이미 한 번 나타난 보드 상태면 페널티 (반복 경향)
+                  score -= 30 * occurrenceCount;
+                }
+              }
               
               // Add small random factor to break ties and prevent deterministic play
               // This ensures AI doesn't play the exact same game every time

@@ -7,6 +7,7 @@ export const games = pgTable("games", {
   board: text("board").notNull(), // FEN-like string: "rnbqk/ppppp/....." but 5x5
   turn: text("turn").notNull().default("player"), // "player" or "ai"
   history: jsonb("history").$type<string[]>().default([]),
+  boardHistory: jsonb("board_history").$type<string[]>().default([]), // FEN strings for repetition detection
   winner: text("winner"), // "player", "ai", "draw"
   aiLog: text("ai_log"), // Last AI thought/reasoning
   turnCount: integer("turn_count").default(0), // Track number of turns for draw condition

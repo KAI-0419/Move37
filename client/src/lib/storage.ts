@@ -10,6 +10,7 @@ export interface LocalGame {
   board: string;
   turn: "player" | "ai";
   history: string[];
+  boardHistory?: string[]; // FEN strings for repetition detection
   winner: "player" | "ai" | "draw" | null;
   aiLog: string | null;
   turnCount: number;
@@ -28,6 +29,7 @@ function toGame(localGame: LocalGame): Game {
     board: localGame.board,
     turn: localGame.turn,
     history: localGame.history,
+    boardHistory: localGame.boardHistory || [],
     winner: localGame.winner,
     aiLog: localGame.aiLog,
     turnCount: localGame.turnCount,

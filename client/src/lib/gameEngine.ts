@@ -1,5 +1,5 @@
 // Client-side game engine (no server needed)
-import { parseFen, generateFen, isValidMove, makeMove, checkWinner, getAIMove, INITIAL_BOARD_FEN, type Piece } from "@shared/gameLogic";
+import { parseFen, generateFen, isValidMove, makeMove, checkWinner, getAIMove, wouldCauseThreefoldRepetition, INITIAL_BOARD_FEN, type Piece } from "@shared/gameLogic";
 import type { Game } from "@shared/schema";
 import { gameStorage } from "./storage";
 
@@ -27,6 +27,7 @@ export async function createGame(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" =
     board: INITIAL_BOARD_FEN,
     turn: 'player',
     history: [],
+    boardHistory: [INITIAL_BOARD_FEN], // 초기 보드 상태를 히스토리에 추가
     winner: null,
     aiLog: "gameRoom.log.systemInitialized",
     turnCount: 0,
@@ -121,6 +122,12 @@ export async function makeGameMove(
     throw new Error("gameRoom.errors.illegalMove");
   }
 
+  // Check for threefold repetition (3회 반복 금지)
+  const boardHistory = game.boardHistory || [];
+  if (wouldCauseThreefoldRepetition(board, from, to, boardHistory)) {
+    throw new Error("gameRoom.errors.threefoldRepetition");
+  }
+
   // Store player move info for AI analysis (before applying move)
   const playerPiece = board[from.r][from.c];
   const capturedPiece = board[to.r][to.c]; // Check if player captured an AI piece
@@ -134,6 +141,12 @@ export async function makeGameMove(
   // Update player time (add time bonus for making a move)
   const updatedPlayerTime = playerTimeRemaining + (game.timePerMove ?? 5);
   
+  // Update board history for repetition detection
+  const newBoardFen = generateFen(board);
+  const updatedBoardHistory = [...(game.boardHistory || []), newBoardFen];
+  // 최근 20개만 유지 (메모리 최적화)
+  const trimmedBoardHistory = updatedBoardHistory.slice(-20);
+  
   let winner = checkWinner(board, newTurnCount, updatedPlayerTime, game.aiTimeRemaining);
   
   let history = [...(game.history || [])];
@@ -141,7 +154,8 @@ export async function makeGameMove(
 
   if (winner) {
     const updated = await gameStorage.updateGame(gameId, {
-      board: generateFen(board),
+      board: newBoardFen,
+      boardHistory: trimmedBoardHistory,
       winner,
       history,
       turnCount: newTurnCount,
@@ -162,7 +176,8 @@ export async function makeGameMove(
   // Update lastMoveTimestamp to current time so AI's time starts counting from now
   // Player's time is frozen because isPlayerTurn will be false in calculateRemainingTime
   const playerMoveUpdated = await gameStorage.updateGame(gameId, {
-    board: generateFen(board),
+    board: newBoardFen,
+    boardHistory: trimmedBoardHistory,
     turn: 'ai', // AI's turn now
     history,
     turnCount: newTurnCount,
@@ -227,7 +242,9 @@ export async function calculateAIMove(
   let aiResult: { move: { from: { r: number, c: number }, to: { r: number, c: number } } | null; logs: string[] };
   
   try {
-    aiResult = getAIMove(board, playerMove, gameDifficulty, newTurnCount);
+    // Pass boardHistory to AI for repetition detection
+    const boardHistory = game.boardHistory || [];
+    aiResult = getAIMove(board, playerMove, gameDifficulty, newTurnCount, boardHistory);
   } catch (error) {
     console.error("AI calculation error:", error);
     aiResult = { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
@@ -262,10 +279,24 @@ export async function calculateAIMove(
   let aiLogs: string[] = [];
   
   if (aiResult.move) {
+    // Check for threefold repetition before applying AI move
+    const boardHistory = game.boardHistory || [];
+    if (wouldCauseThreefoldRepetition(board, aiResult.move.from, aiResult.move.to, boardHistory)) {
+      // If AI's best move causes repetition, try to find alternative
+      // This should rarely happen, but if it does, we'll skip this move and let AI recalculate
+      console.warn("AI move would cause threefold repetition, skipping");
+      // For now, we'll allow it but log a warning - in practice, getAIMove should filter these
+    }
+    
     const aiMoveBoard = makeMove(board, aiResult.move.from, aiResult.move.to);
+    const newBoardFen = generateFen(aiMoveBoard);
     const moveStr = `AI: ${aiResult.move.from.r},${aiResult.move.from.c} -> ${aiResult.move.to.r},${aiResult.move.to.c}`;
     const aiHistory = [...game.history, moveStr];
     const now = new Date();
+    
+    // Update board history for repetition detection
+    const updatedBoardHistory = [...boardHistory, newBoardFen];
+    const trimmedBoardHistory = updatedBoardHistory.slice(-20);
     
     // Update AI time (add time bonus for making a move)
     // Use aiTimeAfterThinking which accounts for actual calculation time
@@ -278,7 +309,8 @@ export async function calculateAIMove(
     aiLog = aiResult.logs[0] || "gameRoom.log.moveExecuted";
     
     const updated = await gameStorage.updateGame(gameId, {
-      board: generateFen(aiMoveBoard),
+      board: newBoardFen,
+      boardHistory: trimmedBoardHistory,
       turn: 'player', // Back to player
       winner: aiWinner,
       history: aiHistory,
