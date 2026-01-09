@@ -13,7 +13,7 @@ import { parseFen } from "@shared/gameLogic";
 import { gameStorage } from "@/lib/storage";
 
 export default function GameRoom() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [gameId, setGameId] = useState<number | null>(() => gameStorage.getCurrentGameId());
   const { data: game, isLoading, error } = useGame(gameId);
   // Only create makeMove hook if gameId is valid
@@ -25,10 +25,12 @@ export default function GameRoom() {
   const [hasError, setHasError] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const prevGameIdRef = useRef<number | null>(null);
+  const isNavigatingAwayRef = useRef(false);
 
   // Redirect if no game found in storage
   useEffect(() => {
     if (!gameId && !isLoading) {
+      isNavigatingAwayRef.current = true; // 자동 리다이렉트는 확인 창 표시하지 않음
       setLocation("/");
     }
   }, [gameId, isLoading, setLocation]);
@@ -68,6 +70,111 @@ export default function GameRoom() {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logHistory]);
+
+  // 페이지 이탈 방지: 게임이 진행 중일 때만 확인 창 표시
+  useEffect(() => {
+    // 게임이 진행 중인지 확인 (게임이 로드되었고, 게임이 종료되지 않았을 때)
+    const isGameInProgress = game && !game.winner;
+
+    if (!isGameInProgress) {
+      return; // 게임이 종료되었거나 로드되지 않았으면 이벤트 리스너 추가하지 않음
+    }
+
+    // 브라우저 탭/창 닫기 또는 새로고침 시 확인 창 표시
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // 최신 브라우저에서는 메시지가 표시되지 않지만, 이벤트를 발생시켜야 확인 창이 표시됨
+      e.returnValue = '';
+    };
+
+    // 브라우저 뒤로가기 버튼 처리
+    const handlePopState = (e: PopStateEvent) => {
+      // 게임이 진행 중이고, 사용자가 명시적으로 이동을 허용하지 않았을 때만 확인
+      if (isGameInProgress && !isNavigatingAwayRef.current) {
+        // popstate는 이미 발생한 후이므로, 즉시 확인 창을 표시하고 취소하면 현재 페이지로 다시 이동
+        const confirmed = window.confirm(
+          "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?\n\n진행 중인 게임은 저장되지 않습니다."
+        );
+        
+        if (!confirmed) {
+          // 사용자가 취소하면 현재 페이지로 다시 이동 (뒤로가기 취소)
+          window.history.pushState(null, '', '/game');
+          // wouter가 경로 변경을 감지하도록 강제로 이벤트 발생
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } else {
+          // 사용자가 확인하면 이동 허용
+          isNavigatingAwayRef.current = true;
+        }
+      }
+    };
+
+    // 현재 상태를 히스토리에 추가하여 popstate 이벤트를 감지할 수 있도록 함
+    // 이미 pushState가 되어 있으면 다시 추가하지 않음
+    if (window.location.pathname === '/game') {
+      window.history.pushState(null, '', '/game');
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [game]);
+
+  // 경로 변경 감지: /game에서 다른 경로로 변경되려고 할 때 확인 창 표시
+  // 이는 브라우저 뒤로가기 버튼이나 다른 라우팅 변경을 감지하기 위함
+  const prevLocationRef = useRef(location);
+  useEffect(() => {
+    // 게임이 진행 중이고, 경로가 /game에서 다른 경로로 변경된 경우
+    const isGameInProgress = game && !game.winner;
+    const wasOnGamePage = prevLocationRef.current === '/game';
+    const isLeavingGamePage = location !== '/game';
+    
+    if (isGameInProgress && wasOnGamePage && isLeavingGamePage && !isNavigatingAwayRef.current) {
+      // 경로가 이미 변경된 경우, 확인 창을 표시하고 취소하면 다시 /game으로 이동
+      const confirmed = window.confirm(
+        "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?\n\n진행 중인 게임은 저장되지 않습니다."
+      );
+      
+      if (!confirmed) {
+        // 사용자가 취소하면 다시 /game으로 이동
+        isNavigatingAwayRef.current = true; // 무한 루프 방지
+        setLocation('/game');
+        // 다음 렌더링 사이클에서 다시 false로 설정
+        setTimeout(() => {
+          isNavigatingAwayRef.current = false;
+        }, 0);
+      } else {
+        // 사용자가 확인하면 이동 허용
+        isNavigatingAwayRef.current = true;
+      }
+    }
+    
+    // 현재 경로를 이전 경로로 저장
+    prevLocationRef.current = location;
+  }, [location, game, setLocation]);
+
+  // 라우팅 변경 시 확인 창 표시를 위한 핸들러
+  const handleNavigateAway = (targetPath: string) => {
+    // 게임이 진행 중인지 확인
+    const isGameInProgress = game && !game.winner;
+
+    if (isGameInProgress && !isNavigatingAwayRef.current) {
+      const confirmed = window.confirm(
+        "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?\n\n진행 중인 게임은 저장되지 않습니다."
+      );
+      
+      if (!confirmed) {
+        return; // 사용자가 취소하면 이동하지 않음
+      }
+    }
+
+    // 확인했거나 게임이 종료되었으면 이동
+    isNavigatingAwayRef.current = true;
+    setLocation(targetPath);
+  };
 
   // Calculate valid moves for selected piece
   // MUST be before early returns to maintain consistent hook order
@@ -213,7 +320,7 @@ export default function GameRoom() {
       <aside className="w-full lg:w-1/4 p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col justify-between items-center lg:items-stretch z-10 shrink-0">
         <div className="flex lg:flex-col items-center lg:items-start gap-4 lg:gap-0">
           <div className="mb-0 lg:mb-8">
-            <h1 onClick={() => setLocation("/")} className="text-xl lg:text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors">
+            <h1 onClick={() => handleNavigateAway("/")} className="text-xl lg:text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors">
               MOVE 37
             </h1>
             <div className="hidden lg:flex text-xs text-muted-foreground mt-1 items-center gap-2">
@@ -256,7 +363,7 @@ export default function GameRoom() {
            <GlitchButton 
              variant="outline" 
              className="w-full text-sm py-4 border-destructive/50 text-destructive/80 hover:bg-destructive/10"
-             onClick={() => setLocation("/")}
+             onClick={() => handleNavigateAway("/")}
            >
              SURRENDER
            </GlitchButton>
@@ -320,7 +427,7 @@ export default function GameRoom() {
         <div className="mt-4 lg:hidden w-full max-w-[280px]">
            <button 
              className="w-full text-[10px] py-2 border border-destructive/50 text-destructive/80 font-bold uppercase tracking-widest bg-destructive/5"
-             onClick={() => setLocation("/")}
+             onClick={() => handleNavigateAway("/")}
            >
              [ SURRENDER ]
            </button>
@@ -360,7 +467,10 @@ export default function GameRoom() {
                    : "Logic prevails. Human error detected."}
                </p>
                <div className="flex gap-4 justify-center">
-                 <GlitchButton onClick={() => setLocation("/")}>
+                 <GlitchButton onClick={() => {
+                   isNavigatingAwayRef.current = true;
+                   setLocation("/");
+                 }}>
                    RETURN TO LOBBY
                  </GlitchButton>
                  <GlitchButton variant="outline" onClick={async () => {
