@@ -8,7 +8,7 @@ import { Scanlines } from "@/components/Scanlines";
 import { GlitchButton } from "@/components/GlitchButton";
 import { TerminalText } from "@/components/TerminalText";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, AlertTriangle, Trophy, Radio, Terminal as TerminalIcon, Skull } from "lucide-react";
+import { Loader2, AlertTriangle, Trophy, Terminal as TerminalIcon, Skull } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseBoardString, getValidMovesClient } from "@/lib/gameLogic";
 import { parseFen } from "@shared/gameLogic";
@@ -524,10 +524,6 @@ export default function GameRoom() {
             <h1 onClick={() => handleNavigateAway("/")} className="text-xl lg:text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors">
               MOVE 37
             </h1>
-            <div className="hidden lg:flex text-xs text-muted-foreground mt-1 items-center gap-2">
-              <Radio className="w-3 h-3 text-accent animate-pulse" />
-              {t("gameRoom.connected", { id: game.id })}
-            </div>
           </div>
 
           <div className="flex lg:flex-col gap-3 lg:gap-6">

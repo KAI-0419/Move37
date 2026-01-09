@@ -44,7 +44,7 @@ function toGame(localGame: LocalGame): Game {
 const storage = window.localStorage;
 
 // Get all games from localStorage
-function getAllGames(): LocalGame[] {
+export function getAllGames(): LocalGame[] {
   try {
     const data = storage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];

@@ -6,12 +6,14 @@ import { Scanlines } from "@/components/Scanlines";
 import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { motion } from "framer-motion";
-import { Cpu, Skull, Brain, Zap, Lock, Languages, Check } from "lucide-react";
+import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TutorialModal } from "@/components/TutorialModal";
-import { isDifficultyUnlocked, getUnlockedDifficulties } from "@/lib/storage";
+import { isDifficultyUnlocked, getUnlockedDifficulties, getAllGames } from "@/lib/storage";
+import { StatCard } from "@/components/StatCard";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,15 +47,137 @@ function saveDifficulty(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): void {
   }
 }
 
-// Mock data for radar chart - will be translated in component
-const getStatsData = (t: (key: string) => string) => [
-  { subject: t("lobby.chart.tactics"), A: 120, fullMark: 150 },
-  { subject: t("lobby.chart.aggression"), A: 98, fullMark: 150 },
-  { subject: t("lobby.chart.speed"), A: 86, fullMark: 150 },
-  { subject: t("lobby.chart.sacrifice"), A: 99, fullMark: 150 },
-  { subject: t("lobby.chart.defense"), A: 65, fullMark: 150 },
-  { subject: t("lobby.chart.endgame"), A: 85, fullMark: 150 },
-];
+// Calculate player statistics from game history
+function calculatePlayerStats() {
+  const games = getAllGames();
+  
+  // Filter completed games (winner is not null)
+  const completedGames = games.filter(g => g.winner !== null);
+  
+  // CRITICAL: Sort by createdAt (most recent first) for accurate streak calculation
+  // This ensures we calculate streak from the most recent game backwards
+  const sortedCompletedGames = [...completedGames].sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    return dateB - dateA; // Descending order (newest first)
+  });
+  
+  // Calculate total games
+  const totalGames = sortedCompletedGames.length;
+  
+  // Calculate wins, losses, draws with validation
+  const wins = sortedCompletedGames.filter(g => g.winner === 'player').length;
+  const losses = sortedCompletedGames.filter(g => g.winner === 'ai').length;
+  const draws = sortedCompletedGames.filter(g => g.winner === 'draw').length;
+  
+  // Data integrity check: wins + losses + draws should equal totalGames
+  // If not, there might be invalid data (winner with unexpected value)
+  const sumCheck = wins + losses + draws;
+  if (sumCheck !== totalGames && totalGames > 0) {
+    console.warn(`Statistics data inconsistency: wins(${wins}) + losses(${losses}) + draws(${draws}) = ${sumCheck}, but totalGames = ${totalGames}`);
+  }
+  
+  // Calculate win rate (only count valid completed games)
+  const validTotalGames = sumCheck; // Use sumCheck for accuracy
+  const winRate = validTotalGames > 0 ? (wins / validTotalGames) * 100 : 0;
+  
+  // Calculate current win streak (from most recent game backwards)
+  // Since games are sorted newest first, we iterate from index 0
+  let currentStreak = 0;
+  for (let i = 0; i < sortedCompletedGames.length; i++) {
+    if (sortedCompletedGames[i].winner === 'player') {
+      currentStreak++;
+    } else {
+      break; // Streak broken
+    }
+  }
+  
+  // Calculate average turns
+  // For completed games, turnCount should be >= 1, but handle edge cases
+  // Use all completed games, but ensure turnCount is at least 1 (default to 1 if 0 or missing)
+  const gamesWithValidTurns = sortedCompletedGames.map(g => ({
+    ...g,
+    turnCount: Math.max(1, g.turnCount ?? 1) // Ensure minimum 1 turn for completed games
+  }));
+  
+  const avgTurns = gamesWithValidTurns.length > 0
+    ? gamesWithValidTurns.reduce((sum, g) => sum + g.turnCount, 0) / gamesWithValidTurns.length
+    : 0;
+  
+  // Calculate games that went to endgame (20+ turns)
+  // Use original turnCount for this calculation (not the adjusted one)
+  const endgameGames = sortedCompletedGames.filter(g => {
+    const turnCount = g.turnCount ?? 0;
+    return turnCount >= 20; // Only count games that actually reached 20+ turns
+  });
+  const endgameWinRate = endgameGames.length > 0
+    ? (endgameGames.filter(g => g.winner === 'player').length / endgameGames.length) * 100
+    : 0;
+  
+  // Calculate average game duration (estimate based on turn count)
+  // Assuming average 5 seconds per turn
+  const avgGameDuration = avgTurns * 5;
+  
+  return {
+    totalGames: validTotalGames, // Use validated total
+    wins,
+    losses,
+    draws,
+    winRate,
+    currentStreak,
+    avgTurns,
+    endgameWinRate,
+    avgGameDuration,
+  };
+}
+
+// Generate radar chart data based on actual player statistics
+function getRealStatsData(t: (key: string) => string, stats: ReturnType<typeof calculatePlayerStats>) {
+  const { totalGames, winRate, avgTurns, endgameWinRate } = stats;
+  
+  // If no games played, return default values
+  if (totalGames === 0) {
+    return [
+      { subject: t("lobby.chart.tactics"), A: 0, fullMark: 150 },
+      { subject: t("lobby.chart.aggression"), A: 0, fullMark: 150 },
+      { subject: t("lobby.chart.speed"), A: 0, fullMark: 150 },
+      { subject: t("lobby.chart.sacrifice"), A: 0, fullMark: 150 },
+      { subject: t("lobby.chart.defense"), A: 0, fullMark: 150 },
+      { subject: t("lobby.chart.endgame"), A: 0, fullMark: 150 },
+    ];
+  }
+  
+  // Tactics: Based on win rate (0-150 scale)
+  const tactics = Math.min(150, winRate * 1.5);
+  
+  // Aggression: Lower average turns = more aggressive (30 turns is baseline)
+  // Inverse relationship: fewer turns = higher aggression
+  const aggression = Math.min(150, Math.max(0, (30 - avgTurns) * 5));
+  
+  // Speed: Based on average game duration (faster = higher)
+  // Assuming 180 seconds (3 min) is baseline, faster games get higher score
+  const speed = Math.min(150, Math.max(0, (180 - stats.avgGameDuration) / 180 * 150));
+  
+  // Sacrifice: Estimated based on win rate and aggression
+  // Higher win rate with lower turns suggests willingness to sacrifice
+  const sacrifice = Math.min(150, (winRate * 0.6 + aggression * 0.4));
+  
+  // Defense: Inverse of aggression, but also consider win rate
+  // Higher win rate with more turns suggests defensive play
+  const defense = Math.min(150, Math.max(0, (avgTurns - 10) * 3 + (winRate * 0.3)));
+  
+  // Endgame: Based on endgame win rate
+  const endgame = Math.min(150, endgameWinRate * 1.5);
+  
+  return [
+    { subject: t("lobby.chart.tactics"), A: Math.round(tactics), fullMark: 150 },
+    { subject: t("lobby.chart.aggression"), A: Math.round(aggression), fullMark: 150 },
+    { subject: t("lobby.chart.speed"), A: Math.round(speed), fullMark: 150 },
+    { subject: t("lobby.chart.sacrifice"), A: Math.round(sacrifice), fullMark: 150 },
+    { subject: t("lobby.chart.defense"), A: Math.round(defense), fullMark: 150 },
+    { subject: t("lobby.chart.endgame"), A: Math.round(endgame), fullMark: 150 },
+  ];
+}
 
 export default function Lobby() {
   const { t, i18n } = useTranslation();
@@ -81,6 +205,30 @@ export default function Lobby() {
       return 'ko';
     }
   });
+  
+  // Calculate player statistics with state for reactivity
+  const [statsUpdateTrigger, setStatsUpdateTrigger] = useState(0);
+  const playerStats = calculatePlayerStats();
+  
+  // Update stats when storage changes (game completed)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      // Force re-render by updating trigger
+      setStatsUpdateTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('unlock-updated', handleStorageChange);
+    
+    // Also listen for custom stats update event
+    window.addEventListener('stats-updated', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('unlock-updated', handleStorageChange);
+      window.removeEventListener('stats-updated', handleStorageChange);
+    };
+  }, []);
 
   // Load saved difficulty and unlock status on mount
   useEffect(() => {
@@ -170,6 +318,13 @@ export default function Lobby() {
     }
   };
 
+  const chartConfig = {
+    A: {
+      label: t("lobby.chart.player"),
+      color: "hsl(var(--primary))",
+    },
+  } satisfies ChartConfig;
+
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <Scanlines />
@@ -224,8 +379,8 @@ export default function Lobby() {
       <main className="z-10 max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center p-4">
         
         {/* Left Column: Title & Actions */}
-        <div className="space-y-6 lg:space-y-8 text-center lg:text-left">
-          <div className="space-y-2">
+        <div className="contents lg:flex lg:flex-col lg:space-y-8 text-center lg:text-left">
+          <div className="order-1 space-y-2">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -249,7 +404,7 @@ export default function Lobby() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+          <div className="order-4 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
             <GlitchButton 
               onClick={handleStart} 
               disabled={createGame.isPending}
@@ -268,7 +423,7 @@ export default function Lobby() {
           </div>
 
           {/* Difficulty Selection */}
-          <div className="space-y-3 mt-6 lg:mt-8">
+          <div className="order-3 space-y-3 mt-6 lg:mt-8">
             <h3 className="text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-widest">{t("lobby.selectAIDifficulty")}</h3>
             <div className="grid grid-cols-3 gap-2 lg:gap-3">
               <button
@@ -379,37 +534,100 @@ export default function Lobby() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5 }}
-          className="relative h-[280px] sm:h-[350px] lg:h-[450px] w-full bg-black/40 border border-white/10 p-4 backdrop-blur-sm overflow-hidden"
+          className="order-2 relative h-[280px] sm:h-[350px] lg:h-[450px] w-full bg-black/40 border border-white/10 p-3 lg:p-4 backdrop-blur-sm overflow-hidden flex flex-col"
         >
-          {/* Decorative header for chart box */}
-          <div className="absolute top-0 left-0 w-full flex justify-between p-2 border-b border-white/10 text-[8px] lg:text-xs font-mono text-muted-foreground uppercase">
-            <span>{t("lobby.chart.subject")}</span>
-            <span>{t("lobby.chart.status")}</span>
+          {/* Decorative header for stats box */}
+          <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] lg:text-xs font-mono text-muted-foreground uppercase tracking-widest">
+                {t("lobby.stats.title")}
+              </span>
+              <div className="w-1.5 h-1.5 bg-primary animate-pulse" />
+            </div>
+            <span className="text-[8px] lg:text-xs font-mono text-muted-foreground/50 uppercase">
+              {playerStats.totalGames > 0 ? t("lobby.stats.verified") : t("lobby.stats.unverified")}
+            </span>
           </div>
 
-          <div className="h-full w-full pt-6 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={getStatsData(t)}>
-                <PolarGrid stroke="#333" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 8, fontFamily: 'Space Mono' }} />
-                <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                <Radar
-                  name={t("lobby.chart.player")}
-                  dataKey="A"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  fill="var(--primary)"
-                  fillOpacity={0.2}
+          {/* Statistics Cards Grid */}
+          {playerStats.totalGames > 0 ? (
+            <>
+              <div className="grid grid-cols-2 gap-2 mb-3 flex-shrink-0">
+                <StatCard
+                  label={t("lobby.stats.winRate")}
+                  value={playerStats.winRate}
+                  icon={<Trophy className="w-3 h-3 lg:w-4 lg:h-4" />}
+                  delay={0.6}
+                  isPercentage={true}
                 />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
+                <StatCard
+                  label={t("lobby.stats.totalGames")}
+                  value={playerStats.totalGames}
+                  icon={<Activity className="w-3 h-3 lg:w-4 lg:h-4" />}
+                  delay={0.7}
+                />
+                <StatCard
+                  label={t("lobby.stats.streak")}
+                  value={playerStats.currentStreak}
+                  icon={<Zap className="w-3 h-3 lg:w-4 lg:h-4" />}
+                  delay={0.8}
+                />
+                <StatCard
+                  label={t("lobby.stats.avgTurns")}
+                  value={playerStats.avgTurns.toFixed(1)}
+                  icon={<Clock className="w-3 h-3 lg:w-4 lg:h-4" />}
+                  delay={0.9}
+                />
+              </div>
 
-          {/* Glitch overlays on chart */}
-          <div className="absolute bottom-4 right-4 flex gap-2">
-            <Brain className="w-4 h-4 text-white/20" />
-            <Zap className="w-4 h-4 text-white/20" />
-          </div>
+              {/* Radar Chart */}
+              <div className="flex-1 min-h-0">
+                <ChartContainer config={chartConfig} className="w-full h-full aspect-auto">
+                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={getRealStatsData(t, playerStats)}>
+                    <PolarGrid stroke="#333" strokeWidth={1} />
+                    <PolarAngleAxis 
+                      dataKey="subject" 
+                      tick={{ fill: '#999', fontSize: 8, fontFamily: 'monospace' }} 
+                    />
+                    <PolarRadiusAxis 
+                      angle={30} 
+                      domain={[0, 150]} 
+                      tick={{ fill: '#444', fontSize: 7, fontFamily: 'monospace' }} 
+                      axisLine={false} 
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Radar
+                      name={t("lobby.chart.player")}
+                      dataKey="A"
+                      stroke="var(--color-A)"
+                      strokeWidth={2}
+                      fill="var(--color-A)"
+                      fillOpacity={0.2}
+                      dot={{ fill: 'var(--color-A)', r: 3 }}
+                    />
+                  </RadarChart>
+                </ChartContainer>
+              </div>
+
+              {/* Glitch overlays on chart */}
+              <div className="absolute bottom-3 right-3 flex gap-2 opacity-30">
+                <Brain className="w-3 h-3 lg:w-4 lg:h-4 text-white/20" />
+                <Zap className="w-3 h-3 lg:w-4 lg:h-4 text-white/20" />
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <div className="mb-4 opacity-30">
+                <Brain className="w-12 h-12 lg:w-16 lg:h-16 text-white/20 mx-auto" />
+              </div>
+              <p className="text-[10px] lg:text-xs font-mono text-muted-foreground uppercase tracking-widest mb-2">
+                {t("lobby.stats.noData")}
+              </p>
+              <p className="text-[8px] lg:text-[10px] font-mono text-muted-foreground/50">
+                {t("lobby.stats.noDataDescription")}
+              </p>
+            </div>
+          )}
         </motion.div>
       </main>
 
