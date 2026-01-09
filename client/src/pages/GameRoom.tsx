@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useGame, useMakeMove, useCreateGame } from "@/hooks/use-game";
-import { useToast } from "@/hooks/use-toast";
 import { ChessBoard } from "@/components/ChessBoard";
 import { Scanlines } from "@/components/Scanlines";
 import { GlitchButton } from "@/components/GlitchButton";
@@ -19,10 +18,10 @@ export default function GameRoom() {
   const { data: game, isLoading, error } = useGame(gameId);
   const makeMove = useMakeMove(gameId!);
   const createGame = useCreateGame();
-  const { toast } = useToast();
 
   const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
   const [logHistory, setLogHistory] = useState<Array<{ message: string; timestamp: Date }>>([]);
+  const [hasError, setHasError] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize logs when game loads
@@ -127,12 +126,13 @@ export default function GameRoom() {
         });
       } catch (err: any) {
         console.error("Move failed:", err);
-        toast({
-          title: "Invalid Move",
-          description: err?.message || "That move is not allowed. Try again.",
-          variant: "destructive",
-        });
+        // Trigger error animation on board
+        setHasError(true);
         setSelectedSquare(null);
+        // Reset error state after animation completes
+        setTimeout(() => {
+          setHasError(false);
+        }, 500);
       }
     }
   };
@@ -255,6 +255,7 @@ export default function GameRoom() {
           lastMove={lastMove}
           isProcessing={makeMove.isPending}
           difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
+          hasError={hasError}
         />
 
         {/* Winner Overlay */}

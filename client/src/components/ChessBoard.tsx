@@ -19,6 +19,7 @@ interface ChessBoardProps {
   isProcessing?: boolean;
   size?: "small" | "medium" | "large";
   difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+  hasError?: boolean;
 }
 
 export function ChessBoard({ 
@@ -30,7 +31,8 @@ export function ChessBoard({
   onSquareClick,
   isProcessing,
   size = "large",
-  difficulty = "NEXUS-7"
+  difficulty = "NEXUS-7",
+  hasError = false
 }: ChessBoardProps) {
   
   // Parse board string (FEN format: "NPKPN/5/5/5/npkpn")
@@ -119,9 +121,57 @@ export function ChessBoard({
   };
 
   return (
-    <div className={cn("relative bg-border border-2 border-border shadow-[0_0_30px_rgba(0,243,255,0.1)] w-fit mx-auto", config.padding)}>
+    <motion.div 
+      className={cn("relative bg-border border-2 border-border shadow-[0_0_30px_rgba(0,243,255,0.1)] w-fit mx-auto", config.padding)}
+      animate={hasError ? {
+        x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
+        y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
+        rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
+        boxShadow: [
+          "0 0 30px rgba(0,243,255,0.1)",
+          "0 0 40px rgba(255,0,60,0.7)",
+          "0 0 35px rgba(255,0,60,0.5)",
+          "0 0 38px rgba(255,0,60,0.6)",
+          "0 0 33px rgba(255,0,60,0.4)",
+          "0 0 36px rgba(255,0,60,0.3)",
+          "0 0 30px rgba(0,243,255,0.1)"
+        ],
+        borderColor: [
+          "hsl(var(--border))",
+          "rgba(255,0,60,0.9)",
+          "rgba(255,0,60,0.7)",
+          "rgba(255,0,60,0.8)",
+          "rgba(255,0,60,0.6)",
+          "rgba(255,0,60,0.4)",
+          "hsl(var(--border))"
+        ]
+      } : {}}
+      transition={hasError ? {
+        duration: 0.6,
+        ease: [0.25, 0.1, 0.25, 1], // Custom cubic-bezier for smooth, natural feel
+        times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1]
+      } : {}}
+    >
       {/* Grid Container - Fixed size to ensure square cells */}
-      <div className={cn("grid grid-cols-5 grid-rows-5 gap-1 bg-background", config.boardSize)}>
+      <motion.div 
+        className={cn("grid grid-cols-5 grid-rows-5 gap-1 bg-background", config.boardSize)}
+        animate={hasError ? {
+          backgroundColor: [
+            "hsl(var(--background))",
+            "rgba(255,0,60,0.12)",
+            "rgba(255,0,60,0.08)",
+            "rgba(255,0,60,0.1)",
+            "rgba(255,0,60,0.06)",
+            "rgba(255,0,60,0.04)",
+            "hsl(var(--background))"
+          ]
+        } : {}}
+        transition={hasError ? {
+          duration: 0.6,
+          ease: [0.25, 0.1, 0.25, 1],
+          times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1]
+        } : {}}
+      >
         {rows.map((row, r) => (
           row.map((pieceChar, c) => {
             // Player uses lowercase (n, p, k), AI uses uppercase (N, P, K)
@@ -215,13 +265,13 @@ export function ChessBoard({
             );
           })
         ))}
-      </div>
+      </motion.div>
       
       {/* Decorative border corners */}
       <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary" />
       <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-primary" />
       <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-primary" />
       <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-primary" />
-    </div>
+    </motion.div>
   );
 }
