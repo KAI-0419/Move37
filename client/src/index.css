@@ -37,6 +37,15 @@
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary selection:text-black overflow-x-hidden;
     font-family: var(--font-mono);
+    min-height: 100dvh;
+  }
+
+  /* 모든 기기에서 스크롤 없이 꽉 차는 레이아웃을 위한 클래스 */
+  .viewport-fixed {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   h1, h2, h3, h4, h5, h6 {

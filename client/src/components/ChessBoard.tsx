@@ -65,25 +65,26 @@ export function ChessBoard({
     rows.push(row);
   }
 
-  // Size configurations
+  // Size configurations - Fixed to use fluid units for true responsiveness
   const sizeConfig = {
     small: {
       boardSize: "w-[240px] h-[240px]",
       iconSize: 20,
       padding: "p-1",
-      paddingOffset: "6px" // p-1 (4px) + border (2px)
+      paddingOffset: "6px"
     },
     medium: {
-      boardSize: "w-[320px] h-[320px]",
-      iconSize: 28,
-      padding: "p-1.5",
-      paddingOffset: "8px" // p-1.5 (6px) + border (2px)
+      boardSize: "w-[280px] h-[280px] sm:w-[320px] sm:h-[320px]",
+      iconSize: 24,
+      padding: "p-1",
+      paddingOffset: "6px"
     },
     large: {
-      boardSize: "w-[320px] h-[320px] sm:w-[400px] sm:h-[400px] md:w-[480px] md:h-[480px]",
-      iconSize: 32,
-      padding: "p-1.5",
-      paddingOffset: "8px" // p-1.5 (6px) + border (2px)
+      // 뷰포트 크기에 따라 유동적으로 변하는 보드 크기 (데스크톱 최적화를 위해 최대 크기 상향)
+      boardSize: "w-[min(90vw,75vh,600px)] h-[min(90vw,75vh,600px)]",
+      iconSize: 32, 
+      padding: "p-2",
+      paddingOffset: "10px"
     }
   };
 
@@ -93,14 +94,11 @@ export function ChessBoard({
   const getAiPieceColor = () => {
     switch (difficulty) {
       case "NEXUS-3":
-        // 쉬움: 파란색 계열 (primary와 구분되는 밝은 파란색)
         return "text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]";
       case "NEXUS-5":
-        // 보통: 노란색 계열 (secondary)
         return "text-secondary drop-shadow-[0_0_8px_rgba(255,200,0,0.8)]";
       case "NEXUS-7":
       default:
-        // 어려움: 빨간색 계열 (destructive)
         return "text-destructive drop-shadow-[0_0_8px_rgba(255,0,60,0.8)]";
     }
   };
@@ -109,13 +107,13 @@ export function ChessBoard({
     const isPlayer = char === char.toUpperCase();
     const type = char.toLowerCase();
     
-    // Icon props
+    // Icon props - Responsive icon size using percentages for perfect scaling
     const strokeWidth = 2.5;
     
     switch(type) {
-      case 'k': return <Crown size={config.iconSize} strokeWidth={strokeWidth} />;
-      case 'n': return <Component size={config.iconSize} strokeWidth={strokeWidth} className="rotate-45" />; // Abstract knight
-      case 'p': return <Circle size={config.iconSize} strokeWidth={strokeWidth} />;
+      case 'k': return <Crown className="w-[75%] h-[75%]" strokeWidth={strokeWidth} />;
+      case 'n': return <Component className="w-[75%] h-[75%] rotate-45" strokeWidth={strokeWidth} />; 
+      case 'p': return <Circle className="w-[60%] h-[60%]" strokeWidth={strokeWidth} />;
       default: return null;
     }
   };
@@ -220,11 +218,6 @@ export function ChessBoard({
                   (isProcessing || turn === 'ai') && !isSelected && !isValidMoveTarget && "cursor-default"
                 )}
               >
-                {/* Coordinates overlay (optional detail) */}
-                <span className="absolute bottom-0.5 right-1 text-[8px] text-muted-foreground opacity-30 font-mono">
-                  {String.fromCharCode(97 + c)}{5 - r}
-                </span>
-
                 {pieceChar !== '.' && (
                   <motion.div
                     key={`piece-${pieceChar}-${r}-${c}`}

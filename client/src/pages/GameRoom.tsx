@@ -150,53 +150,53 @@ export default function GameRoom() {
   }, [selectedSquare, game.board, isPlayerTurn]);
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground flex flex-col lg:flex-row overflow-hidden font-mono">
+    <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col lg:flex-row overflow-hidden font-mono relative">
       <Scanlines />
 
-      {/* LEFT PANEL: STATUS & INFO */}
-      <aside className="w-full lg:w-1/4 p-6 border-r border-border bg-black/40 backdrop-blur-sm flex flex-col justify-between z-10">
-        <div>
-          <div className="mb-8">
-            <h1 onClick={() => setLocation("/")} className="text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors">
+      {/* LEFT PANEL: STATUS & INFO - Mobile: Top Row, Desktop: Left Column */}
+      <aside className="w-full lg:w-1/4 p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col justify-between items-center lg:items-stretch z-10 shrink-0">
+        <div className="flex lg:flex-col items-center lg:items-start gap-4 lg:gap-0">
+          <div className="mb-0 lg:mb-8">
+            <h1 onClick={() => setLocation("/")} className="text-xl lg:text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors">
               MOVE 37
             </h1>
-            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+            <div className="hidden lg:flex text-xs text-muted-foreground mt-1 items-center gap-2">
               <Radio className="w-3 h-3 text-accent animate-pulse" />
               CONNECTED: {game.id}
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="flex lg:flex-col gap-3 lg:gap-6">
             {/* Player Card */}
             <div className={cn(
-              "p-4 border transition-all duration-300",
+              "px-3 py-2 lg:p-4 border transition-all duration-300 min-w-[120px] lg:min-w-0",
               isPlayerTurn ? "border-primary bg-primary/5 shadow-[0_0_15px_rgba(0,243,255,0.1)]" : "border-white/10 opacity-50"
             )}>
-              <h3 className="text-sm font-bold mb-1">PLAYER (YOU)</h3>
-              <div className="flex items-center gap-2 text-xs">
-                <div className={cn("w-2 h-2 rounded-full", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
-                {isPlayerTurn ? "AWAITING INPUT" : "STANDBY"}
+              <h3 className="text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal">PLAYER (YOU)</h3>
+              <div className="flex items-center gap-2 text-[8px] lg:text-xs">
+                <div className={cn("w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
+                <span className="hidden sm:inline">{isPlayerTurn ? "AWAITING INPUT" : "STANDBY"}</span>
               </div>
             </div>
 
             {/* AI Card */}
             <div className={cn(
-              "p-4 border transition-all duration-300",
+              "px-3 py-2 lg:p-4 border transition-all duration-300 min-w-[120px] lg:min-w-0",
               !isPlayerTurn || makeMove.isPending ? "border-destructive bg-destructive/5 shadow-[0_0_15px_rgba(255,0,60,0.1)]" : "border-white/10 opacity-50"
             )}>
-              <h3 className="text-sm font-bold mb-1 text-destructive">
+              <h3 className="text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 text-destructive uppercase tracking-tighter lg:tracking-normal">
                 {(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"} (AI)
               </h3>
-              <div className="flex items-center gap-2 text-xs text-destructive">
-                <div className={cn("w-2 h-2 rounded-full", (!isPlayerTurn || makeMove.isPending) ? "bg-destructive animate-pulse" : "bg-gray-600")} />
-                {makeMove.isPending ? "ANALYZING MOVES..." : !isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}
+              <div className="flex items-center gap-2 text-[8px] lg:text-xs text-destructive">
+                <div className={cn("w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", (!isPlayerTurn || makeMove.isPending) ? "bg-destructive animate-pulse" : "bg-gray-600")} />
+                <span className="hidden sm:inline">{makeMove.isPending ? "ANALYZING MOVES..." : !isPlayerTurn ? "CALCULATING PROBABILITIES..." : "OBSERVING"}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-2">
+        {/* Action Buttons - Hidden on small mobile top bar, or moved */}
+        <div className="hidden lg:block space-y-2">
            <GlitchButton 
              variant="outline" 
              className="w-full text-sm py-4 border-destructive/50 text-destructive/80 hover:bg-destructive/10"
@@ -207,11 +207,11 @@ export default function GameRoom() {
         </div>
       </aside>
 
-      {/* CENTER PANEL: BOARD */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4 lg:p-12 relative z-0">
+      {/* CENTER PANEL: BOARD - Flex grow to occupy available space */}
+      <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
         
-        {/* Turn Indicator Banner */}
-        <div className="mb-8 text-center h-8">
+        {/* Turn Indicator Banner - Smaller on mobile */}
+        <div className="mb-2 sm:mb-4 lg:mb-8 text-center h-6 lg:h-8">
           <AnimatePresence mode="wait">
             {game.winner ? (
                <motion.div
@@ -219,44 +219,57 @@ export default function GameRoom() {
                  initial={{ opacity: 0, scale: 0.8 }}
                  animate={{ opacity: 1, scale: 1 }}
                  className={cn(
-                   "text-2xl font-display font-black tracking-widest px-6 py-2 border-y-2",
+                   "text-lg lg:text-2xl font-display font-black tracking-widest px-4 lg:px-6 py-1 lg:py-2 border-y-2",
                    game.winner === 'player' ? "text-primary border-primary" : 
                    game.winner === 'draw' ? "text-secondary border-secondary" :
                    "text-destructive border-destructive"
                  )}
                >
-                 {game.winner === 'player' ? "VICTORY ACHIEVED" : 
-                  game.winner === 'draw' ? "RESOURCE DEPLETION - DRAW" :
-                  "SYSTEM DEFEAT"}
+                 {game.winner === 'player' ? "VICTORY" : 
+                  game.winner === 'draw' ? "DRAW" :
+                  "DEFEAT"}
                </motion.div>
             ) : (
               <motion.div
                 key={makeMove.isPending ? 'analyzing' : game.turn}
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
+                exit={{ opacity: 0, y: 5 }}
                 className={cn(
-                  "text-lg tracking-widest font-bold",
+                  "text-xs lg:text-lg tracking-widest font-bold uppercase",
                   makeMove.isPending ? "text-destructive" : game.turn === 'player' ? "text-primary" : "text-destructive"
                 )}
               >
-                {makeMove.isPending ? ">> AI ANALYZING..." : game.turn === 'player' ? ">> YOUR TURN" : ">> OPPONENT THINKING"}
+                {makeMove.isPending ? ">> AI ANALYZING" : game.turn === 'player' ? ">> YOUR TURN" : ">> OPPONENT THINKING"}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        <ChessBoard
-          boardString={game.board}
-          turn={game.turn as 'player' | 'ai'}
-          selectedSquare={selectedSquare}
-          validMoves={validMoves}
-          onSquareClick={handleSquareClick}
-          lastMove={lastMove}
-          isProcessing={makeMove.isPending}
-          difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
-          hasError={hasError}
-        />
+        <div className="relative w-full h-full flex items-center justify-center">
+          <ChessBoard
+            boardString={game.board}
+            turn={game.turn as 'player' | 'ai'}
+            selectedSquare={selectedSquare}
+            validMoves={validMoves}
+            onSquareClick={handleSquareClick}
+            lastMove={lastMove}
+            isProcessing={makeMove.isPending}
+            difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
+            hasError={hasError}
+          />
+        </div>
+
+        {/* Mobile Action Buttons - Visible only on mobile bottom */}
+        <div className="mt-4 lg:hidden w-full max-w-[280px]">
+           <button 
+             className="w-full text-[10px] py-2 border border-destructive/50 text-destructive/80 font-bold uppercase tracking-widest bg-destructive/5"
+             onClick={() => setLocation("/")}
+           >
+             [ SURRENDER ]
+           </button>
+        </div>
+
 
         {/* Winner Overlay */}
         {game.winner && (
@@ -311,20 +324,20 @@ export default function GameRoom() {
       </main>
 
       {/* RIGHT PANEL: TERMINAL LOG */}
-      <aside className="w-full lg:w-1/4 h-64 lg:h-auto border-t lg:border-t-0 lg:border-l border-border bg-black/80 flex flex-col z-10">
-        <div className="p-3 border-b border-border bg-white/5 flex items-center justify-between">
+      <aside className="w-full lg:w-1/4 h-32 sm:h-48 lg:h-auto border-t lg:border-t-0 lg:border-l border-border bg-black/80 flex flex-col z-10 shrink-0">
+        <div className="p-2 lg:p-3 border-b border-border bg-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TerminalIcon className="w-4 h-4 text-accent" />
-            <span className="text-xs font-bold tracking-widest text-accent">SYSTEM LOG</span>
+            <TerminalIcon className="w-3 h-3 lg:w-4 lg:h-4 text-accent" />
+            <span className="text-[10px] lg:text-xs font-bold tracking-widest text-accent">SYSTEM LOG</span>
           </div>
           <div className="flex gap-1">
-            <div className="w-2 h-2 rounded-full bg-red-500/20" />
-            <div className="w-2 h-2 rounded-full bg-yellow-500/20" />
-            <div className="w-2 h-2 rounded-full bg-green-500/20" />
+            <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-red-500/20" />
+            <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-yellow-500/20" />
+            <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-green-500/20" />
           </div>
         </div>
         
-        <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-3 custom-scrollbar">
+        <div className="flex-1 p-2 lg:p-4 overflow-y-auto font-mono text-[10px] lg:text-xs space-y-2 lg:space-y-3 custom-scrollbar">
            {logHistory.map((log, i) => {
              const isAILog = log.message.startsWith(">") || log.message.startsWith("---");
              const isSystemLog = log.message.startsWith("//");
