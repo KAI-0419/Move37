@@ -1,28 +1,22 @@
+/**
+ * Mini Chess Board Component
+ * 
+ * Game-specific board component for Mini Chess.
+ * Handles rendering of the 5x5 chess board with pieces.
+ */
+
 import { motion } from "framer-motion";
 import { Crown, Component, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { BaseGameBoardProps } from "../GameBoardInterface";
 
-type PieceType = 'K' | 'N' | 'P' | '.' | string;
-// Assuming board string "rnbqk..." mapped to 5x5
-// 5x5 = 25 chars. 
-// Valid pieces for Sacrifice Tactics (usually K, N, P variant)
-// Let's assume K = King, N = Knight, P = Pawn.
-// Uppercase = White (Player), Lowercase = Black (AI).
-
-interface ChessBoardProps {
-  boardString: string;
-  turn: "player" | "ai";
-  selectedSquare: { r: number, c: number } | null;
-  lastMove: { from: { r: number, c: number }, to: { r: number, c: number } } | null;
-  validMoves?: { r: number, c: number }[];
-  onSquareClick: (r: number, c: number) => void;
-  isProcessing?: boolean;
-  size?: "small" | "medium" | "large";
-  difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
-  hasError?: boolean;
-}
-
-export function ChessBoard({ 
+/**
+ * Mini Chess Board Component
+ * 
+ * Renders a 5x5 chess board with pieces (King, Knight, Pawn).
+ * Player pieces are lowercase (k, n, p), AI pieces are uppercase (K, N, P).
+ */
+export function MiniChessBoard({ 
   boardString, 
   turn, 
   selectedSquare, 
@@ -33,7 +27,7 @@ export function ChessBoard({
   size = "large",
   difficulty = "NEXUS-7",
   hasError = false
-}: ChessBoardProps) {
+}: BaseGameBoardProps) {
   
   // Parse board string (FEN format: "NPKPN/5/5/5/npkpn")
   const rows: string[][] = [];
@@ -104,7 +98,6 @@ export function ChessBoard({
   };
   
   const getPieceIcon = (char: string) => {
-    const isPlayer = char === char.toUpperCase();
     const type = char.toLowerCase();
     
     // Icon props - Responsive icon size using percentages for perfect scaling

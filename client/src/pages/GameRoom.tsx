@@ -3,16 +3,17 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGame, useMakeMove, useCreateGame } from "@/hooks/use-game";
-import { ChessBoard } from "@/components/ChessBoard";
 import { Scanlines } from "@/components/Scanlines";
+import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import { GlitchButton } from "@/components/GlitchButton";
 import { TerminalText } from "@/components/TerminalText";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, AlertTriangle, Trophy, Terminal as TerminalIcon, Skull } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseBoardString, getValidMovesClient } from "@/lib/gameLogic";
-import { parseFen } from "@shared/gameLogic";
 import { gameStorage, handleVictoryUnlock, getUnlockedDifficulties } from "@/lib/storage";
+import type { GameType } from "@shared/schema";
+import { parseGameTypeFromUrl, validateGameType, getCurrentSearchParams, buildGameRoomUrl } from "@/lib/routing";
 
 export default function GameRoom() {
   const { t } = useTranslation();
@@ -23,6 +24,24 @@ export default function GameRoom() {
   // Only create makeMove hook if gameId is valid
   const makeMove = useMakeMove(gameId ?? 0);
   const createGame = useCreateGame();
+
+  // Get game type from URL parameters
+  const urlGameType = useMemo(() => {
+    const searchParams = getCurrentSearchParams();
+    return parseGameTypeFromUrl(searchParams);
+  }, [location]);
+
+  // Validate and sync game type between URL and game data
+  const validatedGameType = useMemo<GameType>(() => {
+    // Priority: URL > Game data > Default
+    if (urlGameType) {
+      return urlGameType;
+    }
+    if (game?.gameType) {
+      return validateGameType(game.gameType);
+    }
+    return "MINI_CHESS";
+  }, [urlGameType, game?.gameType]);
 
   const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
   const [logHistory, setLogHistory] = useState<Array<{ message: string; timestamp: Date }>>([]);
@@ -40,6 +59,28 @@ export default function GameRoom() {
       prevGameIdRef.current = gameId;
     }
   }, [gameId]);
+
+  // Sync URL with game type when game loads and handle mismatches
+  useEffect(() => {
+    if (!game || isLoading) return;
+    
+    const gameTypeFromData = game.gameType || "MINI_CHESS";
+    const gameTypeFromUrl = urlGameType;
+    
+    // If URL has game type but it doesn't match game data, update URL
+    if (gameTypeFromUrl && gameTypeFromUrl !== gameTypeFromData) {
+      console.warn(
+        `Game type mismatch: URL has ${gameTypeFromUrl} but game data has ${gameTypeFromData}. Updating URL.`
+      );
+      const correctUrl = buildGameRoomUrl(gameTypeFromData);
+      window.history.replaceState(null, "", correctUrl);
+    }
+    // If URL doesn't have game type but game data does, update URL
+    else if (!gameTypeFromUrl && gameTypeFromData) {
+      const correctUrl = buildGameRoomUrl(gameTypeFromData);
+      window.history.replaceState(null, "", correctUrl);
+    }
+  }, [game?.gameType, urlGameType, isLoading]);
 
   // Redirect if no game found in storage
   useEffect(() => {
@@ -86,11 +127,12 @@ export default function GameRoom() {
   useEffect(() => {
     if (game?.winner === 'player' && game?.difficulty && !hasUnlockedRef.current) {
       const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
-      handleVictoryUnlock(difficulty);
+      // Unlock next difficulty for this specific game type
+      handleVictoryUnlock(difficulty, validatedGameType);
       hasUnlockedRef.current = true;
       
       // Log unlock message
-      const unlocked = getUnlockedDifficulties();
+      const unlocked = getUnlockedDifficulties(validatedGameType);
       if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
         setLogHistory(prev => [...prev, { 
           message: t("gameRoom.log.nexusUnlocked", { level: "5", message: t("gameRoom.log.nexus5Unlocked") }), 
@@ -241,7 +283,9 @@ export default function GameRoom() {
         
         if (!confirmed) {
           // 사용자가 취소하면 현재 페이지로 다시 이동 (뒤로가기 취소)
-          window.history.pushState(null, '', '/game');
+          // Use validated game type to maintain correct URL
+          const currentUrl = buildGameRoomUrl(validatedGameType);
+          window.history.pushState(null, '', currentUrl);
           // wouter가 경로 변경을 감지하도록 강제로 이벤트 발생
           window.dispatchEvent(new PopStateEvent('popstate'));
         } else {
@@ -253,8 +297,10 @@ export default function GameRoom() {
 
     // 현재 상태를 히스토리에 추가하여 popstate 이벤트를 감지할 수 있도록 함
     // 이미 pushState가 되어 있으면 다시 추가하지 않음
+    // Use validated game type to maintain correct URL
     if (window.location.pathname === '/game') {
-      window.history.pushState(null, '', '/game');
+      const currentUrl = buildGameRoomUrl(validatedGameType);
+      window.history.pushState(null, '', currentUrl);
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -264,7 +310,7 @@ export default function GameRoom() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [game]);
+  }, [game, validatedGameType]);
 
   // 경로 변경 감지: /game에서 다른 경로로 변경되려고 할 때 확인 창 표시
   // 이는 브라우저 뒤로가기 버튼이나 다른 라우팅 변경을 감지하기 위함
@@ -272,19 +318,20 @@ export default function GameRoom() {
   useEffect(() => {
     // 게임이 진행 중이고, 경로가 /game에서 다른 경로로 변경된 경우
     const isGameInProgress = game && !game.winner;
-    const wasOnGamePage = prevLocationRef.current === '/game';
-    const isLeavingGamePage = location !== '/game';
+    const currentGameUrl = buildGameRoomUrl(validatedGameType);
+    const wasOnGamePage = prevLocationRef.current.startsWith('/game');
+    const isLeavingGamePage = !location.startsWith('/game');
     
     if (isGameInProgress && wasOnGamePage && isLeavingGamePage && !isNavigatingAwayRef.current) {
-      // 경로가 이미 변경된 경우, 확인 창을 표시하고 취소하면 다시 /game으로 이동
+      // 경로가 이미 변경된 경우, 확인 창을 표시하고 취소하면 다시 게임 페이지로 이동
       const confirmed = window.confirm(
         `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
       );
       
       if (!confirmed) {
-        // 사용자가 취소하면 다시 /game으로 이동
+        // 사용자가 취소하면 다시 게임 페이지로 이동 (gameType 포함)
         isNavigatingAwayRef.current = true; // 무한 루프 방지
-        setLocation('/game');
+        setLocation(currentGameUrl);
         // 다음 렌더링 사이클에서 다시 false로 설정
         setTimeout(() => {
           isNavigatingAwayRef.current = false;
@@ -331,15 +378,19 @@ export default function GameRoom() {
     // Early return if it's not player's turn
     if (game.turn !== 'player') return [];
     
-    // Calculate valid moves
+    // Calculate valid moves using game engine
     try {
-      const board = parseBoardString(game.board);
-      return getValidMovesClient(board, selectedSquare, true);
+      return getValidMovesClient(
+        game.board, 
+        selectedSquare, 
+        true, 
+        validatedGameType
+      );
     } catch (error) {
       console.error("Error calculating valid moves:", error);
       return [];
     }
-  }, [selectedSquare, game?.board, game?.turn]);
+  }, [selectedSquare, game?.board, game?.turn, validatedGameType]);
 
   // Determine error state and message
   const isInvalidGameId = gameId === null;
@@ -396,11 +447,12 @@ export default function GameRoom() {
       return;
     }
 
-    // Parse FEN to get piece at coord
-    const board = parseFen(game.board);
+    // Parse board string to get piece at coord
+    const board = parseBoardString(game.board, validatedGameType);
     const clickedPiece = board[r][c];
     // Player uses lowercase pieces (n, p, k), AI uses uppercase (N, P, K)
-    const isMyPiece = clickedPiece !== null && clickedPiece === clickedPiece.toLowerCase() && clickedPiece !== clickedPiece.toUpperCase();
+    // parseBoardString converts null to '.', so check for '.' instead of null
+    const isMyPiece = clickedPiece !== '.' && clickedPiece !== null && clickedPiece === clickedPiece.toLowerCase() && clickedPiece !== clickedPiece.toUpperCase();
 
     // Select own piece
     if (isMyPiece) {
@@ -642,17 +694,33 @@ export default function GameRoom() {
         </div>
 
         <div className="relative w-full h-full flex items-center justify-center">
-          <ChessBoard
-            boardString={game.board}
-            turn={game.turn as 'player' | 'ai'}
-            selectedSquare={selectedSquare}
-            validMoves={validMoves}
-            onSquareClick={handleSquareClick}
-            lastMove={lastMove}
-            isProcessing={makeMove.isPending}
-            difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
-            hasError={hasError}
-          />
+          {(() => {
+            // Get game-specific board component based on validated game type
+            const gameType = validatedGameType;
+            try {
+              const BoardComponent = GameUIFactory.getBoardComponent(gameType);
+              return (
+                <BoardComponent
+                  boardString={game.board}
+                  turn={game.turn as 'player' | 'ai'}
+                  selectedSquare={selectedSquare}
+                  validMoves={validMoves}
+                  onSquareClick={handleSquareClick}
+                  lastMove={lastMove}
+                  isProcessing={makeMove.isPending}
+                  difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
+                  hasError={hasError}
+                />
+              );
+            } catch (error) {
+              console.error(`Failed to load board component for game type ${gameType}:`, error);
+              return (
+                <div className="text-center text-muted-foreground">
+                  <p>게임 타입 {gameType}의 UI가 아직 구현되지 않았습니다.</p>
+                </div>
+              );
+            }
+          })()}
         </div>
 
         {/* Mobile Action Buttons - Visible only on mobile bottom */}

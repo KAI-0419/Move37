@@ -9,22 +9,17 @@
     "initiateSystem": "INITIATE SYSTEM",
     "initializing": "INITIALIZING...",
     "tutorial": "TUTORIAL",
+    "selectGameMode": "Select Game Mode",
     "selectAIDifficulty": "Select AI Difficulty",
+    "game": {
+      "comingSoon": "COMING SOON"
+    },
     "difficulty": {
       "easy": "Easy",
       "medium": "Medium",
       "hard": "Hard",
       "locked": "LOCKED",
       "completePrevious": "Complete NEXUS-{{level}} to unlock"
-    },
-    "chart": {
-      "player": "Player",
-      "tactics": "Tactics",
-      "aggression": "Aggression",
-      "speed": "Speed",
-      "sacrifice": "Sacrifice",
-      "defense": "Defense",
-      "endgame": "Endgame"
     },
     "stats": {
       "title": "PLAYER STATS",
@@ -42,7 +37,10 @@
       "locked": "Locked",
       "lockedDescription": "Complete the previous difficulty to unlock NEXUS-{{level}}.",
       "systemError": "System Error",
-      "systemErrorDescription": "Failed to initialize game. Please try again."
+      "systemErrorDescription": "Failed to initialize game. Please try again.",
+      "comingSoon": "Coming Soon",
+      "comingSoonDescription": "This game is still in development.",
+      "gameNotAvailable": "Game is not available"
     },
     "language": {
       "korean": "한국어",
@@ -188,11 +186,35 @@
         "name": "Pawn",
         "move": "1 square forward, diagonal attack"
       }
-    }
+    },
+    "notAvailable": "Tutorial Not Available",
+    "notAvailableDescription": "The tutorial for this game is not yet available."
   },
   "notFound": {
     "title": "SECTOR NOT FOUND",
     "message": "The coordinates you specified do not exist in this system.",
     "returnToBase": "Return to Base"
+  },
+  "games": {
+    "miniChess": {
+      "name": "Mini Chess",
+      "description": "Strategic game on 5x5 board against AI"
+    },
+    "game2": {
+      "name": "Game 2",
+      "description": "Coming soon"
+    },
+    "game3": {
+      "name": "Game 3",
+      "description": "Coming soon"
+    },
+    "game4": {
+      "name": "Game 4",
+      "description": "Coming soon"
+    },
+    "game5": {
+      "name": "Game 5",
+      "description": "Coming soon"
+    }
   }
 }

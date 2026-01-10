@@ -1,9 +1,13 @@
 // Client-side game hooks using localStorage (100% offline)
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { MoveRequest } from "@shared/schema";
+import type { MoveRequest, GameType } from "@shared/schema";
 import { createGame, getGame, makeGameMove, calculateAIMove } from "@/lib/gameEngine";
-import type { Piece } from "@shared/gameLogic";
 import { gameStorage } from "@/lib/storage";
+
+export interface CreateGameParams {
+  gameType?: GameType; // Optional, defaults to MINI_CHESS for backward compatibility
+  difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"; // Optional, defaults to NEXUS-7
+}
 
 export function useGame(id: number | null) {
   return useQuery({
@@ -21,13 +25,25 @@ export function useGame(id: number | null) {
   });
 }
 
+/**
+ * Hook to create a new game
+ * Supports both old API (difficulty only) and new API (gameType + difficulty)
+ * for backward compatibility
+ */
 export function useCreateGame() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
-      const game = await createGame(difficulty || "NEXUS-7");
-      return game;
+    mutationFn: async (params?: CreateGameParams | "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
+      // Backward compatibility: if params is a string, treat it as difficulty
+      if (typeof params === "string") {
+        const difficulty = params as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+        return await createGame("MINI_CHESS", difficulty);
+      }
+      
+      // New API: params is an object
+      const { gameType = "MINI_CHESS", difficulty = "NEXUS-7" } = params || {};
+      return await createGame(gameType, difficulty);
     },
     onSuccess: (game) => {
       // Update cache and set as current game

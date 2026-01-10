@@ -9,22 +9,17 @@
     "initiateSystem": "게임 시작",
     "initializing": "초기화 중...",
     "tutorial": "튜토리얼",
+    "selectGameMode": "게임 모드 선택",
     "selectAIDifficulty": "AI 난이도 선택",
+    "game": {
+      "comingSoon": "출시 예정"
+    },
     "difficulty": {
       "easy": "쉬움",
       "medium": "보통",
       "hard": "어려움",
       "locked": "LOCKED",
       "completePrevious": "NEXUS-{{level}} 완료 필요"
-    },
-    "chart": {
-      "player": "플레이어",
-      "tactics": "전술",
-      "aggression": "공격성",
-      "speed": "속도",
-      "sacrifice": "희생",
-      "defense": "방어",
-      "endgame": "엔드게임"
     },
     "stats": {
       "title": "플레이어 통계",
@@ -42,7 +37,10 @@
       "locked": "잠김",
       "lockedDescription": "NEXUS-{{level}}을(를) 해제하려면 이전 난이도를 완료해야 합니다.",
       "systemError": "시스템 오류",
-      "systemErrorDescription": "게임 초기화에 실패했습니다. 다시 시도해주세요."
+      "systemErrorDescription": "게임 초기화에 실패했습니다. 다시 시도해주세요.",
+      "comingSoon": "출시 예정",
+      "comingSoonDescription": "이 게임은 아직 개발 중입니다.",
+      "gameNotAvailable": "게임을 사용할 수 없습니다"
     },
     "accessibility": {
       "languageSettings": "언어 설정"
@@ -191,11 +189,35 @@
         "name": "폰 (Pawn)",
         "move": "앞으로 1칸, 대각선 공격"
       }
-    }
+    },
+    "notAvailable": "튜토리얼 없음",
+    "notAvailableDescription": "이 게임의 튜토리얼은 아직 준비되지 않았습니다."
   },
   "notFound": {
     "title": "SECTOR NOT FOUND",
     "message": "지정하신 좌표가 이 시스템에 존재하지 않습니다.",
     "returnToBase": "기지로 복귀"
+  },
+  "games": {
+    "miniChess": {
+      "name": "미니 체스",
+      "description": "5x5 보드에서 AI와 대결하는 전략 게임"
+    },
+    "game2": {
+      "name": "게임 2",
+      "description": "곧 출시 예정"
+    },
+    "game3": {
+      "name": "게임 3",
+      "description": "곧 출시 예정"
+    },
+    "game4": {
+      "name": "게임 4",
+      "description": "곧 출시 예정"
+    },
+    "game5": {
+      "name": "게임 5",
+      "description": "곧 출시 예정"
+    }
   }
 }

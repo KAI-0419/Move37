@@ -1,136 +1,109 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft, Crown, Component, Circle, Target, Zap, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GlitchButton } from "@/components/GlitchButton";
-import { ChessBoard } from "@/components/ChessBoard";
-import { parseFen, INITIAL_BOARD_FEN, generateFen, makeMove } from "@shared/gameLogic";
 import { cn } from "@/lib/utils";
+import type { GameType } from "@shared/schema";
+import { GameUIFactory } from "@/lib/games/GameUIFactory";
+import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { getTutorialSteps, getTutorialStepKeys, getTutorialInitialBoard } from "@/lib/games/TutorialDataFactory";
+import type { TutorialStep } from "@/lib/games/miniChess/tutorialData";
+// Import Mini Chess utilities for tutorial animations
+import { parseFen, generateFen, makeMove as makeBoardMove } from "@/lib/games/miniChess/boardUtils";
 
 interface TutorialModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  gameType?: GameType;
 }
 
-type TutorialStep = {
-  titleKey: string;
-  descriptionKey: string;
-  boardState?: string;
-  highlightSquares?: { r: number; c: number }[];
-  animation?: {
-    from: { r: number; c: number };
-    to: { r: number; c: number };
-    delay?: number;
-  };
-};
-
-const tutorialStepKeys = [
-  { titleKey: "tutorial.steps.goal.title", descriptionKey: "tutorial.steps.goal.description" },
-  { titleKey: "tutorial.steps.pieces.title", descriptionKey: "tutorial.steps.pieces.description" },
-  { titleKey: "tutorial.steps.king.title", descriptionKey: "tutorial.steps.king.description" },
-  { titleKey: "tutorial.steps.knight.title", descriptionKey: "tutorial.steps.knight.description" },
-  { titleKey: "tutorial.steps.pawn.title", descriptionKey: "tutorial.steps.pawn.description" },
-  { titleKey: "tutorial.steps.victory.title", descriptionKey: "tutorial.steps.victory.description" },
-  { titleKey: "tutorial.steps.start.title", descriptionKey: "tutorial.steps.start.description" },
-];
-
-const tutorialSteps: TutorialStep[] = [
-  {
-    titleKey: "tutorial.steps.goal.title",
-    descriptionKey: "tutorial.steps.goal.description",
-    boardState: INITIAL_BOARD_FEN,
-  },
-  {
-    titleKey: "tutorial.steps.pieces.title",
-    descriptionKey: "tutorial.steps.pieces.description",
-    boardState: INITIAL_BOARD_FEN,
-    highlightSquares: [
-      { r: 0, c: 2 }, // AI King
-      { r: 0, c: 1 }, { r: 0, c: 3 }, // AI Knights
-      { r: 0, c: 0 }, { r: 0, c: 4 }, // AI Pawns
-      { r: 4, c: 2 }, // Player King
-      { r: 4, c: 1 }, { r: 4, c: 3 }, // Player Knights
-      { r: 4, c: 0 }, { r: 4, c: 4 }, // Player Pawns
-    ],
-  },
-  {
-    titleKey: "tutorial.steps.king.title",
-    descriptionKey: "tutorial.steps.king.description",
-    boardState: INITIAL_BOARD_FEN,
-    animation: {
-      from: { r: 4, c: 2 },
-      to: { r: 3, c: 2 },
-      delay: 1000,
-    },
-  },
-  {
-    titleKey: "tutorial.steps.knight.title",
-    descriptionKey: "tutorial.steps.knight.description",
-    boardState: "NPKPN/5/5/5/npkpn",
-    animation: {
-      from: { r: 4, c: 1 },
-      to: { r: 2, c: 2 },
-      delay: 1000,
-    },
-  },
-  {
-    titleKey: "tutorial.steps.pawn.title",
-    descriptionKey: "tutorial.steps.pawn.description",
-    boardState: "NPKPN/5/5/5/npkpn",
-    animation: {
-      from: { r: 4, c: 0 },
-      to: { r: 3, c: 0 },
-      delay: 1000,
-    },
-  },
-  {
-    titleKey: "tutorial.steps.victory.title",
-    descriptionKey: "tutorial.steps.victory.description",
-    boardState: INITIAL_BOARD_FEN,
-  },
-  {
-    titleKey: "tutorial.steps.start.title",
-    descriptionKey: "tutorial.steps.start.description",
-    boardState: INITIAL_BOARD_FEN,
-  },
-];
-
-export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
+export function TutorialModal({ open, onOpenChange, gameType = "MINI_CHESS" }: TutorialModalProps) {
   const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
-  const [animatedBoard, setAnimatedBoard] = useState<string>(INITIAL_BOARD_FEN);
+  
+  // Get game-specific tutorial data (re-compute when gameType changes)
+  const tutorialSteps = useMemo(() => getTutorialSteps(gameType), [gameType]);
+  const tutorialStepKeys = useMemo(() => getTutorialStepKeys(gameType), [gameType]);
+  const initialBoard = useMemo(() => getTutorialInitialBoard(gameType), [gameType]);
+  
+  // Get game engine and board component
+  const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
+  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
+  
+  const [animatedBoard, setAnimatedBoard] = useState<string>(initialBoard);
   const [showAnimation, setShowAnimation] = useState(false);
 
-  const step = tutorialSteps[currentStep];
-  const board = parseFen(step.boardState || INITIAL_BOARD_FEN);
+  // Reset to first step when game type changes
+  useEffect(() => {
+    if (open) {
+      setCurrentStep(0);
+      setAnimatedBoard(initialBoard);
+      setShowAnimation(false);
+    }
+  }, [gameType, open, initialBoard]);
+
+  // Validate tutorial steps exist
+  if (tutorialSteps.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md bg-black/95 border-2 border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display font-black text-primary">
+              {t("tutorial.title")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">{t("tutorial.notAvailable")}</p>
+            <p className="text-xs mt-2">{t("tutorial.notAvailableDescription")}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const step = tutorialSteps[currentStep] || tutorialSteps[0];
 
   // Handle animation
   useEffect(() => {
     const currentStepData = tutorialSteps[currentStep];
+    if (!currentStepData) return;
+    
     if (currentStepData.animation) {
       setShowAnimation(false);
-      setAnimatedBoard(currentStepData.boardState || INITIAL_BOARD_FEN);
+      setAnimatedBoard(currentStepData.boardState || initialBoard);
       
       // Start animation after delay
       const timer = setTimeout(() => {
         setShowAnimation(true);
         // Simulate move with smooth transition
-        const currentBoard = parseFen(currentStepData.boardState || INITIAL_BOARD_FEN);
-        const newBoard = makeMove(
-          currentBoard,
-          currentStepData.animation!.from,
-          currentStepData.animation!.to
-        );
-        setAnimatedBoard(generateFen(newBoard));
+        // For Mini Chess, use direct utilities; for other games, use engine
+        if (gameType === "MINI_CHESS") {
+          const currentBoard = parseFen(currentStepData.boardState || initialBoard);
+          const newBoard = makeBoardMove(
+            currentBoard,
+            currentStepData.animation!.from,
+            currentStepData.animation!.to
+          );
+          setAnimatedBoard(generateFen(newBoard));
+        } else {
+          // For future games, use engine.makeMove
+          const currentBoardState = currentStepData.boardState || initialBoard;
+          const newBoardState = engine.makeMove(currentBoardState, {
+            from: currentStepData.animation!.from,
+            to: currentStepData.animation!.to
+          });
+          setAnimatedBoard(newBoardState);
+        }
       }, currentStepData.animation.delay || 1000);
       
       return () => clearTimeout(timer);
     } else {
-      setAnimatedBoard(currentStepData.boardState || INITIAL_BOARD_FEN);
+      setAnimatedBoard(currentStepData.boardState || initialBoard);
       setShowAnimation(false);
     }
-  }, [currentStep]);
+  }, [currentStep, tutorialSteps, initialBoard, gameType, engine]);
 
   const handleNext = useCallback(() => {
     if (currentStep < tutorialSteps.length - 1) {
@@ -148,14 +121,14 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
     }
   }, [currentStep]);
 
-  // Reset when modal closes
+  // Reset when modal closes or game type changes
   useEffect(() => {
     if (!open) {
       setCurrentStep(0);
       setShowAnimation(false);
-      setAnimatedBoard(INITIAL_BOARD_FEN);
+      setAnimatedBoard(initialBoard);
     }
-  }, [open]);
+  }, [open, initialBoard]);
 
   // Keyboard navigation (arrow keys)
   useEffect(() => {
@@ -178,7 +151,7 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, handlePrev, handleNext]);
 
-  const displayBoard = showAnimation && step.animation ? animatedBoard : (step.boardState || INITIAL_BOARD_FEN);
+  const displayBoard = showAnimation && step.animation ? animatedBoard : (step.boardState || initialBoard);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -222,9 +195,9 @@ export function TutorialModal({ open, onOpenChange }: TutorialModalProps) {
             {/* Left: Board */}
             <div className="flex flex-col items-center justify-center p-2 min-w-0 overflow-hidden">
               <div className="relative w-full flex items-center justify-center">
-                {/* ChessBoard wrapper - using grid overlay for precise positioning */}
+                {/* Game Board wrapper - using grid overlay for precise positioning */}
                 <div className="relative inline-block mx-auto">
-                  <ChessBoard
+                  <BoardComponent
                     boardString={displayBoard}
                     turn="player"
                     selectedSquare={null}

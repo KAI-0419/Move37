@@ -1,14 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateGame } from "@/hooks/use-game";
 import { GlitchButton } from "@/components/GlitchButton";
 import { Scanlines } from "@/components/Scanlines";
 import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { motion } from "framer-motion";
-import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock } from "lucide-react";
+import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock, Gamepad2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TutorialModal } from "@/components/TutorialModal";
@@ -21,16 +19,34 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GameType, AVAILABLE_GAMES, loadGameType, saveGameType, getGameInfo } from "@/lib/gameTypes";
+import { buildGameRoomUrl } from "@/lib/routing";
 
-// LocalStorage key for selected difficulty
-const DIFFICULTY_STORAGE_KEY = "move37_selected_difficulty";
+// LocalStorage key prefix for selected difficulty (game-specific)
+const DIFFICULTY_STORAGE_KEY_PREFIX = "move37_selected_difficulty_";
+const GLOBAL_DIFFICULTY_STORAGE_KEY = "move37_selected_difficulty"; // For backward compatibility
 
-// Load difficulty from localStorage
-function loadDifficulty(): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" {
+// Get storage key for selected difficulty, specific to gameType
+function getDifficultyStorageKey(gameType: GameType): string {
+  return `${DIFFICULTY_STORAGE_KEY_PREFIX}${gameType}`;
+}
+
+// Load difficulty from localStorage (game-specific)
+function loadDifficulty(gameType: GameType): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" {
   try {
-    const saved = localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+    // Try game-specific key first
+    const gameSpecificKey = getDifficultyStorageKey(gameType);
+    const saved = localStorage.getItem(gameSpecificKey);
     if (saved === "NEXUS-3" || saved === "NEXUS-5" || saved === "NEXUS-7") {
       return saved;
+    }
+    
+    // Fallback to global key for backward compatibility
+    const globalSaved = localStorage.getItem(GLOBAL_DIFFICULTY_STORAGE_KEY);
+    if (globalSaved === "NEXUS-3" || globalSaved === "NEXUS-5" || globalSaved === "NEXUS-7") {
+      // Migrate to game-specific key
+      localStorage.setItem(gameSpecificKey, globalSaved);
+      return globalSaved;
     }
   } catch (error) {
     console.error("Failed to load difficulty from localStorage:", error);
@@ -38,21 +54,26 @@ function loadDifficulty(): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" {
   return "NEXUS-7"; // Default
 }
 
-// Save difficulty to localStorage
-function saveDifficulty(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): void {
+// Save difficulty to localStorage (game-specific)
+function saveDifficulty(difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7", gameType: GameType): void {
   try {
-    localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty);
+    const gameSpecificKey = getDifficultyStorageKey(gameType);
+    localStorage.setItem(gameSpecificKey, difficulty);
   } catch (error) {
     console.error("Failed to save difficulty to localStorage:", error);
   }
 }
 
 // Calculate player statistics from game history
-function calculatePlayerStats() {
+// Now supports gameType filtering for game-specific statistics
+function calculatePlayerStats(gameType?: "MINI_CHESS" | "GAME_2" | "GAME_3" | "GAME_4" | "GAME_5") {
   const games = getAllGames();
   
+  // Filter by gameType if provided
+  const filteredGames = gameType ? games.filter(g => g.gameType === gameType) : games;
+  
   // Filter completed games (winner is not null)
-  const completedGames = games.filter(g => g.winner !== null);
+  const completedGames = filteredGames.filter(g => g.winner !== null);
   
   // CRITICAL: Sort by createdAt (most recent first) for accurate streak calculation
   // This ensures we calculate streak from the most recent game backwards
@@ -131,63 +152,17 @@ function calculatePlayerStats() {
   };
 }
 
-// Generate radar chart data based on actual player statistics
-function getRealStatsData(t: (key: string) => string, stats: ReturnType<typeof calculatePlayerStats>) {
-  const { totalGames, winRate, avgTurns, endgameWinRate } = stats;
-  
-  // If no games played, return default values
-  if (totalGames === 0) {
-    return [
-      { subject: t("lobby.chart.tactics"), A: 0, fullMark: 150 },
-      { subject: t("lobby.chart.aggression"), A: 0, fullMark: 150 },
-      { subject: t("lobby.chart.speed"), A: 0, fullMark: 150 },
-      { subject: t("lobby.chart.sacrifice"), A: 0, fullMark: 150 },
-      { subject: t("lobby.chart.defense"), A: 0, fullMark: 150 },
-      { subject: t("lobby.chart.endgame"), A: 0, fullMark: 150 },
-    ];
-  }
-  
-  // Tactics: Based on win rate (0-150 scale)
-  const tactics = Math.min(150, winRate * 1.5);
-  
-  // Aggression: Lower average turns = more aggressive (30 turns is baseline)
-  // Inverse relationship: fewer turns = higher aggression
-  const aggression = Math.min(150, Math.max(0, (30 - avgTurns) * 5));
-  
-  // Speed: Based on average game duration (faster = higher)
-  // Assuming 180 seconds (3 min) is baseline, faster games get higher score
-  const speed = Math.min(150, Math.max(0, (180 - stats.avgGameDuration) / 180 * 150));
-  
-  // Sacrifice: Estimated based on win rate and aggression
-  // Higher win rate with lower turns suggests willingness to sacrifice
-  const sacrifice = Math.min(150, (winRate * 0.6 + aggression * 0.4));
-  
-  // Defense: Inverse of aggression, but also consider win rate
-  // Higher win rate with more turns suggests defensive play
-  const defense = Math.min(150, Math.max(0, (avgTurns - 10) * 3 + (winRate * 0.3)));
-  
-  // Endgame: Based on endgame win rate
-  const endgame = Math.min(150, endgameWinRate * 1.5);
-  
-  return [
-    { subject: t("lobby.chart.tactics"), A: Math.round(tactics), fullMark: 150 },
-    { subject: t("lobby.chart.aggression"), A: Math.round(aggression), fullMark: 150 },
-    { subject: t("lobby.chart.speed"), A: Math.round(speed), fullMark: 150 },
-    { subject: t("lobby.chart.sacrifice"), A: Math.round(sacrifice), fullMark: 150 },
-    { subject: t("lobby.chart.defense"), A: Math.round(defense), fullMark: 150 },
-    { subject: t("lobby.chart.endgame"), A: Math.round(endgame), fullMark: 150 },
-  ];
-}
 
 export default function Lobby() {
   const { t, i18n } = useTranslation();
   const [, setLocation] = useLocation();
   const createGame = useCreateGame();
   const { toast } = useToast();
+  const [selectedGameType, setSelectedGameType] = useState<GameType>(() => loadGameType());
   const [selectedDifficulty, setSelectedDifficulty] = useState<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">(() => {
-    // Only select unlocked difficulty
-    const unlocked = getUnlockedDifficulties();
-    const saved = loadDifficulty();
+    // Only select unlocked difficulty for the selected game type
+    const unlocked = getUnlockedDifficulties(selectedGameType);
+    const saved = loadDifficulty(selectedGameType); // Pass gameType
     // If saved difficulty is unlocked, use it; otherwise use first unlocked
     if (unlocked.has(saved)) {
       return saved;
@@ -196,7 +171,8 @@ export default function Lobby() {
     return Array.from(unlocked)[0] || "NEXUS-3";
   });
   const [tutorialOpen, setTutorialOpen] = useState(false);
-  const [unlockedDifficulties, setUnlockedDifficulties] = useState<Set<"NEXUS-3" | "NEXUS-5" | "NEXUS-7">>(() => getUnlockedDifficulties());
+  // Get unlocked difficulties for the selected game type (update when game type changes)
+  const unlockedDifficulties = useMemo(() => getUnlockedDifficulties(selectedGameType), [selectedGameType]);
   const [selectedLanguage, setSelectedLanguage] = useState<"ko" | "en">(() => {
     try {
       const stored = localStorage.getItem('move37_language');
@@ -205,12 +181,15 @@ export default function Lobby() {
       return 'ko';
     }
   });
+
+  const currentGameInfo = getGameInfo(selectedGameType);
   
   // Calculate player statistics with state for reactivity
+  // Statistics are now filtered by selected game type and update automatically when game type changes
   const [statsUpdateTrigger, setStatsUpdateTrigger] = useState(0);
-  const playerStats = calculatePlayerStats();
+  const playerStats = useMemo(() => calculatePlayerStats(selectedGameType), [selectedGameType, statsUpdateTrigger]);
   
-  // Update stats when storage changes (game completed)
+  // Update stats when storage changes (game completed) or game type changes
   useEffect(() => {
     const handleStorageChange = () => {
       // Force re-render by updating trigger
@@ -233,9 +212,9 @@ export default function Lobby() {
   // Load saved difficulty and unlock status on mount
   useEffect(() => {
     const loadUnlockStatus = () => {
-      const savedDifficulty = loadDifficulty();
-      const unlocked = getUnlockedDifficulties();
-      setUnlockedDifficulties(unlocked);
+      const savedDifficulty = loadDifficulty(selectedGameType); // Pass gameType
+      const unlocked = getUnlockedDifficulties(selectedGameType);
+      // unlockedDifficulties is now computed via useMemo, no need to set state
       
       // Only set selected difficulty if it's unlocked
       if (unlocked.has(savedDifficulty)) {
@@ -244,7 +223,7 @@ export default function Lobby() {
         // Default to first unlocked difficulty
         const firstUnlocked = Array.from(unlocked)[0] || "NEXUS-3";
         setSelectedDifficulty(firstUnlocked);
-        saveDifficulty(firstUnlocked);
+        saveDifficulty(firstUnlocked, selectedGameType); // Pass gameType
       }
     };
 
@@ -273,11 +252,11 @@ export default function Lobby() {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('unlock-updated', handleStorageChange);
     };
-  }, [i18n]);
+  }, [i18n, selectedGameType]);
 
   // Save difficulty whenever it changes (only if unlocked)
   const handleDifficultyChange = (difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
-    if (!isDifficultyUnlocked(difficulty)) {
+    if (!isDifficultyUnlocked(difficulty, selectedGameType)) {
       const level = difficulty.split('-')[1];
       toast({
         title: t("lobby.toast.locked"),
@@ -287,13 +266,62 @@ export default function Lobby() {
       return;
     }
     setSelectedDifficulty(difficulty);
-    saveDifficulty(difficulty);
+    saveDifficulty(difficulty, selectedGameType); // Pass gameType
+  };
+
+  const handleGameTypeChange = (gameType: GameType) => {
+    const gameInfo = getGameInfo(gameType);
+    if (!gameInfo || !gameInfo.available) {
+      if (gameInfo?.comingSoon) {
+        toast({
+          title: t("lobby.toast.comingSoon"),
+          description: t("lobby.toast.comingSoonDescription"),
+          variant: "default",
+        });
+      }
+      return;
+    }
+    setSelectedGameType(gameType);
+    saveGameType(gameType);
+    
+    // Update unlocked difficulties when game type changes
+    // unlockedDifficulties is now computed via useMemo, automatically updates
+    const unlocked = getUnlockedDifficulties(gameType);
+    
+    // Load saved difficulty for the new game type
+    const savedDifficulty = loadDifficulty(gameType);
+    
+    // Update selected difficulty if current one is not unlocked for new game type
+    if (unlocked.has(savedDifficulty)) {
+      // Use saved difficulty for this game type
+      setSelectedDifficulty(savedDifficulty);
+    } else {
+      // Default to first unlocked difficulty
+      const firstUnlocked = Array.from(unlocked)[0] || "NEXUS-3";
+      setSelectedDifficulty(firstUnlocked);
+      saveDifficulty(firstUnlocked, gameType);
+    }
   };
 
   const handleStart = async () => {
     try {
-      const game = await createGame.mutateAsync(selectedDifficulty);
-      setLocation("/game");
+      // Ensure game is available before starting
+      if (!currentGameInfo?.available) {
+        toast({
+          title: t("lobby.toast.systemError"),
+          description: t("lobby.toast.gameNotAvailable"),
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Create game with selected gameType and difficulty
+      const game = await createGame.mutateAsync({
+        gameType: selectedGameType,
+        difficulty: selectedDifficulty,
+      });
+      // Include gameType in URL for proper routing
+      setLocation(buildGameRoomUrl(selectedGameType));
     } catch (error: any) {
       console.error("Failed to create game:", error);
       toast({
@@ -318,12 +346,6 @@ export default function Lobby() {
     }
   };
 
-  const chartConfig = {
-    A: {
-      label: t("lobby.chart.player"),
-      color: "hsl(var(--primary))",
-    },
-  } satisfies ChartConfig;
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -404,10 +426,69 @@ export default function Lobby() {
             </div>
           </div>
 
+          {/* Game Type Selection */}
+          <div className="order-2 space-y-3 mt-6 lg:mt-8">
+            <h3 className="text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-widest">{t("lobby.selectGameMode")}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 lg:gap-3">
+              {AVAILABLE_GAMES.map((game) => {
+                const isSelected = selectedGameType === game.id;
+                const isAvailable = game.available;
+                
+                return (
+                  <button
+                    key={game.id}
+                    onClick={() => handleGameTypeChange(game.id)}
+                    disabled={!isAvailable}
+                    className={cn(
+                      "p-3 lg:p-4 border transition-all duration-300 text-left relative group",
+                      !isAvailable
+                        ? "border-white/10 bg-white/5 opacity-50 cursor-not-allowed"
+                        : isSelected
+                        ? "border-primary bg-primary/10 shadow-[0_0_15px_rgba(0,243,255,0.2)]"
+                        : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
+                    )}
+                  >
+                    {!isAvailable && game.comingSoon && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
+                        <Lock className="w-4 h-4 lg:w-5 lg:h-5 text-muted-foreground/80 mb-1" />
+                        <span className="text-[7px] lg:text-[8px] text-primary/30 font-mono">{t("lobby.game.comingSoon")}</span>
+                      </div>
+                    )}
+                    <div className={cn(
+                      "text-2xl lg:text-3xl mb-2",
+                      isAvailable ? "opacity-100" : "opacity-30"
+                    )}>
+                      {game.icon}
+                    </div>
+                    <h4 className={cn(
+                      "text-[9px] lg:text-xs font-bold mb-1",
+                      isAvailable ? "text-foreground" : "text-muted-foreground/50"
+                    )}>
+                      {t(game.nameKey)}
+                    </h4>
+                    <p className={cn(
+                      "hidden sm:block text-[8px] lg:text-[10px] line-clamp-2",
+                      isAvailable ? "text-muted-foreground" : "text-muted-foreground/30"
+                    )}>
+                      {t(game.descriptionKey)}
+                    </p>
+                    {isSelected && isAvailable && (
+                      <div className="absolute top-2 right-2">
+                        <Check className="w-3 h-3 lg:w-4 lg:h-4 text-primary" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Action Buttons - Only show if game is available */}
+          {currentGameInfo?.available && (
           <div className="order-4 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
             <GlitchButton 
               onClick={handleStart} 
-              disabled={createGame.isPending}
+              disabled={createGame.isPending || !currentGameInfo.available}
               className="w-full sm:w-auto text-base lg:text-lg py-4 lg:py-6"
             >
               {createGame.isPending ? t("lobby.initializing") : t("lobby.initiateSystem")}
@@ -417,28 +498,31 @@ export default function Lobby() {
               variant="outline" 
               className="w-full sm:w-auto py-4 lg:py-6"
               onClick={handleTutorial}
+              disabled={!currentGameInfo.available}
             >
               {t("lobby.tutorial")}
             </GlitchButton>
           </div>
+          )}
 
-          {/* Difficulty Selection */}
+          {/* Difficulty Selection - Only show if game is available */}
+          {currentGameInfo?.available && (
           <div className="order-3 space-y-3 mt-6 lg:mt-8">
             <h3 className="text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-widest">{t("lobby.selectAIDifficulty")}</h3>
             <div className="grid grid-cols-3 gap-2 lg:gap-3">
               <button
                 onClick={() => handleDifficultyChange("NEXUS-3")}
-                disabled={!isDifficultyUnlocked("NEXUS-3")}
+                disabled={!isDifficultyUnlocked("NEXUS-3", selectedGameType)}
                 className={cn(
                   "p-2 lg:p-4 border transition-all duration-300 text-left relative",
-                  !isDifficultyUnlocked("NEXUS-3")
+                  !isDifficultyUnlocked("NEXUS-3", selectedGameType)
                     ? "border-primary/20 bg-primary/5 opacity-75 cursor-not-allowed"
                     : selectedDifficulty === "NEXUS-3"
                     ? "border-primary bg-primary/10 shadow-[0_0_15px_rgba(0,243,255,0.2)]"
                     : "border-white/10 bg-white/5 hover:border-white/20"
                 )}
               >
-                {!isDifficultyUnlocked("NEXUS-3") && (
+                {!isDifficultyUnlocked("NEXUS-3", selectedGameType) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
                     <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
                     <span className="text-[7px] lg:text-[8px] text-primary/30 font-mono">{t("lobby.difficulty.locked")}</span>
@@ -446,30 +530,30 @@ export default function Lobby() {
                 )}
                 <Cpu className={cn(
                   "w-4 h-4 lg:w-5 lg:h-5 mb-1 lg:mb-2",
-                  isDifficultyUnlocked("NEXUS-3") ? "text-primary" : "text-primary/30"
+                  isDifficultyUnlocked("NEXUS-3", selectedGameType) ? "text-primary" : "text-primary/30"
                 )} />
                 <h4 className={cn(
                   "text-[8px] lg:text-xs font-bold mb-0.5 lg:mb-1",
-                  isDifficultyUnlocked("NEXUS-3") ? "text-muted-foreground" : "text-primary/40"
+                  isDifficultyUnlocked("NEXUS-3", selectedGameType) ? "text-muted-foreground" : "text-primary/40"
                 )}>NEXUS-3</h4>
                 <p className={cn(
                   "hidden sm:block text-[8px] lg:text-xs",
-                  isDifficultyUnlocked("NEXUS-3") ? "text-muted-foreground" : "text-primary/30"
+                  isDifficultyUnlocked("NEXUS-3", selectedGameType) ? "text-muted-foreground" : "text-primary/30"
                 )}>{t("lobby.difficulty.easy")}</p>
               </button>
               <button
                 onClick={() => handleDifficultyChange("NEXUS-5")}
-                disabled={!isDifficultyUnlocked("NEXUS-5")}
+                disabled={!isDifficultyUnlocked("NEXUS-5", selectedGameType)}
                 className={cn(
                   "p-2 lg:p-4 border transition-all duration-300 text-left relative",
-                  !isDifficultyUnlocked("NEXUS-5")
+                  !isDifficultyUnlocked("NEXUS-5", selectedGameType)
                     ? "border-secondary/20 bg-secondary/5 opacity-75 cursor-not-allowed"
                     : selectedDifficulty === "NEXUS-5"
                     ? "border-secondary bg-secondary/10 shadow-[0_0_15px_rgba(255,200,0,0.2)]"
                     : "border-white/10 bg-white/5 hover:border-white/20"
                 )}
               >
-                {!isDifficultyUnlocked("NEXUS-5") && (
+                {!isDifficultyUnlocked("NEXUS-5", selectedGameType) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
                     <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
                     <span className="text-[7px] lg:text-[8px] text-secondary/30 font-mono">{t("lobby.difficulty.locked")}</span>
@@ -477,33 +561,33 @@ export default function Lobby() {
                 )}
                 <Cpu className={cn(
                   "w-4 h-4 lg:w-5 lg:h-5 mb-1 lg:mb-2",
-                  isDifficultyUnlocked("NEXUS-5") ? "text-secondary" : "text-secondary/30"
+                  isDifficultyUnlocked("NEXUS-5", selectedGameType) ? "text-secondary" : "text-secondary/30"
                 )} />
                 <h4 className={cn(
                   "text-[8px] lg:text-xs font-bold mb-0.5 lg:mb-1",
-                  isDifficultyUnlocked("NEXUS-5") ? "text-muted-foreground" : "text-secondary/40"
+                  isDifficultyUnlocked("NEXUS-5", selectedGameType) ? "text-muted-foreground" : "text-secondary/40"
                 )}>NEXUS-5</h4>
                 <p className={cn(
                   "hidden sm:block text-[8px] lg:text-xs",
-                  isDifficultyUnlocked("NEXUS-5") ? "text-muted-foreground" : "text-secondary/30"
+                  isDifficultyUnlocked("NEXUS-5", selectedGameType) ? "text-muted-foreground" : "text-secondary/30"
                 )}>{t("lobby.difficulty.medium")}</p>
-                {!isDifficultyUnlocked("NEXUS-5") && (
+                {!isDifficultyUnlocked("NEXUS-5", selectedGameType) && (
                   <p className="hidden sm:block text-[7px] lg:text-[8px] text-secondary/30 mt-0.5">{t("lobby.difficulty.completePrevious", { level: "3" })}</p>
                 )}
               </button>
               <button
                 onClick={() => handleDifficultyChange("NEXUS-7")}
-                disabled={!isDifficultyUnlocked("NEXUS-7")}
+                disabled={!isDifficultyUnlocked("NEXUS-7", selectedGameType)}
                 className={cn(
                   "p-2 lg:p-4 border transition-all duration-300 text-left relative",
-                  !isDifficultyUnlocked("NEXUS-7")
+                  !isDifficultyUnlocked("NEXUS-7", selectedGameType)
                     ? "border-destructive/20 bg-destructive/5 opacity-75 cursor-not-allowed"
                     : selectedDifficulty === "NEXUS-7"
                     ? "border-destructive bg-destructive/10 shadow-[0_0_15px_rgba(255,0,60,0.2)]"
                     : "border-white/10 bg-white/5 hover:border-white/20"
                 )}
               >
-                {!isDifficultyUnlocked("NEXUS-7") && (
+                {!isDifficultyUnlocked("NEXUS-7", selectedGameType) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
                     <Lock className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground/80 mb-1" />
                     <span className="text-[7px] lg:text-[8px] text-destructive/30 font-mono">{t("lobby.difficulty.locked")}</span>
@@ -511,22 +595,23 @@ export default function Lobby() {
                 )}
                 <Skull className={cn(
                   "w-4 h-4 lg:w-5 lg:h-5 mb-1 lg:mb-2",
-                  isDifficultyUnlocked("NEXUS-7") ? "text-destructive" : "text-destructive/30"
+                  isDifficultyUnlocked("NEXUS-7", selectedGameType) ? "text-destructive" : "text-destructive/30"
                 )} />
                 <h4 className={cn(
                   "text-[8px] lg:text-xs font-bold mb-0.5 lg:mb-1",
-                  isDifficultyUnlocked("NEXUS-7") ? "text-muted-foreground" : "text-destructive/40"
+                  isDifficultyUnlocked("NEXUS-7", selectedGameType) ? "text-muted-foreground" : "text-destructive/40"
                 )}>NEXUS-7</h4>
                 <p className={cn(
                   "hidden sm:block text-[8px] lg:text-xs",
-                  isDifficultyUnlocked("NEXUS-7") ? "text-muted-foreground" : "text-destructive/30"
+                  isDifficultyUnlocked("NEXUS-7", selectedGameType) ? "text-muted-foreground" : "text-destructive/30"
                 )}>{t("lobby.difficulty.hard")}</p>
-                {!isDifficultyUnlocked("NEXUS-7") && (
+                {!isDifficultyUnlocked("NEXUS-7", selectedGameType) && (
                   <p className="hidden sm:block text-[7px] lg:text-[8px] text-destructive/30 mt-0.5">{t("lobby.difficulty.completePrevious", { level: "5" })}</p>
                 )}
               </button>
             </div>
           </div>
+          )}
         </div>
 
         {/* Right Column: Visuals/Stats */}
@@ -547,6 +632,19 @@ export default function Lobby() {
             <span className="text-[8px] lg:text-xs font-mono text-muted-foreground/50 uppercase">
               {playerStats.totalGames > 0 ? t("lobby.stats.verified") : t("lobby.stats.unverified")}
             </span>
+          </div>
+
+          {/* Statistics Header with Game Type */}
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-[10px] lg:text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {t("lobby.stats.title")}
+            </h3>
+            {currentGameInfo && (
+              <div className="flex items-center gap-1.5 text-[9px] lg:text-[10px] text-primary/70">
+                <span className="opacity-70">{currentGameInfo.icon}</span>
+                <span className="font-mono">{t(currentGameInfo.nameKey)}</span>
+              </div>
+            )}
           </div>
 
           {/* Statistics Cards Grid */}
@@ -579,41 +677,6 @@ export default function Lobby() {
                   delay={0.9}
                 />
               </div>
-
-              {/* Radar Chart */}
-              <div className="flex-1 min-h-0">
-                <ChartContainer config={chartConfig} className="w-full h-full aspect-auto">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={getRealStatsData(t, playerStats)}>
-                    <PolarGrid stroke="#333" strokeWidth={1} />
-                    <PolarAngleAxis 
-                      dataKey="subject" 
-                      tick={{ fill: '#999', fontSize: 8, fontFamily: 'monospace' }} 
-                    />
-                    <PolarRadiusAxis 
-                      angle={30} 
-                      domain={[0, 150]} 
-                      tick={{ fill: '#444', fontSize: 7, fontFamily: 'monospace' }} 
-                      axisLine={false} 
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Radar
-                      name={t("lobby.chart.player")}
-                      dataKey="A"
-                      stroke="var(--color-A)"
-                      strokeWidth={2}
-                      fill="var(--color-A)"
-                      fillOpacity={0.2}
-                      dot={{ fill: 'var(--color-A)', r: 3 }}
-                    />
-                  </RadarChart>
-                </ChartContainer>
-              </div>
-
-              {/* Glitch overlays on chart */}
-              <div className="absolute bottom-3 right-3 flex gap-2 opacity-30">
-                <Brain className="w-3 h-3 lg:w-4 lg:h-4 text-white/20" />
-                <Zap className="w-3 h-3 lg:w-4 lg:h-4 text-white/20" />
-              </div>
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center">
@@ -636,7 +699,7 @@ export default function Lobby() {
       </footer>
 
       {/* Tutorial Modal */}
-      <TutorialModal open={tutorialOpen} onOpenChange={setTutorialOpen} />
+      <TutorialModal open={tutorialOpen} onOpenChange={setTutorialOpen} gameType={selectedGameType} />
     </div>
   );
 }

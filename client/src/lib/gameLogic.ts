@@ -1,41 +1,48 @@
 // Client-side game logic helpers
-// Uses shared game logic but adapts for UI (board string format)
-import { parseFen, isValidMove, getValidMoves, type Board } from "@shared/gameLogic";
+// Uses game engine factory pattern for multi-game support
+import type { GameType } from "@shared/schema";
+import { GameEngineFactory } from "./games/GameEngineFactory";
 
 export type Piece = 'k' | 'n' | 'p' | 'K' | 'N' | 'P' | '.';
 
-// Convert board string (FEN format) to 2D array for UI
-export function parseBoardString(boardString: string): Piece[][] {
-  const board = parseFen(boardString);
+/**
+ * Convert board string (game-specific format) to 2D array for UI
+ * Uses game engine to parse board based on game type
+ */
+export function parseBoardString(boardString: string, gameType: GameType = "MINI_CHESS"): Piece[][] {
+  const engine = GameEngineFactory.getEngine(gameType);
+  const board = engine.parseBoard(boardString);
   // Convert null to '.' for UI display
+  // Board is already a 2D array from parseBoard
   return board.map(row => row.map(cell => (cell === null ? '.' : cell) as Piece));
 }
 
-// Check if move is valid (using shared logic)
+/**
+ * Check if move is valid using game engine
+ * Note: This function requires the original board string, not the parsed UI format
+ */
 export function isValidMoveClient(
-  board: Piece[][],
+  boardString: string,
   from: { r: number; c: number },
   to: { r: number; c: number },
-  isPlayer: boolean
+  isPlayer: boolean,
+  gameType: GameType = "MINI_CHESS"
 ): boolean {
-  // Convert UI board format to shared format
-  const sharedBoard: Board = board.map(row => 
-    row.map(cell => (cell === '.' ? null : cell) as any)
-  );
-  
-  return isValidMove(sharedBoard, from, to, isPlayer);
+  const engine = GameEngineFactory.getEngine(gameType);
+  const validation = engine.isValidMove(boardString, { from, to }, isPlayer);
+  return validation.valid;
 }
 
-// Get valid moves (using shared logic)
+/**
+ * Get valid moves using game engine
+ * Note: This function requires the original board string, not the parsed UI format
+ */
 export function getValidMovesClient(
-  board: Piece[][],
+  boardString: string,
   from: { r: number; c: number },
-  isPlayer: boolean
+  isPlayer: boolean,
+  gameType: GameType = "MINI_CHESS"
 ): { r: number; c: number }[] {
-  // Convert UI board format to shared format
-  const sharedBoard: Board = board.map(row => 
-    row.map(cell => (cell === '.' ? null : cell) as any)
-  );
-  
-  return getValidMoves(sharedBoard, from, isPlayer);
+  const engine = GameEngineFactory.getEngine(gameType);
+  return engine.getValidMoves(boardString, from, isPlayer);
 }
