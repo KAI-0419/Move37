@@ -23,6 +23,7 @@ export function MiniChessBoard({
   lastMove,
   validMoves = [],
   onSquareClick,
+  onSquareHover,
   isProcessing,
   size = "large",
   difficulty = "NEXUS-7",
@@ -189,6 +190,11 @@ export function MiniChessBoard({
                     onSquareClick(r, c);
                   }
                 }}
+                onMouseEnter={() => {
+                  if (onSquareHover && !isProcessing && (turn === 'player' || turn === undefined)) {
+                    onSquareHover(r, c);
+                  }
+                }}
                 initial={false}
                 animate={{
                   backgroundColor: isSelected 
@@ -215,10 +221,16 @@ export function MiniChessBoard({
                   <motion.div
                     key={`piece-${pieceChar}-${r}-${c}`}
                     layout
-                    layoutId={lastMove && isLastMoveDest ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}` : undefined}
-                    initial={{ scale: 0.8, opacity: 0 }}
+                    // layoutId를 일관되게 설정: 이동 중인 기물만 특별한 ID 사용, 나머지는 고유 ID 사용
+                    // 이렇게 하면 framer-motion이 기물의 위치 변화를 정확히 추적할 수 있음
+                    layoutId={
+                      lastMove && isLastMoveDest 
+                        ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}-${pieceChar.toLowerCase()}`
+                        : `piece-${pieceChar.toLowerCase()}-${r}-${c}`
+                    }
+                    initial={false}
                     animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0 }}
+                    exit={{ scale: 0, opacity: 0 }}
                     transition={{
                       layout: { 
                         type: "spring", 
@@ -226,8 +238,8 @@ export function MiniChessBoard({
                         damping: 25,
                         duration: 0.5
                       },
-                      scale: { duration: 0.2 },
-                      opacity: { duration: 0.2 }
+                      scale: { duration: 0.15 },
+                      opacity: { duration: 0.15 }
                     }}
                     className={cn(
                       "z-10 flex items-center justify-center w-full h-full",

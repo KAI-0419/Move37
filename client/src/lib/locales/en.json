@@ -129,7 +129,22 @@
         "defensive1": "Focusing on defense. But that's the trap.",
         "defensive2": "Prudent choice. But already too late.",
         "defensive3": "Defensive posture detected. Expected behavior.",
-        "defensive4": "I've already calculated your next move."
+        "defensive4": "I've already calculated your next move.",
+        "quickMove1": "That hasty decision... Within expected range.",
+        "quickMove2": "An instant judgment. But already calculated.",
+        "quickMove3": "Quick decision-making. But that is your weakness.",
+        "longThink1": "After all that thinking... Was that all?",
+        "longThink2": "That was your conclusion after all that time?",
+        "longThink3": "You spent so much time, but it was still an expected move.",
+        "hesitation1": "You hesitated so much. Can't make up your mind?",
+        "hesitation2": "I see hesitation. Are you uncertain?",
+        "hesitation3": "I saw you picking up and putting down pieces. Are you anxious?",
+        "longHesitation1": "After all that thinking and hesitation... Was that all?",
+        "longHesitation2": "You spent so much time and hesitated so much, but it was still an expected move.",
+        "longHesitation3": "That was your conclusion after all that hesitation?",
+        "normalMove1": "A measured decision. Within expected range.",
+        "normalMove2": "A balanced move. But I've already calculated it.",
+        "normalMove3": "You took your time, but it was still predictable."
       }
     },
     "errors": {

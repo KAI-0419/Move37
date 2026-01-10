@@ -30,6 +30,8 @@ export interface GameMove {
 export interface PlayerMove extends GameMove {
   piece: any; // Game-specific piece type
   captured?: any; // Game-specific piece type (if capture occurred)
+  moveTimeSeconds?: number; // Time taken to make the move (in seconds)
+  hoverCount?: number; // Number of hover events before selecting a piece (hesitation indicator)
 }
 
 /**

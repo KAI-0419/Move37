@@ -73,7 +73,10 @@ export function useMakeMove(gameId: number) {
       if (!gameId || gameId <= 0) {
         throw new Error("gameRoom.errors.invalidGameId");
       }
-      const result = await makeGameMove(gameId, move.from, move.to);
+      const result = await makeGameMove(gameId, move.from, move.to, {
+        moveTimeSeconds: move.moveTimeSeconds,
+        hoverCount: move.hoverCount
+      });
       return result;
     },
     onSuccess: async (data) => {
@@ -123,8 +126,12 @@ export function useMakeMove(gameId: number) {
         }, 600); // Wait 600ms for piece movement animation to complete
       }
       
-      // Also invalidate to ensure fresh data
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      // 애니메이션이 완료된 후에만 쿼리 무효화
+      // 이렇게 하면 보드 상태 업데이트가 애니메이션과 충돌하지 않음
+      // 애니메이션은 약 500ms이므로, 약간의 지연을 두어 애니메이션이 완료된 후 업데이트
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }, 550); // 애니메이션 완료 후 약간의 여유를 두고 업데이트
     },
     onError: (error) => {
       console.error("Move mutation error:", error);

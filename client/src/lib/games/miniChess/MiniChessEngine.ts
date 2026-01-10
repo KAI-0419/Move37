@@ -86,11 +86,20 @@ export class MiniChessEngine implements IGameEngine {
     const board = parseFen(boardState);
     
     // Convert PlayerMove to format expected by getAIMove
+    // 타입 안정성 강화: undefined와 0을 명확히 구분
     const playerMoveForAI = playerLastMove ? {
       from: playerLastMove.from,
       to: playerLastMove.to,
       piece: playerLastMove.piece as Piece,
-      captured: playerLastMove.captured as Piece | undefined
+      captured: playerLastMove.captured as Piece | undefined,
+      // moveTimeSeconds: undefined인 경우 그대로 전달 (시간 추적 안 됨)
+      moveTimeSeconds: playerLastMove.moveTimeSeconds !== undefined && playerLastMove.moveTimeSeconds > 0
+        ? playerLastMove.moveTimeSeconds
+        : undefined,
+      // hoverCount: undefined인 경우 그대로 전달 (hover 추적 안 됨)
+      hoverCount: playerLastMove.hoverCount !== undefined && playerLastMove.hoverCount > 0
+        ? playerLastMove.hoverCount
+        : undefined
     } : null;
     
     // Use local AI logic from evaluation module

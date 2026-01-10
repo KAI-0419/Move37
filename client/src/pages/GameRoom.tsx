@@ -61,13 +61,30 @@ export default function GameRoom() {
   // Interaction handler state (for select-then-move pattern)
   const [interactionState, setInteractionState] = useState<SelectThenMoveState | null>(null);
   
+  // Player move tracking: time and hover events
+  const playerTurnStartTimeRef = useRef<number | null>(null);
+  const hoverCountRef = useRef<number>(0);
+  
+  // Track when player's turn starts
+  useEffect(() => {
+    // Determine if it's player's turn
+    const isPlayerTurnNow = uiConfig.turnSystemType === 'none' || game?.turn === 'player';
+    if (isPlayerTurnNow && !game?.winner) {
+      playerTurnStartTimeRef.current = Date.now();
+      hoverCountRef.current = 0; // Reset hover count for new turn
+    }
+  }, [game?.turn, game?.winner, uiConfig.turnSystemType]);
+  
   // Create interaction handler
   const interactionHandler = useMemo(() => {
     return GameInteractionHandlerFactory.createHandler(
       validatedGameType,
       uiConfig.interactionPattern,
       setInteractionState,
-      uiConfig.turnSystemType
+      uiConfig.turnSystemType,
+      (hoverCount: number) => {
+        hoverCountRef.current = hoverCount;
+      }
     );
   }, [validatedGameType, uiConfig.interactionPattern, uiConfig.turnSystemType]);
 
@@ -247,6 +264,21 @@ export default function GameRoom() {
     return [];
   }, [interactionState, uiConfig.interactionPattern]);
 
+  // Parse last move using game engine (MUST be before any early returns to comply with React hooks rules)
+  const lastMove = useMemo(() => {
+    if (!game || !game.history || game.history.length === 0) {
+      return null;
+    }
+    try {
+      const engine = GameEngineFactory.getEngine(validatedGameType);
+      const parsed = engine.parseHistory(game.history[game.history.length - 1]);
+      return parsed;
+    } catch (error) {
+      console.error("Failed to parse history entry:", error);
+      return null;
+    }
+  }, [game?.history, validatedGameType]);
+
   // Determine error state and message
   const isInvalidGameId = gameId === null;
   const isGameNotFound = gameId !== null && !isLoading && !error && !game;
@@ -297,32 +329,50 @@ export default function GameRoom() {
       game,
       gameId,
       async (move) => {
-        return await makeMove.mutateAsync(move);
+        // Calculate move time and get hover count
+        // moveTimeSeconds: 플레이어가 수를 두기까지 걸린 시간 (초 단위)
+        // undefined인 경우: 시간 추적이 시작되지 않았거나 리셋된 경우
+        const moveTimeSeconds = playerTurnStartTimeRef.current 
+          ? (Date.now() - playerTurnStartTimeRef.current) / 1000 
+          : undefined;
+        
+        // hoverCount: 플레이어가 수를 두기 전에 hover한 횟수 (망설임 지표)
+        // 0인 경우 undefined로 전달하여 불필요한 데이터 전송 방지
+        const hoverCount = interactionHandler.getHoverCount?.() ?? 0;
+        
+        // Add metadata to move with explicit type handling
+        const moveWithMetadata = {
+          ...move,
+          moveTimeSeconds: moveTimeSeconds !== undefined && moveTimeSeconds > 0 
+            ? moveTimeSeconds 
+            : undefined,
+          hoverCount: hoverCount > 0 ? hoverCount : undefined
+        };
+        
+        // Reset tracking after move (다음 턴을 위해)
+        playerTurnStartTimeRef.current = null;
+        hoverCountRef.current = 0;
+        
+        return await makeMove.mutateAsync(moveWithMetadata);
       },
       setHasError,
       t
     );
   };
 
-  // Early return if game is not loaded
+  const handleSquareHover = (r: number, c: number) => {
+    if (!game || !isPlayerTurn || game.winner) return;
+    
+    // Track hover events through interaction handler
+    if (interactionHandler.handleHover) {
+      interactionHandler.handleHover(r, c, game);
+    }
+  };
+
+  // Early return if game is not loaded (after all hooks have been called)
   if (!game) {
     return null;
   }
-
-  // Parse last move using game engine
-  const lastMove = useMemo(() => {
-    if (!game.history || game.history.length === 0) {
-      return null;
-    }
-    try {
-      const engine = GameEngineFactory.getEngine(validatedGameType);
-      const parsed = engine.parseHistory(game.history[game.history.length - 1]);
-      return parsed;
-    } catch (error) {
-      console.error("Failed to parse history entry:", error);
-      return null;
-    }
-  }, [game.history, validatedGameType]);
 
   // Determine layout type
   const layoutType = uiConfig.layoutType || 'standard';
@@ -363,6 +413,7 @@ export default function GameRoom() {
                     selectedSquare={selectedSquare}
                     validMoves={validMoves}
                     onSquareClick={handleSquareClick}
+                    onSquareHover={handleSquareHover}
                     lastMove={lastMove}
                     isProcessing={makeMove.isPending}
                     difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}

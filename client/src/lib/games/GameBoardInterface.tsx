@@ -23,6 +23,7 @@ export interface BaseGameBoardProps {
   lastMove: { from: { r: number; c: number }, to: { r: number; c: number } } | null;
   validMoves?: { r: number; c: number }[];
   onSquareClick: (r: number, c: number) => void;
+  onSquareHover?: (r: number, c: number) => void; // Optional hover handler for tracking hesitation
   isProcessing?: boolean;
   size?: "small" | "medium" | "large";
   difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";

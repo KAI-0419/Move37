@@ -342,10 +342,22 @@ function minimax(
  */
 function analyzePlayerPsychology(
   board: Board,
-  playerMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } | null
+  playerMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece, moveTimeSeconds?: number, hoverCount?: number } | null
 ): string {
   if (!playerMove) {
     return "초기 상태 분석 중...";
+  }
+
+  // 개발 환경에서만 데이터 전달 체인 검증 로깅
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[analyzePlayerPsychology] 분석 데이터:', {
+      moveTimeSeconds: playerMove.moveTimeSeconds,
+      hoverCount: playerMove.hoverCount,
+      from: playerMove.from,
+      to: playerMove.to,
+      piece: playerMove.piece,
+      captured: playerMove.captured
+    });
   }
 
   const piece = playerMove.piece || board[playerMove.to.r]?.[playerMove.to.c];
@@ -377,50 +389,141 @@ function analyzePlayerPsychology(
   }
 
   const psychologyMessages: string[] = [];
+  
+  // Time-based analysis (takes priority if available)
+  // 명확한 타입 처리: undefined가 아닌 경우에만 분석 수행
+  const moveTimeSeconds = playerMove.moveTimeSeconds;
+  const hoverCount = playerMove.hoverCount ?? 0; // undefined를 명시적으로 0으로 변환
+  
+  // 시간 및 망설임 분석을 위한 상수 정의 (경계값 명확화)
+  const QUICK_MOVE_THRESHOLD = 3.0; // 3초 이하 = 빠른 수
+  const LONG_THINK_THRESHOLD = 10.0; // 10초 이상 = 오래 고민한 수
+  const HESITATION_HOVER_THRESHOLD = 3; // 3회 이상 = 망설임 패턴
+  
+  const hasTimeData = moveTimeSeconds !== undefined;
+  const isQuickMove = hasTimeData && moveTimeSeconds <= QUICK_MOVE_THRESHOLD;
+  const isLongThink = hasTimeData && moveTimeSeconds >= LONG_THINK_THRESHOLD;
+  const hasHesitation = hoverCount >= HESITATION_HOVER_THRESHOLD;
+  const isMediumTime = hasTimeData && moveTimeSeconds > QUICK_MOVE_THRESHOLD && moveTimeSeconds < LONG_THINK_THRESHOLD;
+  
+  // 우선순위 1: 긴 시간 + 망설임 조합 (가장 구체적인 패턴)
+  if (isLongThink && hasHesitation) {
+    psychologyMessages.push(
+      "gameRoom.log.psychology.longHesitation1",
+      "gameRoom.log.psychology.longHesitation2",
+      "gameRoom.log.psychology.longHesitation3"
+    );
+  }
+  // 우선순위 2: 오래 고민한 수 (10초 이상)
+  else if (isLongThink) {
+    psychologyMessages.push(
+      "gameRoom.log.psychology.longThink1",
+      "gameRoom.log.psychology.longThink2",
+      "gameRoom.log.psychology.longThink3"
+    );
+  }
+  // 우선순위 3: 중간 시간 + 망설임 조합 (3초 < 시간 < 10초 + hover 3회 이상)
+  else if (isMediumTime && hasHesitation) {
+    psychologyMessages.push(
+      "gameRoom.log.psychology.hesitation1",
+      "gameRoom.log.psychology.hesitation2",
+      "gameRoom.log.psychology.hesitation3"
+    );
+  }
+  // 우선순위 4: 망설임 패턴만 (hover 3회 이상, 시간 정보 없거나 중간 시간)
+  else if (hasHesitation) {
+    psychologyMessages.push(
+      "gameRoom.log.psychology.hesitation1",
+      "gameRoom.log.psychology.hesitation2",
+      "gameRoom.log.psychology.hesitation3"
+    );
+  }
+  // 우선순위 5: 빠른 수 (3초 이하)
+  else if (isQuickMove) {
+    psychologyMessages.push(
+      "gameRoom.log.psychology.quickMove1",
+      "gameRoom.log.psychology.quickMove2",
+      "gameRoom.log.psychology.quickMove3"
+    );
+  }
+  // 우선순위 6: 중간 시간대 (3초 < 시간 < 10초, hover < 3회)
+  else if (isMediumTime) {
+    psychologyMessages.push(
+      "gameRoom.log.psychology.normalMove1",
+      "gameRoom.log.psychology.normalMove2",
+      "gameRoom.log.psychology.normalMove3"
+    );
+  }
 
-  if (capturedAIPiece) {
-    psychologyMessages.push(
-      "gameRoom.log.psychology.capturedPiece1",
-      "gameRoom.log.psychology.capturedPiece2",
-      "gameRoom.log.psychology.capturedPiece3",
-      "gameRoom.log.psychology.capturedPiece4"
-    );
-  } else if (isKingMove && isForward) {
-    psychologyMessages.push(
-      "gameRoom.log.psychology.kingForward1",
-      "gameRoom.log.psychology.kingForward2",
-      "gameRoom.log.psychology.kingForward3"
-    );
-  } else if (isKnightMove && threatenedPieces > 0) {
-    psychologyMessages.push(
-      "gameRoom.log.psychology.knightThreat1",
-      "gameRoom.log.psychology.knightThreat2",
-      "gameRoom.log.psychology.knightThreat3"
-    );
-  } else if (isPawnMove && isForward) {
-    psychologyMessages.push(
-      "gameRoom.log.psychology.pawnDefensive1",
-      "gameRoom.log.psychology.pawnDefensive2",
-      "gameRoom.log.psychology.pawnDefensive3"
-    );
-  } else if (isAggressive) {
-    psychologyMessages.push(
-      "gameRoom.log.psychology.aggressive1",
-      "gameRoom.log.psychology.aggressive2",
-      "gameRoom.log.psychology.aggressive3"
-    );
-  } else {
-    psychologyMessages.push(
-      "gameRoom.log.psychology.defensive1",
-      "gameRoom.log.psychology.defensive2",
-      "gameRoom.log.psychology.defensive3",
-      "gameRoom.log.psychology.defensive4"
-    );
+  // Move type analysis (if no time-based message was added)
+  if (psychologyMessages.length === 0) {
+    if (capturedAIPiece) {
+      psychologyMessages.push(
+        "gameRoom.log.psychology.capturedPiece1",
+        "gameRoom.log.psychology.capturedPiece2",
+        "gameRoom.log.psychology.capturedPiece3",
+        "gameRoom.log.psychology.capturedPiece4"
+      );
+    } else if (isKingMove && isForward) {
+      psychologyMessages.push(
+        "gameRoom.log.psychology.kingForward1",
+        "gameRoom.log.psychology.kingForward2",
+        "gameRoom.log.psychology.kingForward3"
+      );
+    } else if (isKnightMove && threatenedPieces > 0) {
+      psychologyMessages.push(
+        "gameRoom.log.psychology.knightThreat1",
+        "gameRoom.log.psychology.knightThreat2",
+        "gameRoom.log.psychology.knightThreat3"
+      );
+    } else if (isPawnMove && isForward) {
+      psychologyMessages.push(
+        "gameRoom.log.psychology.pawnDefensive1",
+        "gameRoom.log.psychology.pawnDefensive2",
+        "gameRoom.log.psychology.pawnDefensive3"
+      );
+    } else if (isAggressive) {
+      psychologyMessages.push(
+        "gameRoom.log.psychology.aggressive1",
+        "gameRoom.log.psychology.aggressive2",
+        "gameRoom.log.psychology.aggressive3"
+      );
+    } else {
+      psychologyMessages.push(
+        "gameRoom.log.psychology.defensive1",
+        "gameRoom.log.psychology.defensive2",
+        "gameRoom.log.psychology.defensive3",
+        "gameRoom.log.psychology.defensive4"
+      );
+    }
   }
 
   // Use board state for deterministic but varied selection
   const hash = board.flat().filter(Boolean).length + playerMove.from.r + playerMove.from.c;
-  return psychologyMessages[hash % psychologyMessages.length];
+  const selectedMessage = psychologyMessages[hash % psychologyMessages.length];
+  
+  // 개발 환경에서만 분석 결과 로깅
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[analyzePlayerPsychology] 분석 결과:', {
+      패턴: {
+        빠른수: isQuickMove,
+        오래고민: isLongThink,
+        망설임: hasHesitation,
+        중간시간: isMediumTime,
+        긴시간_망설임: isLongThink && hasHesitation,
+        중간시간_망설임: isMediumTime && hasHesitation
+      },
+      데이터: {
+        moveTimeSeconds,
+        hoverCount,
+        hasTimeData
+      },
+      선택된메시지: selectedMessage,
+      가능한메시지수: psychologyMessages.length
+    });
+  }
+  
+  return selectedMessage;
 }
 
 /**
@@ -432,7 +535,7 @@ function analyzePlayerPsychology(
  */
 export function getAIMove(
   board: Board,
-  playerLastMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } | null = null,
+  playerLastMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece, moveTimeSeconds?: number, hoverCount?: number } | null = null,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
   turnCount?: number,
   boardHistory?: string[]

@@ -45,6 +45,19 @@ export interface GameInteractionHandler {
   ) => Promise<void>;
 
   /**
+   * Handle square/cell hover (for tracking hesitation)
+   * @param r - Row index
+   * @param c - Column index
+   * @param game - Current game state
+   */
+  handleHover?: (r: number, c: number, game: Game) => void;
+
+  /**
+   * Get hover count (hesitation indicator)
+   */
+  getHoverCount?: () => number;
+
+  /**
    * Get interaction state (for select-then-move pattern)
    */
   getInteractionState?: () => SelectThenMoveState | null;
@@ -73,35 +86,56 @@ class SelectThenMoveHandler implements GameInteractionHandler {
   private gameType: GameType;
   private game: Game | null = null;
   private turnSystemType: 'player-ai' | 'none' | 'custom';
+  private onHoverCallback: ((hoverCount: number) => void) | null = null;
+  private hoverCount: number = 0;
+  private lastHoveredSquare: { r: number; c: number } | null = null;
+  private lastHoverTimestamp: number = 0; // 마지막 hover 시간 기록 (debounce용)
 
   constructor(
     gameType: GameType,
     setState: (state: SelectThenMoveState) => void,
-    turnSystemType: 'player-ai' | 'none' | 'custom' = 'player-ai'
+    turnSystemType: 'player-ai' | 'none' | 'custom' = 'player-ai',
+    onHoverCallback?: (hoverCount: number) => void
   ) {
     this.gameType = gameType;
     this.setState = setState;
     this.turnSystemType = turnSystemType;
+    this.onHoverCallback = onHoverCallback || null;
   }
 
   updateGame(game: Game) {
+    // 게임 상태가 변경되면 항상 최신 상태로 업데이트하고 validMoves 재계산
+    const previousBoard = this.game?.board;
     this.game = game;
-    this.updateValidMoves();
+    
+    // 보드 상태가 변경되었거나 선택된 칸이 있으면 validMoves 재계산
+    // 이렇게 하면 게임 상태 업데이트 시 항상 최신 validMoves를 사용할 수 있음
+    if (this.state.selectedSquare && (previousBoard !== game.board || !this.state.validMoves.length)) {
+      this.updateValidMoves();
+    }
   }
 
   private updateValidMoves() {
     if (!this.game || !this.state.selectedSquare) {
       this.state.validMoves = [];
+      if (this.setState) {
+        this.setState({ ...this.state });
+      }
       return;
     }
 
     // Check turn system: if it's player-ai system and it's not player's turn, clear moves
     if (this.turnSystemType === 'player-ai' && this.game.turn !== 'player') {
       this.state.validMoves = [];
+      if (this.setState) {
+        this.setState({ ...this.state });
+      }
       return;
     }
 
     try {
+      // 항상 최신 게임 보드 상태를 사용하여 validMoves 계산
+      // 이렇게 하면 게임 상태가 업데이트되는 동안에도 정확한 validMoves를 얻을 수 있음
       this.state.validMoves = getValidMovesClient(
         this.game.board,
         this.state.selectedSquare,
@@ -136,9 +170,49 @@ class SelectThenMoveHandler implements GameInteractionHandler {
 
   resetState(): void {
     this.state = { selectedSquare: null, validMoves: [] };
+    this.hoverCount = 0;
+    this.lastHoveredSquare = null;
+    this.lastHoverTimestamp = 0;
     if (this.setState) {
       this.setState(this.state);
     }
+  }
+
+  handleHover(r: number, c: number, game: Game): void {
+    // Only track hover on player pieces before selection
+    if (this.state.selectedSquare) {
+      return; // Already selected a piece
+    }
+
+    const engine = GameEngineFactory.getEngine(this.gameType);
+    const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
+    
+    if (isMyPiece) {
+      // Track hover on player pieces (hesitation indicator)
+      // 같은 칸을 여러 번 hover하는 것도 망설임으로 인식
+      const now = Date.now();
+      const hoverKey = `${r}-${c}`;
+      const lastHoverKey = this.lastHoveredSquare ? `${this.lastHoveredSquare.r}-${this.lastHoveredSquare.c}` : null;
+      const isDifferentSquare = hoverKey !== lastHoverKey;
+      const HOVER_DEBOUNCE_MS = 200; // 200ms 이내의 연속 hover는 무시 (너무 빠른 반복 제외)
+      const timeSinceLastHover = now - this.lastHoverTimestamp;
+      
+      // 다른 칸을 hover하거나, 같은 칸이지만 충분한 시간이 지난 경우 카운트
+      // (같은 칸을 여러 번 hover하는 것도 망설임으로 인식)
+      if (isDifferentSquare || timeSinceLastHover >= HOVER_DEBOUNCE_MS) {
+        this.hoverCount++;
+        this.lastHoveredSquare = { r, c };
+        this.lastHoverTimestamp = now;
+        
+        if (this.onHoverCallback) {
+          this.onHoverCallback(this.hoverCount);
+        }
+      }
+    }
+  }
+
+  getHoverCount(): number {
+    return this.hoverCount;
   }
 
   async handleClick(
@@ -254,14 +328,15 @@ export class GameInteractionHandlerFactory {
     gameType: GameType,
     interactionPattern: InteractionPattern,
     setState?: (state: SelectThenMoveState) => void,
-    turnSystemType: TurnSystemType = 'player-ai'
+    turnSystemType: TurnSystemType = 'player-ai',
+    onHoverCallback?: (hoverCount: number) => void
   ): GameInteractionHandler {
     switch (interactionPattern) {
       case 'select-then-move':
         if (!setState) {
           throw new Error("setState is required for select-then-move pattern");
         }
-        return new SelectThenMoveHandler(gameType, setState, turnSystemType);
+        return new SelectThenMoveHandler(gameType, setState, turnSystemType, onHoverCallback);
       case 'direct-move':
         return new DirectMoveHandler(gameType, turnSystemType);
       case 'drag-drop':

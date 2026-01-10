@@ -35,6 +35,8 @@ export type CreateGameRequest = {
 export type MoveRequest = {
   from: { r: number; c: number };
   to: { r: number; c: number };
+  moveTimeSeconds?: number;
+  hoverCount?: number;
 };
 
 export type GameResponse = Game;

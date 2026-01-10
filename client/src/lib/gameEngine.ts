@@ -96,8 +96,9 @@ function calculateRemainingTimeBeforeMove(
 export async function makeGameMove(
   gameId: number,
   from: { r: number; c: number },
-  to: { r: number; c: number }
-): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: any, captured?: any } }> {
+  to: { r: number; c: number },
+  metadata?: { moveTimeSeconds?: number; hoverCount?: number }
+): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: any, captured?: any, moveTimeSeconds?: number, hoverCount?: number } }> {
   const game = await gameStorage.getGame(gameId);
   if (!game) {
     throw new Error("gameRoom.errors.gameNotFound");
@@ -157,7 +158,9 @@ export async function makeGameMove(
     from, 
     to, 
     piece: playerPiece, 
-    captured: capturedPiece 
+    captured: capturedPiece,
+    moveTimeSeconds: metadata?.moveTimeSeconds,
+    hoverCount: metadata?.hoverCount
   };
   
   // Apply Player Move using engine
