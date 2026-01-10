@@ -6,18 +6,7 @@
  */
 
 import { INITIAL_BOARD_FEN } from "./types";
-
-export type TutorialStep = {
-  titleKey: string;
-  descriptionKey: string;
-  boardState?: string;
-  highlightSquares?: { r: number; c: number }[];
-  animation?: {
-    from: { r: number; c: number };
-    to: { r: number; c: number };
-    delay?: number;
-  };
-};
+import type { TutorialStep } from "../TutorialTypes";
 
 export const miniChessTutorialSteps: TutorialStep[] = [
   {

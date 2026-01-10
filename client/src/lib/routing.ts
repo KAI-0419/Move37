@@ -7,6 +7,7 @@
 
 import type { GameType } from "@shared/schema";
 import { AVAILABLE_GAMES } from "./gameTypes";
+import { DEFAULT_GAME_TYPE } from "@shared/gameConfig";
 
 /**
  * Build game room URL with game type parameter
@@ -58,7 +59,7 @@ export function parseGameTypeFromUrl(searchParams: string): GameType | null {
  */
 export function validateGameType(
   gameType: GameType | null | undefined,
-  defaultGameType: GameType = "MINI_CHESS"
+  defaultGameType: GameType = DEFAULT_GAME_TYPE
 ): GameType {
   if (!gameType) {
     return defaultGameType;

@@ -1,5 +1,6 @@
 // LocalStorage-based game storage (100% client-side)
 import type { Game, GameType } from "@shared/schema";
+import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
 
 const STORAGE_KEY = "move37_games";
 const CURRENT_GAME_KEY = "move37_current_game";
@@ -30,7 +31,7 @@ export interface LocalGame {
 function toGame(localGame: LocalGame): Game {
   return {
     id: localGame.id,
-    gameType: localGame.gameType || "MINI_CHESS", // Default to MINI_CHESS for backward compatibility
+    gameType: localGame.gameType || DEFAULT_GAME_TYPE, // Default to DEFAULT_GAME_TYPE for backward compatibility
     board: localGame.board,
     turn: localGame.turn,
     history: localGame.history,
@@ -38,7 +39,7 @@ function toGame(localGame: LocalGame): Game {
     winner: localGame.winner,
     aiLog: localGame.aiLog,
     turnCount: localGame.turnCount,
-    difficulty: localGame.difficulty || "NEXUS-7", // Default to NEXUS-7 for backward compatibility
+    difficulty: localGame.difficulty || DEFAULT_DIFFICULTY, // Default to DEFAULT_DIFFICULTY for backward compatibility
     playerTimeRemaining: localGame.playerTimeRemaining ?? 180,
     aiTimeRemaining: localGame.aiTimeRemaining ?? 180,
     timePerMove: localGame.timePerMove ?? 5,
@@ -56,11 +57,11 @@ const storage = window.localStorage;
  */
 function migrateGames(games: any[]): LocalGame[] {
   return games.map((game) => {
-    // If game doesn't have gameType, it's from an older version - default to MINI_CHESS
+    // If game doesn't have gameType, it's from an older version - default to DEFAULT_GAME_TYPE
     if (!game.gameType) {
       return {
         ...game,
-        gameType: "MINI_CHESS" as GameType,
+        gameType: DEFAULT_GAME_TYPE as GameType,
       };
     }
     return game as LocalGame;

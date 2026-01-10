@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 import type { GameType } from "@shared/schema";
 import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
-import { getTutorialSteps, getTutorialInitialBoard } from "@/lib/games/TutorialDataFactory";
-import { parseFen, generateFen, makeMove as makeBoardMove } from "@/lib/games/miniChess/boardUtils";
+import { getTutorialSteps, getTutorialInitialBoard, type TutorialStep } from "@/lib/games/TutorialDataFactory";
+import { getGameUIConfig } from "@/lib/games/GameUIConfig";
 
 interface TutorialPreviewProps {
   gameType: GameType;
@@ -36,6 +36,8 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
   const initialBoard = useMemo(() => getTutorialInitialBoard(gameType), [gameType]);
   const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
   const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
+  const uiConfig = useMemo(() => getGameUIConfig(gameType), [gameType]);
+  const boardSize = uiConfig.boardSize || { rows: 5, cols: 5 };
 
   // Initialize board
   useEffect(() => {
@@ -63,23 +65,13 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
       const animationTimer = setTimeout(() => {
         setShowAnimation(true);
         
-        // Apply animation move
-        if (gameType === "MINI_CHESS") {
-          const currentBoard = parseFen(currentStep.boardState || initialBoard);
-          const newBoard = makeBoardMove(
-            currentBoard,
-            currentStep.animation!.from,
-            currentStep.animation!.to
-          );
-          setAnimatedBoard(generateFen(newBoard));
-        } else {
-          const currentBoardState = currentStep.boardState || initialBoard;
-          const newBoardState = engine.makeMove(currentBoardState, {
-            from: currentStep.animation!.from,
-            to: currentStep.animation!.to
-          });
-          setAnimatedBoard(newBoardState);
-        }
+        // Apply animation move using game engine
+        const currentBoardState = currentStep.boardState || initialBoard;
+        const newBoardState = engine.makeMove(currentBoardState, {
+          from: currentStep.animation!.from,
+          to: currentStep.animation!.to
+        });
+        setAnimatedBoard(newBoardState);
       }, currentStep.animation.delay || 1000);
 
       // Move to next step after animation completes
@@ -170,10 +162,16 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
           {/* Highlight squares overlay */}
           {currentStep?.highlightSquares && (
             <div className="absolute inset-0 pointer-events-none" style={{ top: '6px', left: '6px', right: '6px', bottom: '6px' }}>
-              <div className="grid grid-cols-5 grid-rows-5 gap-1 h-full w-full">
-                {Array.from({ length: 25 }).map((_, idx) => {
-                  const r = Math.floor(idx / 5);
-                  const c = idx % 5;
+              <div 
+                className="grid gap-1 h-full w-full"
+                style={{
+                  gridTemplateColumns: `repeat(${boardSize.cols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${boardSize.rows}, minmax(0, 1fr))`,
+                }}
+              >
+                {Array.from({ length: boardSize.rows * boardSize.cols }).map((_, idx) => {
+                  const r = Math.floor(idx / boardSize.cols);
+                  const c = idx % boardSize.cols;
                   const isHighlighted = currentStep.highlightSquares?.some(
                     sq => sq.r === r && sq.c === c
                   );

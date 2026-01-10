@@ -8,10 +8,9 @@ import { cn } from "@/lib/utils";
 import type { GameType } from "@shared/schema";
 import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
-import { getTutorialSteps, getTutorialStepKeys, getTutorialInitialBoard } from "@/lib/games/TutorialDataFactory";
-import type { TutorialStep } from "@/lib/games/miniChess/tutorialData";
-// Import Mini Chess utilities for tutorial animations
-import { parseFen, generateFen, makeMove as makeBoardMove } from "@/lib/games/miniChess/boardUtils";
+import { getTutorialSteps, getTutorialStepKeys, getTutorialInitialBoard, type TutorialStep } from "@/lib/games/TutorialDataFactory";
+import { DEFAULT_GAME_TYPE } from "@shared/gameConfig";
+import { getGameUIConfig } from "@/lib/games/GameUIConfig";
 
 interface TutorialModalProps {
   open: boolean;
@@ -19,7 +18,7 @@ interface TutorialModalProps {
   gameType?: GameType;
 }
 
-export function TutorialModal({ open, onOpenChange, gameType = "MINI_CHESS" }: TutorialModalProps) {
+export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE }: TutorialModalProps) {
   const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   
@@ -27,6 +26,8 @@ export function TutorialModal({ open, onOpenChange, gameType = "MINI_CHESS" }: T
   const tutorialSteps = useMemo(() => getTutorialSteps(gameType), [gameType]);
   const tutorialStepKeys = useMemo(() => getTutorialStepKeys(gameType), [gameType]);
   const initialBoard = useMemo(() => getTutorialInitialBoard(gameType), [gameType]);
+  const uiConfig = useMemo(() => getGameUIConfig(gameType), [gameType]);
+  const boardSize = uiConfig.boardSize || { rows: 5, cols: 5 };
   
   // Get game engine and board component
   const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
@@ -77,25 +78,13 @@ export function TutorialModal({ open, onOpenChange, gameType = "MINI_CHESS" }: T
       // Start animation after delay
       const timer = setTimeout(() => {
         setShowAnimation(true);
-        // Simulate move with smooth transition
-        // For Mini Chess, use direct utilities; for other games, use engine
-        if (gameType === "MINI_CHESS") {
-          const currentBoard = parseFen(currentStepData.boardState || initialBoard);
-          const newBoard = makeBoardMove(
-            currentBoard,
-            currentStepData.animation!.from,
-            currentStepData.animation!.to
-          );
-          setAnimatedBoard(generateFen(newBoard));
-        } else {
-          // For future games, use engine.makeMove
-          const currentBoardState = currentStepData.boardState || initialBoard;
-          const newBoardState = engine.makeMove(currentBoardState, {
-            from: currentStepData.animation!.from,
-            to: currentStepData.animation!.to
-          });
-          setAnimatedBoard(newBoardState);
-        }
+        // Simulate move with smooth transition using game engine
+        const currentBoardState = currentStepData.boardState || initialBoard;
+        const newBoardState = engine.makeMove(currentBoardState, {
+          from: currentStepData.animation!.from,
+          to: currentStepData.animation!.to
+        });
+        setAnimatedBoard(newBoardState);
       }, currentStepData.animation.delay || 1000);
       
       return () => clearTimeout(timer);
@@ -225,10 +214,16 @@ export function TutorialModal({ open, onOpenChange, gameType = "MINI_CHESS" }: T
                         bottom: '6px',
                       }}
                     >
-                      <div className="grid grid-cols-5 grid-rows-5 gap-1 h-full w-full">
-                        {Array.from({ length: 25 }).map((_, idx) => {
-                          const r = Math.floor(idx / 5);
-                          const c = idx % 5;
+                      <div 
+                        className="grid gap-1 h-full w-full"
+                        style={{
+                          gridTemplateColumns: `repeat(${boardSize.cols}, minmax(0, 1fr))`,
+                          gridTemplateRows: `repeat(${boardSize.rows}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {Array.from({ length: boardSize.rows * boardSize.cols }).map((_, idx) => {
+                          const r = Math.floor(idx / boardSize.cols);
+                          const c = idx % boardSize.cols;
                           const isHighlighted = step.highlightSquares?.some(
                             sq => sq.r === r && sq.c === c
                           );

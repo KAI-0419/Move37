@@ -185,7 +185,7 @@ export function MiniChessBoard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (!isProcessing && (turn === 'player' || isSelected || isValidMoveTarget)) {
+                  if (!isProcessing && (turn === 'player' || turn === undefined || isSelected || isValidMoveTarget)) {
                     onSquareClick(r, c);
                   }
                 }}
@@ -208,7 +208,7 @@ export function MiniChessBoard({
                   isValidMoveTarget && !isSelected && "border-primary/50",
                   isLastMove && !isSelected && !isValidMoveTarget && "border-secondary/50",
                   // Disable interaction if processing or AI turn (unless it's just selection visual)
-                  (isProcessing || turn === 'ai') && !isSelected && !isValidMoveTarget && "cursor-default"
+                  (isProcessing || turn === 'ai') && !isSelected && !isValidMoveTarget && turn !== undefined && "cursor-default"
                 )}
               >
                 {pieceChar !== '.' && (

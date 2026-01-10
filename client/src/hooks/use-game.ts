@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MoveRequest, GameType } from "@shared/schema";
 import { createGame, getGame, makeGameMove, calculateAIMove } from "@/lib/gameEngine";
 import { gameStorage } from "@/lib/storage";
+import { DEFAULT_GAME_TYPE } from "@shared/gameConfig";
+import { getGameUIConfig } from "@/lib/games/GameUIConfig";
 
 export interface CreateGameParams {
-  gameType?: GameType; // Optional, defaults to MINI_CHESS for backward compatibility
+  gameType?: GameType; // Optional, defaults to DEFAULT_GAME_TYPE for backward compatibility
   difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"; // Optional, defaults to NEXUS-7
 }
 
@@ -18,9 +20,18 @@ export function useGame(id: number | null) {
     },
     enabled: !!id,
     // Poll when it's AI's turn to check for AI move completion
+    // Only poll if turn system is player-ai and it's AI's turn
     refetchInterval: (query) => {
       const game = query.state.data;
-      return game && game.turn === 'ai' && !game.winner ? 200 : false;
+      if (!game || game.winner) return false;
+      
+      // Get game config to check turn system
+      const uiConfig = getGameUIConfig(game.gameType);
+      
+      // Only poll if turn system is player-ai and it's AI's turn
+      const shouldPoll = uiConfig.turnSystemType === 'player-ai' && 
+                         game.turn === 'ai';
+      return shouldPoll ? 200 : false;
     },
   });
 }
@@ -38,11 +49,11 @@ export function useCreateGame() {
       // Backward compatibility: if params is a string, treat it as difficulty
       if (typeof params === "string") {
         const difficulty = params as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
-        return await createGame("MINI_CHESS", difficulty);
+        return await createGame(DEFAULT_GAME_TYPE, difficulty);
       }
       
       // New API: params is an object
-      const { gameType = "MINI_CHESS", difficulty = "NEXUS-7" } = params || {};
+      const { gameType = DEFAULT_GAME_TYPE, difficulty = "NEXUS-7" } = params || {};
       return await createGame(gameType, difficulty);
     },
     onSuccess: (game) => {
@@ -75,9 +86,15 @@ export function useMakeMove(gameId: number) {
       // Immediately update the game state in cache with player's move
       queryClient.setQueryData(["game", gameId], data.game);
       
+      // Get game config to check turn system
+      const uiConfig = getGameUIConfig(data.game.gameType);
+      
       // If AI needs to move, calculate it asynchronously
+      // Only if turn system is player-ai and it's AI's turn
       // Wait for piece movement animation to complete before starting AI calculation
-      if (data.playerMove && data.game.turn === 'ai') {
+      if (data.playerMove && 
+          uiConfig.turnSystemType === 'player-ai' && 
+          data.game.turn === 'ai') {
         // Store the gameId at the time of starting AI calculation
         const currentGameId = gameId;
         

@@ -2,19 +2,28 @@
 // Uses game engine factory pattern for multi-game support
 import type { GameType } from "@shared/schema";
 import { GameEngineFactory } from "./games/GameEngineFactory";
+import { DEFAULT_GAME_TYPE } from "@shared/gameConfig";
 
-export type Piece = 'k' | 'n' | 'p' | 'K' | 'N' | 'P' | '.';
+/**
+ * Piece type for UI display
+ * This is a general type that can represent any game piece
+ * For Mini Chess: 'k' | 'n' | 'p' | 'K' | 'N' | 'P' | '.'
+ * For other games: game-specific piece representations
+ */
+export type Piece = string | null;
 
 /**
  * Convert board string (game-specific format) to 2D array for UI
  * Uses game engine to parse board based on game type
+ * Returns a 2D array where each cell is a piece representation (string) or null
+ * Empty cells are represented as '.' for consistent UI display
  */
-export function parseBoardString(boardString: string, gameType: GameType = "MINI_CHESS"): Piece[][] {
+export function parseBoardString(boardString: string, gameType: GameType = DEFAULT_GAME_TYPE): (Piece | '.')[][] {
   const engine = GameEngineFactory.getEngine(gameType);
   const board = engine.parseBoard(boardString);
   // Convert null to '.' for UI display
   // Board is already a 2D array from parseBoard
-  return board.map(row => row.map(cell => (cell === null ? '.' : cell) as Piece));
+  return board.map(row => row.map(cell => (cell === null ? '.' : cell)));
 }
 
 /**
@@ -26,7 +35,7 @@ export function isValidMoveClient(
   from: { r: number; c: number },
   to: { r: number; c: number },
   isPlayer: boolean,
-  gameType: GameType = "MINI_CHESS"
+  gameType: GameType = DEFAULT_GAME_TYPE
 ): boolean {
   const engine = GameEngineFactory.getEngine(gameType);
   const validation = engine.isValidMove(boardString, { from, to }, isPlayer);
@@ -41,7 +50,7 @@ export function getValidMovesClient(
   boardString: string,
   from: { r: number; c: number },
   isPlayer: boolean,
-  gameType: GameType = "MINI_CHESS"
+  gameType: GameType = DEFAULT_GAME_TYPE
 ): { r: number; c: number }[] {
   const engine = GameEngineFactory.getEngine(gameType);
   return engine.getValidMoves(boardString, from, isPlayer);

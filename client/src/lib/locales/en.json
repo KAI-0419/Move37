@@ -140,6 +140,7 @@
       "invalidGameId": "Invalid game ID",
       "threefoldRepetition": "Threefold repetition rule: The same board state cannot be repeated 3 times."
     },
+    "uiNotImplemented": "UI for game type {{gameType}} is not yet implemented.",
     "confirmLeave": "Game in progress. Are you sure you want to return to the lobby?",
     "confirmLeaveSubtext": "Your current game will not be saved."
   },

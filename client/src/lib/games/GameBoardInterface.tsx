@@ -18,7 +18,7 @@ import type { ReactNode } from "react";
  */
 export interface BaseGameBoardProps {
   boardString: string; // Game state representation (format depends on gameType)
-  turn: "player" | "ai";
+  turn?: "player" | "ai"; // Optional for games without turn system
   selectedSquare: { r: number; c: number } | null;
   lastMove: { from: { r: number; c: number }, to: { r: number; c: number } } | null;
   validMoves?: { r: number; c: number }[];

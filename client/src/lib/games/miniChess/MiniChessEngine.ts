@@ -133,4 +133,54 @@ export class MiniChessEngine implements IGameEngine {
   generateBoardString(board: Board): string {
     return generateFen(board);
   }
+
+  isPlayerPiece(
+    boardState: string,
+    position: { r: number; c: number },
+    isPlayer: boolean
+  ): boolean {
+    const board = parseFen(boardState);
+    const piece = board[position.r]?.[position.c];
+    
+    if (!piece) return false;
+    
+    // Player uses lowercase (n, p, k), AI uses uppercase (N, P, K)
+    const isPlayerPiece = piece === piece.toLowerCase() && piece !== piece.toUpperCase();
+    const isAiPiece = piece === piece.toUpperCase() && piece !== piece.toLowerCase();
+    
+    if (isPlayer) {
+      return isPlayerPiece;
+    } else {
+      return isAiPiece;
+    }
+  }
+
+  parseHistory(historyEntry: any): GameMove | null {
+    // If history entry is already a GameMove object with from/to properties
+    if (typeof historyEntry === 'object' && historyEntry.from && historyEntry.to) {
+      return {
+        from: historyEntry.from,
+        to: historyEntry.to,
+      };
+    }
+    
+    // If history entry is a string in format "Player: r,c -> r,c" or "AI: r,c -> r,c"
+    if (typeof historyEntry === 'string') {
+      const match = historyEntry.match(/(?:Player|AI):\s*(\d+),(\d+)\s*->\s*(\d+),(\d+)/);
+      if (match) {
+        return {
+          from: { r: parseInt(match[1], 10), c: parseInt(match[2], 10) },
+          to: { r: parseInt(match[3], 10), c: parseInt(match[4], 10) },
+        };
+      }
+    }
+    
+    // Cannot parse the entry
+    return null;
+  }
+
+  formatHistoryEntry(move: GameMove, isPlayer: boolean): string {
+    const playerLabel = isPlayer ? "Player" : "AI";
+    return `${playerLabel}: ${move.from.r},${move.from.c} -> ${move.to.r},${move.to.c}`;
+  }
 }

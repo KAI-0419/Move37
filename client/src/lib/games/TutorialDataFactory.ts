@@ -6,8 +6,9 @@
  */
 
 import type { GameType } from "@shared/schema";
-import { miniChessTutorialSteps, miniChessTutorialStepKeys, type TutorialStep } from "./miniChess/tutorialData";
+import { miniChessTutorialSteps, miniChessTutorialStepKeys } from "./miniChess/tutorialData";
 import { GameEngineFactory } from "./GameEngineFactory";
+export type { TutorialStep } from "./TutorialTypes";
 
 /**
  * Get tutorial steps for a specific game type

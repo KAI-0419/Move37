@@ -7,13 +7,25 @@ import { Scanlines } from "@/components/Scanlines";
 import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import { GlitchButton } from "@/components/GlitchButton";
 import { TerminalText } from "@/components/TerminalText";
-import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, AlertTriangle, Trophy, Terminal as TerminalIcon, Skull } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { parseBoardString, getValidMovesClient } from "@/lib/gameLogic";
 import { gameStorage, handleVictoryUnlock, getUnlockedDifficulties } from "@/lib/storage";
 import type { GameType } from "@shared/schema";
 import { parseGameTypeFromUrl, validateGameType, getCurrentSearchParams, buildGameRoomUrl } from "@/lib/routing";
+import { getGameUIConfig, getDifficultyColorConfig } from "@/lib/games/GameUIConfig";
+import { WinnerOverlay } from "@/components/WinnerOverlay";
+import { PlayerStatusCard } from "@/components/PlayerStatusCard";
+import { AIStatusCard } from "@/components/AIStatusCard";
+import { TurnBanner } from "@/components/TurnBanner";
+import { TerminalLog } from "@/components/TerminalLog";
+import { GameErrorState } from "@/components/GameErrorState";
+import { GameLoadingState } from "@/components/GameLoadingState";
+import { useGameTimer } from "@/hooks/use-game-timer";
+import { useGameLogs } from "@/hooks/use-game-logs";
+import { usePreventNavigation } from "@/hooks/use-prevent-navigation";
+import { GameInteractionHandlerFactory, type SelectThenMoveState } from "@/lib/games/GameInteractionHandler";
+import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
 
 export default function GameRoom() {
   const { t } = useTranslation();
@@ -40,15 +52,37 @@ export default function GameRoom() {
     if (game?.gameType) {
       return validateGameType(game.gameType);
     }
-    return "MINI_CHESS";
+    return DEFAULT_GAME_TYPE;
   }, [urlGameType, game?.gameType]);
 
-  const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
-  const [logHistory, setLogHistory] = useState<Array<{ message: string; timestamp: Date }>>([]);
+  // Get game-specific UI configuration
+  const uiConfig = useMemo(() => getGameUIConfig(validatedGameType), [validatedGameType]);
+
+  // Interaction handler state (for select-then-move pattern)
+  const [interactionState, setInteractionState] = useState<SelectThenMoveState | null>(null);
+  
+  // Create interaction handler
+  const interactionHandler = useMemo(() => {
+    return GameInteractionHandlerFactory.createHandler(
+      validatedGameType,
+      uiConfig.interactionPattern,
+      setInteractionState,
+      uiConfig.turnSystemType
+    );
+  }, [validatedGameType, uiConfig.interactionPattern, uiConfig.turnSystemType]);
+
+  // Update interaction handler when game changes (for select-then-move pattern)
+  useEffect(() => {
+    if (game && 'updateGame' in interactionHandler && typeof (interactionHandler as any).updateGame === 'function') {
+      (interactionHandler as any).updateGame(game);
+    }
+  }, [game, interactionHandler]);
+
   const [hasError, setHasError] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const logEndRef = useRef<HTMLDivElement>(null);
   const prevGameIdRef = useRef<number | null>(null);
+  
+  // Use game logs hook
+  const { logHistory, setLogHistory } = useGameLogs({ game, gameType: validatedGameType });
   const isNavigatingAwayRef = useRef(false);
   const hasUnlockedRef = useRef(false); // Track if we've already unlocked for this game
 
@@ -64,7 +98,7 @@ export default function GameRoom() {
   useEffect(() => {
     if (!game || isLoading) return;
     
-    const gameTypeFromData = game.gameType || "MINI_CHESS";
+    const gameTypeFromData = game.gameType || DEFAULT_GAME_TYPE;
     const gameTypeFromUrl = urlGameType;
     
     // If URL has game type but it doesn't match game data, update URL
@@ -90,38 +124,6 @@ export default function GameRoom() {
     }
   }, [gameId, isLoading, setLocation]);
 
-  // Initialize logs when game loads
-  useEffect(() => {
-    if (game && logHistory.length === 0) {
-      const initialTime = new Date();
-      setLogHistory([
-        { message: t("gameRoom.log.monitoring"), timestamp: initialTime },
-        { message: t("gameRoom.log.connectionEstablished"), timestamp: initialTime },
-        { message: t("gameRoom.log.accessLevel"), timestamp: initialTime }
-      ]);
-    }
-  }, [game, logHistory.length, t]);
-
-  // Update logs when game updates
-  useEffect(() => {
-    if (game?.aiLog) {
-      // Check if this is a new AI log (not already in history)
-      setLogHistory(prev => {
-        // Only add if it's a new psychological insight (not system messages)
-        const analyzingText = t("gameRoom.log.analyzing");
-        const systemInitializedText = t("gameRoom.log.systemInitialized");
-        const isNewInsight = game.aiLog && 
-          game.aiLog !== analyzingText && 
-          game.aiLog !== systemInitializedText &&
-          !prev.some(log => log.message === game.aiLog);
-        
-        if (isNewInsight) {
-          return [...prev, { message: game.aiLog!, timestamp: new Date() }];
-        }
-        return prev;
-      });
-    }
-  }, [game?.aiLog, t]);
 
   // Handle victory unlock when player wins
   useEffect(() => {
@@ -147,270 +149,117 @@ export default function GameRoom() {
     }
   }, [game?.winner, game?.difficulty]);
 
-  // Auto scroll logs
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logHistory]);
 
-  // Timer: Update current time every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Calculate remaining time for display (real-time calculation)
-  // Only count down time for the current player's turn
-  // Timer stops immediately when game ends (winner is set)
-  const calculateRemainingTime = (
-    baseTime: number | null | undefined, 
-    lastMoveTimestamp: Date | null | undefined,
-    isCurrentPlayer: boolean,
-    hasWinner: boolean
-  ): number => {
-    const base = baseTime ?? 180;
-    if (base <= 0) return 0;
-    
-    // Stop timer immediately when game ends
-    if (hasWinner) {
-      return base; // Return frozen time when game is over
+  // Determine if it's player's turn based on turn system type
+  const isPlayerTurn = useMemo(() => {
+    if (uiConfig.turnSystemType === 'none') {
+      // No turn system: player can always act
+      return true;
     }
-    
-    if (!lastMoveTimestamp) return base;
-    
-    // Only count down time if it's this player's turn
-    if (!isCurrentPlayer) {
-      return base; // Time is frozen when it's not this player's turn
-    }
-    
-    // Calculate elapsed time, ensuring it's never negative (in case of timing issues)
-    const elapsedMs = currentTime.getTime() - lastMoveTimestamp.getTime();
-    const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-    return Math.max(0, base - elapsedSeconds);
-  };
+    // Default: player-ai turn system
+    return game?.turn === 'player';
+  }, [game?.turn, uiConfig.turnSystemType]);
 
-  const isPlayerTurn = game?.turn === 'player';
   const hasWinner = !!game?.winner;
-  const playerTimeRemaining = game ? calculateRemainingTime(game.playerTimeRemaining, game.lastMoveTimestamp, isPlayerTurn, hasWinner) : 180;
-  const aiTimeRemaining = game ? calculateRemainingTime(game.aiTimeRemaining, game.lastMoveTimestamp, !isPlayerTurn, hasWinner) : 180;
+  const { playerTimeRemaining, aiTimeRemaining, formatTime } = useGameTimer({
+    game,
+    uiConfig,
+    isPlayerTurn,
+    hasWinner,
+  });
 
-  // Check for timeout and handle automatically
-  useEffect(() => {
-    if (!game || game.winner) return;
+  // Get difficulty-based color classes from game-specific config (must be before aiCardProps)
+  const difficulty = useMemo(() => {
+    if (!game) return DEFAULT_DIFFICULTY;
+    return (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY;
+  }, [game?.difficulty]);
+  
+  const difficultyColors = useMemo(() => {
+    return getDifficultyColorConfig(validatedGameType, difficulty);
+  }, [validatedGameType, difficulty]);
 
-    // Only check timeout for the current player
-    if (isPlayerTurn && playerTimeRemaining <= 0) {
-      // Player timeout - end game immediately
-      const checkPlayerTimeout = async () => {
-        const currentGame = await gameStorage.getGame(game.id);
-        if (currentGame && currentGame.turn === 'player' && !currentGame.winner) {
-          // Recalculate to be sure
-          const playerTime = calculateRemainingTime(
-            currentGame.playerTimeRemaining, 
-            currentGame.lastMoveTimestamp, 
-            true,
-            false // hasWinner: false (game is still ongoing)
-          );
-          if (playerTime <= 0) {
-            await gameStorage.updateGame(game.id, {
-              winner: 'ai',
-              aiLog: t("gameRoom.log.timeExpiredHuman")
-            });
-            // Invalidate query to refresh
-            queryClient.invalidateQueries({ queryKey: ["game", game.id] });
-          }
-        }
-      };
-      checkPlayerTimeout();
-    } else if (!isPlayerTurn && aiTimeRemaining <= 0) {
-      // AI timeout - check and update immediately
-      const checkAITimeout = async () => {
-        const currentGame = await gameStorage.getGame(game.id);
-        if (currentGame && currentGame.turn === 'ai' && !currentGame.winner) {
-          // Recalculate to be sure
-          const aiTime = calculateRemainingTime(
-            currentGame.aiTimeRemaining, 
-            currentGame.lastMoveTimestamp, 
-            true,
-            false // hasWinner: false (game is still ongoing)
-          );
-          if (aiTime <= 0) {
-            await gameStorage.updateGame(game.id, {
-              winner: 'player',
-              aiLog: t("gameRoom.log.timeExpiredAI")
-            });
-            // Invalidate query to refresh
-            queryClient.invalidateQueries({ queryKey: ["game", game.id] });
-          }
-        }
-      };
-      checkAITimeout();
-    }
-  }, [playerTimeRemaining, aiTimeRemaining, isPlayerTurn, game?.turn, game?.winner, game?.id]);
-
-  // Format time as MM:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // 페이지 이탈 방지: 게임이 진행 중일 때만 확인 창 표시
-  useEffect(() => {
-    // 게임이 진행 중인지 확인 (게임이 로드되었고, 게임이 종료되지 않았을 때)
-    const isGameInProgress = game && !game.winner;
-
-    if (!isGameInProgress) {
-      return; // 게임이 종료되었거나 로드되지 않았으면 이벤트 리스너 추가하지 않음
-    }
-
-    // 브라우저 탭/창 닫기 또는 새로고침 시 확인 창 표시
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      // 최신 브라우저에서는 메시지가 표시되지 않지만, 이벤트를 발생시켜야 확인 창이 표시됨
-      e.returnValue = '';
+  // Conditionally compute Player/AI card props only if cards are shown
+  // Early return optimization: skip computation if cards are not shown
+  const playerCardProps = useMemo(() => {
+    if (!uiConfig.showPlayerCard) return null;
+    // Only compute props if card is shown
+    return {
+      isPlayerTurn,
+      timeRemaining: playerTimeRemaining,
+      enableTimer: uiConfig.enableTimer,
+      enableTurnSystem: uiConfig.enableTurnSystem,
+      formatTime,
     };
+  }, [
+    uiConfig.showPlayerCard,
+    isPlayerTurn,
+    playerTimeRemaining,
+    uiConfig.enableTimer,
+    uiConfig.enableTurnSystem,
+    formatTime,
+  ]);
 
-    // 브라우저 뒤로가기 버튼 처리
-    const handlePopState = (e: PopStateEvent) => {
-      // 게임이 진행 중이고, 사용자가 명시적으로 이동을 허용하지 않았을 때만 확인
-      if (isGameInProgress && !isNavigatingAwayRef.current) {
-        // popstate는 이미 발생한 후이므로, 즉시 확인 창을 표시하고 취소하면 현재 페이지로 다시 이동
-        const confirmed = window.confirm(
-          `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
-        );
-        
-        if (!confirmed) {
-          // 사용자가 취소하면 현재 페이지로 다시 이동 (뒤로가기 취소)
-          // Use validated game type to maintain correct URL
-          const currentUrl = buildGameRoomUrl(validatedGameType);
-          window.history.pushState(null, '', currentUrl);
-          // wouter가 경로 변경을 감지하도록 강제로 이벤트 발생
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        } else {
-          // 사용자가 확인하면 이동 허용
-          isNavigatingAwayRef.current = true;
-        }
-      }
+  const aiCardProps = useMemo(() => {
+    if (!uiConfig.showAICard) return null;
+    // Only compute props if card is shown
+    return {
+      difficulty,
+      isAITurn: !isPlayerTurn,
+      isProcessing: makeMove.isPending,
+      timeRemaining: aiTimeRemaining,
+      enableTimer: uiConfig.enableTimer,
+      enableTurnSystem: uiConfig.enableTurnSystem,
+      difficultyColors,
+      formatTime,
     };
+  }, [
+    uiConfig.showAICard,
+    difficulty,
+    isPlayerTurn,
+    makeMove.isPending,
+    aiTimeRemaining,
+    uiConfig.enableTimer,
+    uiConfig.enableTurnSystem,
+    difficultyColors,
+    formatTime,
+  ]);
 
-    // 현재 상태를 히스토리에 추가하여 popstate 이벤트를 감지할 수 있도록 함
-    // 이미 pushState가 되어 있으면 다시 추가하지 않음
-    // Use validated game type to maintain correct URL
-    if (window.location.pathname === '/game') {
-      const currentUrl = buildGameRoomUrl(validatedGameType);
-      window.history.pushState(null, '', currentUrl);
+  // Use prevent navigation hook
+  const { handleNavigateAway } = usePreventNavigation({
+    game,
+    gameType: validatedGameType,
+    isNavigatingAwayRef,
+    t,
+  });
+
+  // Get interaction state for select-then-move pattern
+  const selectedSquare = useMemo(() => {
+    if (uiConfig.interactionPattern === 'select-then-move' && interactionState) {
+      return interactionState.selectedSquare;
     }
+    return null;
+  }, [interactionState, uiConfig.interactionPattern]);
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [game, validatedGameType]);
-
-  // 경로 변경 감지: /game에서 다른 경로로 변경되려고 할 때 확인 창 표시
-  // 이는 브라우저 뒤로가기 버튼이나 다른 라우팅 변경을 감지하기 위함
-  const prevLocationRef = useRef(location);
-  useEffect(() => {
-    // 게임이 진행 중이고, 경로가 /game에서 다른 경로로 변경된 경우
-    const isGameInProgress = game && !game.winner;
-    const currentGameUrl = buildGameRoomUrl(validatedGameType);
-    const wasOnGamePage = prevLocationRef.current.startsWith('/game');
-    const isLeavingGamePage = !location.startsWith('/game');
-    
-    if (isGameInProgress && wasOnGamePage && isLeavingGamePage && !isNavigatingAwayRef.current) {
-      // 경로가 이미 변경된 경우, 확인 창을 표시하고 취소하면 다시 게임 페이지로 이동
-      const confirmed = window.confirm(
-        `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
-      );
-      
-      if (!confirmed) {
-        // 사용자가 취소하면 다시 게임 페이지로 이동 (gameType 포함)
-        isNavigatingAwayRef.current = true; // 무한 루프 방지
-        setLocation(currentGameUrl);
-        // 다음 렌더링 사이클에서 다시 false로 설정
-        setTimeout(() => {
-          isNavigatingAwayRef.current = false;
-        }, 0);
-      } else {
-        // 사용자가 확인하면 이동 허용
-        isNavigatingAwayRef.current = true;
-      }
-    }
-    
-    // 현재 경로를 이전 경로로 저장
-    prevLocationRef.current = location;
-  }, [location, game, setLocation]);
-
-  // 라우팅 변경 시 확인 창 표시를 위한 핸들러
-  const handleNavigateAway = (targetPath: string) => {
-    // 게임이 진행 중인지 확인
-    const isGameInProgress = game && !game.winner;
-
-    if (isGameInProgress && !isNavigatingAwayRef.current) {
-      const confirmed = window.confirm(
-        `${t("gameRoom.confirmLeave")}\n\n${t("gameRoom.confirmLeaveSubtext")}`
-      );
-      
-      if (!confirmed) {
-        return; // 사용자가 취소하면 이동하지 않음
-      }
-    }
-
-    // 확인했거나 게임이 종료되었으면 이동
-    isNavigatingAwayRef.current = true;
-    setLocation(targetPath);
-  };
-
-  // Calculate valid moves for selected piece
-  // MUST be before early returns to maintain consistent hook order
   const validMoves = useMemo(() => {
-    // Early return if game data is not available
-    if (!game || !game.board) return [];
-    
-    // Early return if no square is selected
-    if (!selectedSquare) return [];
-    
-    // Early return if it's not player's turn
-    if (game.turn !== 'player') return [];
-    
-    // Calculate valid moves using game engine
-    try {
-      return getValidMovesClient(
-        game.board, 
-        selectedSquare, 
-        true, 
-        validatedGameType
-      );
-    } catch (error) {
-      console.error("Error calculating valid moves:", error);
-      return [];
+    if (uiConfig.interactionPattern === 'select-then-move' && interactionState) {
+      return interactionState.validMoves;
     }
-  }, [selectedSquare, game?.board, game?.turn, validatedGameType]);
+    return [];
+  }, [interactionState, uiConfig.interactionPattern]);
 
   // Determine error state and message
   const isInvalidGameId = gameId === null;
   const isGameNotFound = gameId !== null && !isLoading && !error && !game;
   const hasErrorState = error || isGameNotFound || (isInvalidGameId && !isLoading);
 
-  if (isLoading) return (
-    <div className="h-screen w-full bg-background flex items-center justify-center text-primary font-mono">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 animate-spin" />
-        <TerminalText text={t("gameRoom.connecting")} />
-      </div>
-      <Scanlines />
-    </div>
-  );
+  if (isLoading) {
+    return <GameLoadingState />;
+  }
 
   if (hasErrorState) {
     let errorTitle = t("gameRoom.criticalFailure");
     let errorMessage = t("gameRoom.connectionLost");
-    
+
     if (isInvalidGameId) {
       errorTitle = t("gameRoom.noActiveGame");
       errorMessage = t("gameRoom.noActiveGameMessage");
@@ -423,83 +272,36 @@ export default function GameRoom() {
     }
 
     return (
-      <div className="h-screen w-full bg-background flex flex-col items-center justify-center text-destructive font-mono gap-4">
-        <AlertTriangle className="w-12 h-12" />
-        <h2 className="text-xl">{errorTitle}</h2>
-        <p>{errorMessage}</p>
-        <GlitchButton onClick={() => setLocation("/")} variant="outline">
-          {t("gameRoom.abort")}
-        </GlitchButton>
-        <Scanlines />
-      </div>
+      <GameErrorState
+        errorTitle={errorTitle}
+        errorMessage={errorMessage}
+        onAbort={() => setLocation("/")}
+      />
     );
   }
 
   const handleSquareClick = async (r: number, c: number) => {
-    // Safety check: ensure gameId is valid and game exists
-    if (!gameId || !game) {
-      console.error("Cannot make move: invalid game ID or game not loaded");
-      return;
-    }
-
+    if (!game) return;
+    
     // Prevent clicks during processing or when game is over
-    if (makeMove.isPending || game.turn === 'ai' || game.winner) {
+    // Check turn system: if it's player-ai system and it's AI's turn, prevent clicks
+    const isAITurn = uiConfig.turnSystemType === 'player-ai' && game.turn === 'ai';
+    if (makeMove.isPending || isAITurn || game.winner) {
       return;
     }
 
-    // Parse board string to get piece at coord
-    const board = parseBoardString(game.board, validatedGameType);
-    const clickedPiece = board[r][c];
-    // Player uses lowercase pieces (n, p, k), AI uses uppercase (N, P, K)
-    // parseBoardString converts null to '.', so check for '.' instead of null
-    const isMyPiece = clickedPiece !== '.' && clickedPiece !== null && clickedPiece === clickedPiece.toLowerCase() && clickedPiece !== clickedPiece.toUpperCase();
-
-    // Select own piece
-    if (isMyPiece) {
-      setSelectedSquare({ r, c });
-      return;
-    }
-
-    // If piece selected, try move
-    if (selectedSquare) {
-      // Check if clicking the same square (deselect)
-      if (selectedSquare.r === r && selectedSquare.c === c) {
-        setSelectedSquare(null);
-        return;
-      }
-
-      try {
-        // Double-check gameId is valid before making move
-        if (!gameId) {
-          throw new Error(t("gameRoom.errors.invalidGameId"));
-        }
-
-        const result = await makeMove.mutateAsync({
-          from: selectedSquare,
-          to: { r, c }
-        });
-        setSelectedSquare(null);
-        
-        // Player move is now immediately visible
-        // AI calculation will happen in background and update the game state
-        
-        // Log for debugging
-        console.log("Move successful:", {
-          from: selectedSquare,
-          to: { r, c },
-          updatedGame: result.game
-        });
-      } catch (err: any) {
-        console.error("Move failed:", err);
-        // Trigger error animation on board
-        setHasError(true);
-        setSelectedSquare(null);
-        // Reset error state after animation completes
-        setTimeout(() => {
-          setHasError(false);
-        }, 500);
-      }
-    }
+    // Use interaction handler to handle the click
+    await interactionHandler.handleClick(
+      r,
+      c,
+      game,
+      gameId,
+      async (move) => {
+        return await makeMove.mutateAsync(move);
+      },
+      setHasError,
+      t
+    );
   };
 
   // Early return if game is not loaded
@@ -507,481 +309,278 @@ export default function GameRoom() {
     return null;
   }
 
-  const lastMove = (game.history && game.history.length > 0) 
-    ? parseHistoryString(game.history[game.history.length - 1]) 
-    : null;
-
-  // Get difficulty-based color classes
-  const difficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7";
-  const getDifficultyColor = () => {
-    switch (difficulty) {
-      case "NEXUS-3":
-        return {
-          text: "text-primary",
-          border: "border-primary",
-          bg: "bg-primary/5",
-          bgHover: "hover:bg-primary/10",
-          shadow: "shadow-[0_0_15px_rgba(0,243,255,0.1)]",
-          borderOpacity: "border-primary/50",
-          textOpacity: "text-primary/80",
-          textOpacity90: "text-primary/90",
-          bgOpacity: "bg-primary/5",
-          borderOpacity30: "border-primary/30",
-          icon: "text-primary",
-          bgPulse: "bg-primary",
-        };
-      case "NEXUS-5":
-        return {
-          text: "text-secondary",
-          border: "border-secondary",
-          bg: "bg-secondary/5",
-          bgHover: "hover:bg-secondary/10",
-          shadow: "shadow-[0_0_15px_rgba(255,200,0,0.1)]",
-          borderOpacity: "border-secondary/50",
-          textOpacity: "text-secondary/80",
-          textOpacity90: "text-secondary/90",
-          bgOpacity: "bg-secondary/5",
-          borderOpacity30: "border-secondary/30",
-          icon: "text-secondary",
-          bgPulse: "bg-secondary",
-        };
-      case "NEXUS-7":
-      default:
-        return {
-          text: "text-destructive",
-          border: "border-destructive",
-          bg: "bg-destructive/5",
-          bgHover: "hover:bg-destructive/10",
-          shadow: "shadow-[0_0_15px_rgba(255,0,60,0.1)]",
-          borderOpacity: "border-destructive/50",
-          textOpacity: "text-destructive/80",
-          textOpacity90: "text-destructive/90",
-          bgOpacity: "bg-destructive/5",
-          borderOpacity30: "border-destructive/30",
-          icon: "text-destructive",
-          bgPulse: "bg-destructive",
-        };
+  // Parse last move using game engine
+  const lastMove = useMemo(() => {
+    if (!game.history || game.history.length === 0) {
+      return null;
     }
-  };
-  const difficultyColors = getDifficultyColor();
+    try {
+      const engine = GameEngineFactory.getEngine(validatedGameType);
+      const parsed = engine.parseHistory(game.history[game.history.length - 1]);
+      return parsed;
+    } catch (error) {
+      console.error("Failed to parse history entry:", error);
+      return null;
+    }
+  }, [game.history, validatedGameType]);
 
+  // Determine layout type
+  const layoutType = uiConfig.layoutType || 'standard';
+
+  // Render layout based on game configuration
+  if (layoutType === 'minimal') {
+    // Minimal layout: Only board, no sidebars
+    return (
+      <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col overflow-hidden font-mono relative">
+        <Scanlines />
+
+        {/* CENTER: BOARD ONLY */}
+        <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
+          {/* Turn Indicator Banner - Show if enabled or game has ended */}
+          {(uiConfig.showTurnBanner || game.winner) && (
+            <TurnBanner
+              winner={game.winner}
+              turn={game.turn as 'player' | 'ai'}
+              isProcessing={makeMove.isPending}
+              enableTurnSystem={uiConfig.enableTurnSystem}
+              difficultyColors={difficultyColors}
+            />
+          )}
+
+          <div className="relative w-full h-full flex items-center justify-center">
+            {(() => {
+              const gameType = validatedGameType;
+              try {
+                const BoardComponent = GameUIFactory.getBoardComponent(gameType);
+                // Only pass turn prop if turn system is enabled
+                const turnProp = uiConfig.turnSystemType === 'player-ai' 
+                  ? (game.turn as 'player' | 'ai')
+                  : undefined;
+                return (
+                  <BoardComponent
+                    boardString={game.board}
+                    turn={turnProp}
+                    selectedSquare={selectedSquare}
+                    validMoves={validMoves}
+                    onSquareClick={handleSquareClick}
+                    lastMove={lastMove}
+                    isProcessing={makeMove.isPending}
+                    difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
+                    hasError={hasError}
+                  />
+                );
+              } catch (error) {
+                console.error(`Failed to load board component for game type ${gameType}:`, error);
+                return (
+                  <div className="text-center text-muted-foreground">
+                    <p>{t("gameRoom.uiNotImplemented", { gameType })}</p>
+                  </div>
+                );
+              }
+            })()}
+          </div>
+
+          {/* Mobile Action Buttons */}
+          <div className="mt-4 lg:hidden w-full max-w-[280px]">
+            <button 
+              className={cn(
+                "w-full text-[10px] py-2 border font-bold uppercase tracking-widest",
+                difficultyColors.borderOpacity,
+                difficultyColors.textOpacity,
+                difficultyColors.bgOpacity
+              )}
+              onClick={() => handleNavigateAway("/")}
+            >
+              [ {t("gameRoom.surrender")} ]
+            </button>
+          </div>
+
+          {/* Winner Overlay - Show if enabled and game has ended */}
+          {game.winner && uiConfig.showWinnerOverlay && (
+            <WinnerOverlay
+              winner={game.winner}
+              difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
+              gameType={validatedGameType}
+              difficultyColors={difficultyColors}
+              onReturnToLobby={() => {
+                isNavigatingAwayRef.current = true;
+                window.dispatchEvent(new Event('storage'));
+                setLocation("/");
+              }}
+              onPlayAgain={async (targetDifficulty) => {
+                const newGame = await createGame.mutateAsync({
+                  gameType: validatedGameType,
+                  difficulty: targetDifficulty,
+                });
+                setGameId(newGame.id);
+              }}
+              onResetGameState={() => {
+                if (interactionHandler.resetState) {
+                  interactionHandler.resetState();
+                }
+                setLogHistory([]);
+                setHasError(false);
+              }}
+            />
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // Standard layout: 3-panel layout (left sidebar, center board, right terminal)
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col lg:flex-row overflow-hidden font-mono relative">
       <Scanlines />
 
-      {/* LEFT PANEL: STATUS & INFO - Mobile: Top Row, Desktop: Left Column */}
-      <aside className="w-full lg:w-1/4 p-2 sm:p-3 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col items-center lg:items-stretch z-10 shrink-0 min-w-0 overflow-hidden">
-        {/* Mobile: Compact horizontal layout */}
-        <div className="flex lg:flex-col items-center lg:items-start gap-2 sm:gap-3 lg:gap-0 flex-1 lg:flex-none min-w-0">
-          {/* Title - Hidden on mobile/tablet, shown only on desktop (lg+) */}
-          <div className="mb-0 lg:mb-8 hidden lg:block shrink-0">
-            <h1 
-              onClick={() => handleNavigateAway("/")} 
-              className="text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors whitespace-nowrap"
-            >
-              MOVE 37
-            </h1>
-          </div>
-
-          {/* Cards Container - Flex grow to fill space, prevent overflow */}
-          <div className="flex lg:flex-col gap-2 sm:gap-3 lg:gap-6 flex-1 lg:flex-none min-w-0 w-full">
-            {/* Player Card */}
-            <div className={cn(
-              "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-0 flex flex-col",
-              isPlayerTurn ? "border-primary bg-primary/5 shadow-[0_0_15px_rgba(0,243,255,0.1)]" : "border-white/10 opacity-50"
-            )}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 lg:mb-1">
-                    <h3 className="text-xs sm:text-sm lg:text-sm font-bold uppercase tracking-tight lg:tracking-normal truncate">
-                      {t("gameRoom.player")}
-                    </h3>
-                    <div className={cn("w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2 lg:h-2 rounded-full shrink-0", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs lg:text-xs">
-                    <span className="hidden sm:inline truncate text-[10px] sm:text-xs">
-                      {isPlayerTurn ? t("gameRoom.awaitingInput") : t("gameRoom.standby")}
-                    </span>
-                  </div>
-                </div>
-                <div className={cn(
-                  "text-sm sm:text-base lg:text-lg font-mono font-bold tabular-nums shrink-0",
-                  playerTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
-                  playerTimeRemaining <= 30 ? "text-yellow-500" : 
-                  "text-primary"
-                )}>
-                  {formatTime(playerTimeRemaining)}
-                </div>
-              </div>
-            </div>
-
-            {/* AI Card */}
-            <div className={cn(
-              "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-0 flex flex-col",
-              !isPlayerTurn || makeMove.isPending 
-                ? `${difficultyColors.border} ${difficultyColors.bg} ${difficultyColors.shadow}` 
-                : "border-white/10 opacity-50"
-            )}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className={cn("flex items-center gap-1.5 sm:gap-2 mb-0.5 lg:mb-1", difficultyColors.text)}>
-                    <h3 className={cn(
-                      "text-xs sm:text-sm lg:text-sm font-bold uppercase tracking-tight lg:tracking-normal truncate",
-                      difficultyColors.text
-                    )}>
-                      <span className="hidden sm:inline">{difficulty} </span>
-                      <span className="sm:hidden">{difficulty.replace("NEXUS-", "N")}</span>
-                      <span className="text-[10px] sm:text-xs"> ({t("gameRoom.aiLabel")})</span>
-                    </h3>
-                    <div className={cn(
-                      "w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2 lg:h-2 rounded-full shrink-0", 
-                      (!isPlayerTurn || makeMove.isPending) 
-                        ? cn(difficultyColors.bgPulse, "animate-pulse") 
-                        : "bg-gray-600"
-                    )} />
-                  </div>
-                  <div className={cn("flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs lg:text-xs", difficultyColors.text)}>
-                    <span className="hidden sm:inline truncate text-[10px] sm:text-xs">
-                      {makeMove.isPending ? t("gameRoom.analyzingMoves") : !isPlayerTurn ? t("gameRoom.calculatingProbabilities") : t("gameRoom.observing")}
-                    </span>
-                  </div>
-                </div>
-                <div className={cn(
-                  "text-sm sm:text-base lg:text-lg font-mono font-bold tabular-nums shrink-0",
-                  aiTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
-                  aiTimeRemaining <= 30 ? "text-yellow-500" : 
-                  difficultyColors.text
-                )}>
-                  {formatTime(aiTimeRemaining)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons - Hidden on mobile top bar, shown on desktop */}
-        <div className="hidden lg:block space-y-2 shrink-0">
-           <GlitchButton 
-             variant="outline" 
-             className={cn(
-               "w-full text-sm py-4",
-               difficultyColors.borderOpacity,
-               difficultyColors.textOpacity,
-               difficultyColors.bgHover
-             )}
-             onClick={() => handleNavigateAway("/")}
-           >
-             {t("gameRoom.surrender")}
-           </GlitchButton>
-        </div>
-      </aside>
-
-      {/* CENTER PANEL: BOARD - Flex grow to occupy available space */}
-      <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
-        
-        {/* Turn Indicator Banner - Smaller on mobile */}
-        <div className="mb-2 sm:mb-4 lg:mb-8 text-center h-6 lg:h-8">
-          <AnimatePresence mode="wait">
-            {game.winner ? (
-               <motion.div
-                 key="winner"
-                 initial={{ opacity: 0, scale: 0.8 }}
-                 animate={{ opacity: 1, scale: 1 }}
-                 className={cn(
-                   "text-lg lg:text-2xl font-display font-black tracking-widest px-4 lg:px-6 py-1 lg:py-2 border-y-2",
-                   game.winner === 'player' ? "text-primary border-primary" : 
-                   game.winner === 'draw' ? "text-secondary border-secondary" :
-                   "text-destructive border-destructive"
-                 )}
-               >
-                 {game.winner === 'player' ? t("gameRoom.victory") : 
-                  game.winner === 'draw' ? t("gameRoom.draw") :
-                  t("gameRoom.defeat")}
-               </motion.div>
-            ) : (
-              <motion.div
-                key={makeMove.isPending ? 'analyzing' : game.turn}
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 5 }}
-                className={cn(
-                  "text-xs lg:text-lg tracking-widest font-bold uppercase",
-                  makeMove.isPending 
-                    ? difficultyColors.text 
-                    : game.turn === 'player' 
-                    ? "text-primary" 
-                    : difficultyColors.text
-                )}
+      {/* LEFT PANEL: STATUS & INFO - Only render if needed */}
+      {(uiConfig.showPlayerCard || uiConfig.showAICard) && (
+        <aside className="w-full lg:w-1/4 p-2 sm:p-3 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col items-center lg:items-stretch z-10 shrink-0 min-w-0 overflow-hidden">
+          {/* Mobile: Compact horizontal layout */}
+          <div className="flex lg:flex-col items-center lg:items-start gap-2 sm:gap-3 lg:gap-0 flex-1 lg:flex-none min-w-0">
+            {/* Title - Hidden on mobile/tablet, shown only on desktop (lg+) */}
+            <div className="mb-0 lg:mb-8 hidden lg:block shrink-0">
+              <h1 
+                onClick={() => handleNavigateAway("/")} 
+                className="text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors whitespace-nowrap"
               >
-                {makeMove.isPending ? t("gameRoom.aiAnalyzing") : game.turn === 'player' ? t("gameRoom.yourTurn") : t("gameRoom.opponentThinking")}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                MOVE 37
+              </h1>
+            </div>
+
+            {/* Cards Container */}
+            <div className="flex lg:flex-col gap-2 sm:gap-3 lg:gap-6 flex-1 lg:flex-none min-w-0 w-full">
+              {/* Player Card */}
+              {playerCardProps && (
+                <PlayerStatusCard {...playerCardProps} />
+              )}
+
+              {/* AI Card */}
+              {aiCardProps && (
+                <AIStatusCard {...aiCardProps} />
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons - Hidden on mobile top bar, shown on desktop */}
+          <div className="hidden lg:block space-y-2 shrink-0">
+            <GlitchButton 
+              variant="outline" 
+              className={cn(
+                "w-full text-sm py-4",
+                difficultyColors.borderOpacity,
+                difficultyColors.textOpacity,
+                difficultyColors.bgHover
+              )}
+              onClick={() => handleNavigateAway("/")}
+            >
+              {t("gameRoom.surrender")}
+            </GlitchButton>
+          </div>
+        </aside>
+      )}
+
+      {/* CENTER PANEL: BOARD */}
+      <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
+        {/* Turn Indicator Banner - Only render if enabled */}
+        {(uiConfig.showTurnBanner || game.winner) && (
+          <TurnBanner
+            winner={game.winner}
+            turn={game.turn as 'player' | 'ai'}
+            isProcessing={makeMove.isPending}
+            enableTurnSystem={uiConfig.enableTurnSystem}
+            difficultyColors={difficultyColors}
+          />
+        )}
 
         <div className="relative w-full h-full flex items-center justify-center">
           {(() => {
-            // Get game-specific board component based on validated game type
             const gameType = validatedGameType;
             try {
               const BoardComponent = GameUIFactory.getBoardComponent(gameType);
+              // Only pass turn prop if turn system is enabled
+              const turnProp = uiConfig.turnSystemType === 'player-ai' 
+                ? (game.turn as 'player' | 'ai')
+                : undefined;
               return (
                 <BoardComponent
                   boardString={game.board}
-                  turn={game.turn as 'player' | 'ai'}
+                  turn={turnProp}
                   selectedSquare={selectedSquare}
                   validMoves={validMoves}
                   onSquareClick={handleSquareClick}
                   lastMove={lastMove}
                   isProcessing={makeMove.isPending}
-                  difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7"}
+                  difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
                   hasError={hasError}
                 />
               );
-            } catch (error) {
-              console.error(`Failed to load board component for game type ${gameType}:`, error);
-              return (
-                <div className="text-center text-muted-foreground">
-                  <p>게임 타입 {gameType}의 UI가 아직 구현되지 않았습니다.</p>
-                </div>
-              );
-            }
+              } catch (error) {
+                console.error(`Failed to load board component for game type ${gameType}:`, error);
+                return (
+                  <div className="text-center text-muted-foreground">
+                    <p>{t("gameRoom.uiNotImplemented", { gameType })}</p>
+                  </div>
+                );
+              }
           })()}
         </div>
 
-        {/* Mobile Action Buttons - Visible only on mobile bottom */}
-        <div className="mt-4 lg:hidden w-full max-w-[280px]">
-           <button 
-             className={cn(
-               "w-full text-[10px] py-2 border font-bold uppercase tracking-widest",
-               difficultyColors.borderOpacity,
-               difficultyColors.textOpacity,
-               difficultyColors.bgOpacity
-             )}
-             onClick={() => handleNavigateAway("/")}
-           >
-             [ {t("gameRoom.surrender")} ]
-           </button>
-        </div>
+        {/* Mobile Action Buttons - Only show if left panel is not rendered */}
+        {!(uiConfig.showPlayerCard || uiConfig.showAICard) && (
+          <div className="mt-4 lg:hidden w-full max-w-[280px]">
+            <button 
+              className={cn(
+                "w-full text-[10px] py-2 border font-bold uppercase tracking-widest",
+                difficultyColors.borderOpacity,
+                difficultyColors.textOpacity,
+                difficultyColors.bgOpacity
+              )}
+              onClick={() => handleNavigateAway("/")}
+            >
+              [ {t("gameRoom.surrender")} ]
+            </button>
+          </div>
+        )}
 
-
-        {/* Winner Overlay */}
-        {game.winner && (
-           <motion.div 
-             initial={{ opacity: 0 }}
-             animate={{ opacity: 1 }}
-             className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 sm:p-6 backdrop-blur-md overflow-y-auto"
-           >
-             <div className="text-center space-y-4 sm:space-y-6 w-full max-w-md p-6 sm:p-8 lg:p-10 border border-white/20 bg-black my-auto">
-               {/* 아이콘 - 반응형 크기 조정 */}
-               <div className="flex justify-center">
-                 {game.winner === 'player' ? (
-                   <Trophy className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
-                 ) : game.winner === 'draw' ? (
-                   <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
-                 ) : (
-                   <Skull className={cn("w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-4", difficultyColors.icon)} />
-                 )}
-               </div>
-               
-               {/* 타이틀 - 반응형 폰트 크기 */}
-               <h2 className={cn(
-                 "text-2xl sm:text-3xl lg:text-4xl font-display font-black leading-tight px-2", 
-                 game.winner === 'player' ? "text-primary" : 
-                 game.winner === 'draw' ? "text-secondary" :
-                 difficultyColors.text
-               )}>
-                 {game.winner === 'player' ? t("gameRoom.youWon") : 
-                  game.winner === 'draw' ? t("gameRoom.draw") :
-                  t("gameRoom.youLost")}
-               </h2>
-               
-               {/* 메시지 - 반응형 폰트 크기 및 최대 너비 제한 */}
-               <p className="font-mono text-xs sm:text-sm text-muted-foreground max-w-[280px] sm:max-w-none mx-auto px-2">
-                 {game.winner === 'player' 
-                   ? t("gameRoom.victoryMessage")
-                   : game.winner === 'draw'
-                   ? t("gameRoom.drawMessage")
-                   : t("gameRoom.defeatMessage")}
-               </p>
-               
-               {/* 언락 메시지 - 반응형 패딩 */}
-               {game.winner === 'player' && game.difficulty && (() => {
-                 const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
-                 const unlocked = getUnlockedDifficulties();
-                 if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
-                   return (
-                     <p className="font-mono text-xs text-primary border border-primary/30 px-3 sm:px-4 py-2 bg-primary/5 mx-auto max-w-[280px] sm:max-w-none">
-                       {t("gameRoom.unlocked", { level: "5" })}
-                     </p>
-                   );
-                 } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
-                   return (
-                     <p className="font-mono text-xs text-primary border border-primary/30 px-3 sm:px-4 py-2 bg-primary/5 mx-auto max-w-[280px] sm:max-w-none">
-                       {t("gameRoom.unlocked", { level: "7" })}
-                     </p>
-                   );
-                 }
-                 return null;
-               })()}
-               
-               {/* 버튼 레이아웃 - 모바일 세로, 데스크톱 가로 */}
-               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-2 sm:pt-4">
-                 <GlitchButton 
-                   className="w-full sm:w-auto"
-                   onClick={() => {
-                     isNavigatingAwayRef.current = true;
-                     // Force reload unlock status when returning to lobby
-                     window.dispatchEvent(new Event('storage'));
-                     setLocation("/");
-                   }}
-                 >
-                   {t("gameRoom.returnToLobby")}
-                 </GlitchButton>
-                 <GlitchButton 
-                   variant="outline" 
-                   className="w-full sm:w-auto"
-                   onClick={async () => {
-                     try {
-                       const currentDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
-                       
-                       // Get next level
-                       const getNextLevel = (diff: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" | null => {
-                         if (diff === "NEXUS-3") return "NEXUS-5";
-                         if (diff === "NEXUS-5") return "NEXUS-7";
-                         return null;
-                       };
-                       
-                       const unlocked = getUnlockedDifficulties();
-                       const nextLevel = getNextLevel(currentDifficulty);
-                       let targetDifficulty = currentDifficulty;
-                       
-                       // Determine button text and target difficulty
-                       // 졌을 때는 항상 현재 레벨로 새 게임 생성 (다음 레벨이 잠겨있든 열려있든 상관없이)
-                       if (game.winner && game.winner !== 'player' && game.winner !== 'draw') {
-                         targetDifficulty = currentDifficulty;
-                       }
-                       // 이겼을 때
-                       else if (game.winner === 'player') {
-                         // NEXUS-7에서 이겼으면 PLAY AGAIN (다음 레벨 없음)
-                         if (currentDifficulty === "NEXUS-7") {
-                           targetDifficulty = currentDifficulty;
-                         } 
-                         // 이겼고 다음 레벨이 있으면 NEXT LEVEL (승리 시 잠금 해제되었으므로)
-                         else if (nextLevel) {
-                           targetDifficulty = nextLevel;
-                         }
-                       }
-                       
-                       const newGame = await createGame.mutateAsync(targetDifficulty);
-                       setGameId(newGame.id);
-                       // Reset game state for new game
-                       setSelectedSquare(null);
-                       setLogHistory([]);
-                       setHasError(false);
-                     } catch (error) {
-                       console.error("Failed to create new game:", error);
-                     }
-                   }}
-                 >
-                   {(() => {
-                     if (!game.winner) return t("gameRoom.newGame");
-                     
-                     const currentDiff = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
-                     const unlocked = getUnlockedDifficulties();
-                     
-                     // Get next level
-                     const getNextLevel = (diff: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" | null => {
-                       if (diff === "NEXUS-3") return "NEXUS-5";
-                       if (diff === "NEXUS-5") return "NEXUS-7";
-                       return null;
-                     };
-                     
-                     const nextLevel = getNextLevel(currentDiff);
-                     
-                     // 졌을 때는 항상 PLAY AGAIN (다음 레벨이 잠겨있든 열려있든 상관없이)
-                     if (game.winner !== 'player' && game.winner !== 'draw') {
-                       return t("gameRoom.playAgain");
-                     }
-                     
-                     // NEXUS-7에서 이겼으면 PLAY AGAIN
-                     if (currentDiff === "NEXUS-7" && game.winner === 'player') {
-                       return t("gameRoom.playAgain");
-                     }
-                     
-                     // 이겼고 다음 레벨이 있으면 NEXT LEVEL
-                     // (승리 시 잠금 해제되므로, 승리 후에는 다음 레벨이 열려있음)
-                     if (game.winner === 'player' && nextLevel) {
-                       return t("gameRoom.nextLevel");
-                     }
-                     
-                     // 그 외 (이겼지만 다음 레벨이 없거나, 무승부, 기본)
-                     return t("gameRoom.newGame");
-                   })()}
-                 </GlitchButton>
-               </div>
-             </div>
-           </motion.div>
+        {/* Winner Overlay - Show if enabled and game has ended */}
+        {game.winner && uiConfig.showWinnerOverlay && (
+          <WinnerOverlay
+            winner={game.winner}
+            difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
+            gameType={validatedGameType}
+            difficultyColors={difficultyColors}
+            onReturnToLobby={() => {
+              isNavigatingAwayRef.current = true;
+              window.dispatchEvent(new Event('storage'));
+              setLocation("/");
+            }}
+            onPlayAgain={async (targetDifficulty) => {
+              const newGame = await createGame.mutateAsync({
+                gameType: validatedGameType,
+                difficulty: targetDifficulty,
+              });
+              setGameId(newGame.id);
+            }}
+            onResetGameState={() => {
+              if (interactionHandler.resetState) {
+                interactionHandler.resetState();
+              }
+              setLogHistory([]);
+              setHasError(false);
+            }}
+          />
         )}
       </main>
 
-      {/* RIGHT PANEL: TERMINAL LOG */}
-      <aside className="w-full lg:w-1/4 h-32 sm:h-48 lg:h-auto border-t lg:border-t-0 lg:border-l border-border bg-black/80 flex flex-col z-10 shrink-0">
-        <div className="p-2 lg:p-3 border-b border-border bg-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TerminalIcon className="w-3 h-3 lg:w-4 lg:h-4 text-accent" />
-            <span className="text-[10px] lg:text-xs font-bold tracking-widest text-accent">{t("gameRoom.systemLog")}</span>
-          </div>
-          <div className="flex gap-1">
-            <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-red-500/20" />
-            <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-yellow-500/20" />
-            <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-green-500/20" />
-          </div>
-        </div>
-        
-        <div className="flex-1 p-2 lg:p-4 overflow-y-auto font-mono text-[10px] lg:text-xs space-y-2 lg:space-y-3 custom-scrollbar">
-           {logHistory.map((log, i) => {
-             const isAILog = log.message.startsWith(">") || log.message.startsWith("---");
-             const isSystemLog = log.message.startsWith("//");
-             return (
-               <div 
-                 key={i} 
-                 className={cn(
-                   "border-l-2 pl-3 py-1 transition-all",
-                   isAILog 
-                     ? `${difficultyColors.borderOpacity30} ${difficultyColors.bgOpacity}` 
-                     : "border-accent/20"
-                 )}
-               >
-                 {!isSystemLog && (
-                   <span className="text-accent/50 mr-2 text-[10px]">[{log.timestamp.toLocaleTimeString()}]</span>
-                 )}
-                 <span className={cn(
-                   "text-xs font-mono",
-                   isAILog 
-                     ? difficultyColors.textOpacity90 
-                     : isSystemLog 
-                     ? "text-muted-foreground opacity-50" 
-                     : "text-foreground"
-                 )}>
-                   {log.message.startsWith("gameRoom.") || log.message.startsWith("lobby.") || log.message.startsWith("tutorial.") 
-                     ? t(log.message as any) 
-                     : log.message}
-                 </span>
-               </div>
-             );
-           })}
-           <div ref={logEndRef} />
-        </div>
-      </aside>
+      {/* RIGHT PANEL: TERMINAL LOG - Only render if enabled */}
+      {uiConfig.showTerminalLog && (
+        <TerminalLog
+          logHistory={logHistory}
+          difficultyColors={difficultyColors}
+        />
+      )}
     </div>
   );
 }
 
-// Simple parser for history strings (e.g., "e2e4" style logic or just JSON objects)
-// Adjust based on your backend logic. Assuming simple coord objects for now or we won't show history lines if format differs.
-function parseHistoryString(move: any): { from: {r: number, c: number}, to: {r: number, c: number} } | null {
-  // If backend stores explicit from/to object in history array
-  if (typeof move === 'object' && move.from && move.to) return move;
-  return null;
-}

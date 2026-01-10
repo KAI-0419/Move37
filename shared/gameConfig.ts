@@ -3,9 +3,24 @@
  * 
  * Defines configuration interfaces for game-specific settings.
  * Each game can have its own configuration while maintaining a common structure.
+ * 
+ * Note: UI-specific configurations are defined in client/src/lib/games/GameUIConfig.ts
+ * This file focuses on game logic and backend configurations.
  */
 
 import type { GameType } from "./schema";
+
+/**
+ * Default game type used throughout the application
+ * This should be the first available game type
+ */
+export const DEFAULT_GAME_TYPE: GameType = "MINI_CHESS";
+
+/**
+ * Default difficulty level used as fallback throughout the application
+ * All games use the unified NEXUS-3/5/7 difficulty system
+ */
+export const DEFAULT_DIFFICULTY: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7";
 
 /**
  * Base game configuration that all games share

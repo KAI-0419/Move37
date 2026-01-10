@@ -4,6 +4,8 @@ import type { Game, GameType } from "@shared/schema";
 import { gameStorage } from "./storage";
 import { GameEngineFactory } from "./games/GameEngineFactory";
 import type { IGameEngine, PlayerMove } from "@shared/gameEngineInterface";
+import { getGameUIConfig } from "./games/GameUIConfig";
+import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
 
 // Simple AI reasoning generator (no OpenAI needed for offline mode)
 function generateSimpleAIReasoning(boardFen: string, move: string): string {
@@ -25,14 +27,14 @@ function generateSimpleAIReasoning(boardFen: string, move: string): string {
 
 /**
  * Create a new game
- * @param gameType - Type of game to create (defaults to MINI_CHESS for backward compatibility)
+ * @param gameType - Type of game to create (defaults to DEFAULT_GAME_TYPE for backward compatibility)
  * @param difficulty - AI difficulty level
  * @returns Created game
  * 
  * Uses the game engine factory to get the appropriate engine for the game type.
  */
 export async function createGame(
-  gameType: GameType = "MINI_CHESS",
+  gameType: GameType = DEFAULT_GAME_TYPE,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7"
 ): Promise<Game> {
   const now = new Date();
@@ -42,6 +44,11 @@ export async function createGame(
   
   // Get initial board state from the engine
   const initialBoard = engine.getInitialBoard();
+  
+  // Get game-specific UI configuration for timer settings
+  const uiConfig = getGameUIConfig(gameType);
+  const initialTime = uiConfig.enableTimer ? (uiConfig.initialTime ?? 180) : 0;
+  const timePerMove = uiConfig.enableTimer ? (uiConfig.timePerMove ?? 5) : 0;
   
   const game = await gameStorage.createGame({
     gameType,
@@ -53,9 +60,9 @@ export async function createGame(
     aiLog: "gameRoom.log.systemInitialized",
     turnCount: 0,
     difficulty,
-    playerTimeRemaining: 180, // 180 seconds (3 minutes) initial time
-    aiTimeRemaining: 180, // 180 seconds (3 minutes) initial time
-    timePerMove: 5, // 5 seconds added per move
+    playerTimeRemaining: initialTime,
+    aiTimeRemaining: initialTime,
+    timePerMove: timePerMove,
     lastMoveTimestamp: now.toISOString(),
   });
   
@@ -90,7 +97,7 @@ export async function makeGameMove(
   gameId: number,
   from: { r: number; c: number },
   to: { r: number; c: number }
-): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece } }> {
+): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: any, captured?: any } }> {
   const game = await gameStorage.getGame(gameId);
   if (!game) {
     throw new Error("gameRoom.errors.gameNotFound");
@@ -100,7 +107,11 @@ export async function makeGameMove(
     throw new Error("gameRoom.errors.gameOver");
   }
   
-  if (game.turn !== 'player') {
+  // Get game config to check turn system
+  const uiConfig = getGameUIConfig(game.gameType);
+  
+  // Check turn only if turn system is player-ai
+  if (uiConfig.turnSystemType === 'player-ai' && game.turn !== 'player') {
     throw new Error("gameRoom.errors.notYourTurn");
   }
 
@@ -171,7 +182,9 @@ export async function makeGameMove(
   );
   
   let history = [...(game.history || [])];
-  history.push(`Player: ${from.r},${from.c} -> ${to.r},${to.c}`);
+  // Use game engine to format history entry
+  const historyEntry = engine.formatHistoryEntry(move, true);
+  history.push(historyEntry);
 
   if (winner) {
     const updated = await gameStorage.updateGame(gameId, {
@@ -193,11 +206,15 @@ export async function makeGameMove(
     return { game: updated, aiLogs: [] };
   }
 
-  // Immediately update game state with player's move (turn becomes 'ai')
+  // Update turn only if turn system is player-ai
+  // Otherwise, keep the current turn (for games without turn system)
+  const updatedTurn = uiConfig.turnSystemType === 'player-ai' ? 'ai' : game.turn;
+  
+  // Immediately update game state with player's move
   const playerMoveUpdated = await gameStorage.updateGame(gameId, {
     board: newBoardFen,
     boardHistory: trimmedBoardHistory,
-    turn: 'ai', // AI's turn now
+    turn: updatedTurn,
     history,
     turnCount: newTurnCount,
     playerTimeRemaining: updatedPlayerTime,
@@ -222,7 +239,13 @@ export async function calculateAIMove(
     throw new Error("gameRoom.errors.gameNotFound");
   }
 
-  if (game.winner || game.turn !== 'ai') {
+  // Get game config to check turn system
+  const uiConfig = getGameUIConfig(game.gameType);
+  
+  // Check turn only if turn system is player-ai
+  // If turn system is none, AI can always move (or this function shouldn't be called)
+  if (game.winner || 
+      (uiConfig.turnSystemType === 'player-ai' && game.turn !== 'ai')) {
     return { game, aiLogs: [] };
   }
 
@@ -254,8 +277,8 @@ export async function calculateAIMove(
   // Record actual calculation start time
   const calculationStartTime = Date.now();
   
-  // Use game difficulty (default to NEXUS-7 for backward compatibility)
-  const gameDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-7";
+  // Use game difficulty (default to DEFAULT_DIFFICULTY for backward compatibility)
+  const gameDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY;
   
   // Calculate AI move using engine
   let aiResult;
@@ -308,7 +331,8 @@ export async function calculateAIMove(
     
     // Apply AI move using engine
     const newBoardFen = engine.makeMove(game.board, aiResult.move);
-    const moveStr = `AI: ${aiResult.move.from.r},${aiResult.move.from.c} -> ${aiResult.move.to.r},${aiResult.move.to.c}`;
+    // Use game engine to format history entry
+    const moveStr = engine.formatHistoryEntry(aiResult.move, false);
     const aiHistory = [...game.history, moveStr];
     const now = new Date();
     
@@ -331,10 +355,14 @@ export async function calculateAIMove(
     aiLogs = aiResult.logs;
     aiLog = aiResult.logs[0] || "gameRoom.log.moveExecuted";
     
+    // Update turn only if turn system is player-ai
+    // Otherwise, keep the current turn (for games without turn system)
+    const updatedTurn = uiConfig.turnSystemType === 'player-ai' ? 'player' : game.turn;
+    
     const updated = await gameStorage.updateGame(gameId, {
       board: newBoardFen,
       boardHistory: trimmedBoardHistory,
-      turn: 'player', // Back to player
+      turn: updatedTurn,
       winner: aiWinner,
       history: aiHistory,
       turnCount: newTurnCount,

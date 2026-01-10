@@ -1,6 +1,7 @@
 // Game type definitions for multi-game support
 // Note: GameType is defined in @shared/schema.ts to ensure consistency across client and server
 import type { GameType } from "@shared/schema";
+import { DEFAULT_GAME_TYPE } from "@shared/gameConfig";
 
 // Re-export for convenience
 export type { GameType };
@@ -70,7 +71,7 @@ export function loadGameType(): GameType {
   } catch (error) {
     console.error("Failed to load game type from localStorage:", error);
   }
-  return "MINI_CHESS"; // Default
+  return DEFAULT_GAME_TYPE; // Default
 }
 
 // Save game type to localStorage

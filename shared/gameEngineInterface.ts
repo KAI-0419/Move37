@@ -174,4 +174,36 @@ export interface IGameEngine {
    * @returns Board state string
    */
   generateBoardString(board: any): string;
+
+  /**
+   * Check if a piece at the given position belongs to the player
+   * This is game-specific logic (e.g., lowercase vs uppercase in chess)
+   * @param boardState - Current board state (game-specific format)
+   * @param position - Position to check
+   * @param isPlayer - Whether to check for player (true) or AI (false) ownership
+   * @returns True if the piece at the position belongs to the specified player
+   */
+  isPlayerPiece(
+    boardState: string,
+    position: { r: number; c: number },
+    isPlayer: boolean
+  ): boolean;
+
+  /**
+   * Parse a history entry into a GameMove
+   * History entries can be stored in different formats (string, object, etc.)
+   * This method allows each game to define its own history format
+   * @param historyEntry - History entry (format is game-specific)
+   * @returns Parsed move, or null if the entry cannot be parsed
+   */
+  parseHistory(historyEntry: any): GameMove | null;
+
+  /**
+   * Format a move into a history entry string
+   * This method allows each game to define its own history entry format
+   * @param move - Move to format
+   * @param isPlayer - Whether this is a player move (true) or AI move (false)
+   * @returns Formatted history entry string
+   */
+  formatHistoryEntry(move: GameMove, isPlayer: boolean): string;
 }
