@@ -19,7 +19,9 @@
       "medium": "Medium",
       "hard": "Hard",
       "locked": "LOCKED",
-      "completePrevious": "Complete NEXUS-{{level}} to unlock"
+      "completePrevious": "Complete NEXUS-{{level}} to unlock",
+      "lockedTitle": "Difficulty Locked",
+      "lockedMessage": "Complete NEXUS-{{level}} first to unlock this difficulty."
     },
     "stats": {
       "title": "PLAYER STATS",
@@ -30,7 +32,11 @@
       "streak": "STREAK",
       "avgTurns": "AVG TURNS",
       "noData": "NO DATA",
-      "noDataDescription": "Play games to generate statistics"
+      "noDataDescription": "Play games to generate statistics",
+      "recentPerformance": "RECENT PERFORMANCE",
+      "win": "Win",
+      "loss": "Loss",
+      "draw": "Draw"
     },
     "footer": "MOVE 37 © 2026 // SYSTEM VERSION 0.9.1 BETA",
     "toast": {

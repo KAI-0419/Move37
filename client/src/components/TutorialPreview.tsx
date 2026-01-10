@@ -1,0 +1,206 @@
+/**
+ * Tutorial Preview Component
+ * 
+ * Inline tutorial preview that shows animated board demonstrations
+ * without requiring a modal. Displays the first tutorial step with
+ * automatic animation cycling.
+ */
+
+import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import { Play, BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { GameType } from "@shared/schema";
+import { GameUIFactory } from "@/lib/games/GameUIFactory";
+import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { getTutorialSteps, getTutorialInitialBoard } from "@/lib/games/TutorialDataFactory";
+import { parseFen, generateFen, makeMove as makeBoardMove } from "@/lib/games/miniChess/boardUtils";
+
+interface TutorialPreviewProps {
+  gameType: GameType;
+  className?: string;
+  onOpenTutorial?: () => void;
+  onOpenStats?: () => void;
+}
+
+export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenStats }: TutorialPreviewProps) {
+  const { t } = useTranslation();
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [animatedBoard, setAnimatedBoard] = useState<string>("");
+  const [showAnimation, setShowAnimation] = useState(false);
+
+  // Get game-specific tutorial data
+  const tutorialSteps = useMemo(() => getTutorialSteps(gameType), [gameType]);
+  const initialBoard = useMemo(() => getTutorialInitialBoard(gameType), [gameType]);
+  const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
+  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
+
+  // Initialize board
+  useEffect(() => {
+    if (tutorialSteps.length > 0) {
+      const firstStep = tutorialSteps[0];
+      setAnimatedBoard(firstStep.boardState || initialBoard);
+    } else {
+      setAnimatedBoard(initialBoard);
+    }
+  }, [tutorialSteps, initialBoard]);
+
+  // Auto-cycle through tutorial steps (simplified - just show different board states)
+  useEffect(() => {
+    if (!isPlaying || tutorialSteps.length === 0) return;
+
+    const currentStep = tutorialSteps[currentStepIndex];
+    if (!currentStep) return;
+
+    // Reset animation state
+    setShowAnimation(false);
+    setAnimatedBoard(currentStep.boardState || initialBoard);
+
+    // If step has animation, trigger it after delay
+    if (currentStep.animation) {
+      const animationTimer = setTimeout(() => {
+        setShowAnimation(true);
+        
+        // Apply animation move
+        if (gameType === "MINI_CHESS") {
+          const currentBoard = parseFen(currentStep.boardState || initialBoard);
+          const newBoard = makeBoardMove(
+            currentBoard,
+            currentStep.animation!.from,
+            currentStep.animation!.to
+          );
+          setAnimatedBoard(generateFen(newBoard));
+        } else {
+          const currentBoardState = currentStep.boardState || initialBoard;
+          const newBoardState = engine.makeMove(currentBoardState, {
+            from: currentStep.animation!.from,
+            to: currentStep.animation!.to
+          });
+          setAnimatedBoard(newBoardState);
+        }
+      }, currentStep.animation.delay || 1000);
+
+      // Move to next step after animation completes
+      const nextStepTimer = setTimeout(() => {
+        setCurrentStepIndex((prev) => (prev + 1) % tutorialSteps.length);
+      }, (currentStep.animation.delay || 1000) + 2000);
+
+      return () => {
+        clearTimeout(animationTimer);
+        clearTimeout(nextStepTimer);
+      };
+    } else {
+      // No animation, just wait and move to next step
+      const timer = setTimeout(() => {
+        setCurrentStepIndex((prev) => (prev + 1) % tutorialSteps.length);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentStepIndex, isPlaying, tutorialSteps, gameType, initialBoard, engine]);
+
+  const currentStep = tutorialSteps[currentStepIndex] || tutorialSteps[0];
+  const displayBoard = showAnimation && currentStep?.animation ? animatedBoard : (currentStep?.boardState || initialBoard);
+
+  if (tutorialSteps.length === 0) {
+    return (
+      <div className={cn("flex items-center justify-center h-full bg-black/40 border border-white/10 rounded-lg p-8", className)}>
+        <p className="text-sm text-muted-foreground font-mono">
+          {t("tutorial.notAvailable")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
+      {/* Header with Tutorial and Stats Buttons */}
+      <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black/40 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded border border-primary/30">
+            PREVIEW
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {onOpenStats && (
+            <motion.button
+              onClick={onOpenStats}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3 py-1.5 text-xs font-bold text-secondary border border-secondary/50 bg-secondary/10 hover:bg-secondary/20 hover:border-secondary transition-all duration-300 rounded flex items-center gap-2"
+            >
+              <BarChart3 className="w-3 h-3" />
+              {t("lobby.stats.title")}
+            </motion.button>
+          )}
+          {onOpenTutorial && (
+            <motion.button
+              onClick={onOpenTutorial}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3 py-1.5 text-xs font-bold text-primary border border-primary/50 bg-primary/10 hover:bg-primary/20 hover:border-primary transition-all duration-300 rounded flex items-center gap-2"
+            >
+              <Play className="w-3 h-3" />
+              {t("lobby.tutorial")}
+            </motion.button>
+          )}
+        </div>
+      </div>
+
+      {/* Board Preview - Visual Only */}
+      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="relative">
+          <BoardComponent
+            boardString={displayBoard}
+            turn="player"
+            selectedSquare={null}
+            lastMove={currentStep?.animation && showAnimation ? {
+              from: currentStep.animation.from,
+              to: currentStep.animation.to
+            } : null}
+            validMoves={[]}
+            onSquareClick={() => {}}
+            isProcessing={false}
+            size="small"
+            difficulty="NEXUS-7"
+          />
+          
+          {/* Highlight squares overlay */}
+          {currentStep?.highlightSquares && (
+            <div className="absolute inset-0 pointer-events-none" style={{ top: '6px', left: '6px', right: '6px', bottom: '6px' }}>
+              <div className="grid grid-cols-5 grid-rows-5 gap-1 h-full w-full">
+                {Array.from({ length: 25 }).map((_, idx) => {
+                  const r = Math.floor(idx / 5);
+                  const c = idx % 5;
+                  const isHighlighted = currentStep.highlightSquares?.some(
+                    sq => sq.r === r && sq.c === c
+                  );
+                  
+                  if (!isHighlighted) return <div key={idx} />;
+                  
+                  return (
+                    <motion.div
+                      key={idx}
+                      className="w-full h-full"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: [0, 0.6, 0] }}
+                      transition={{ 
+                        duration: 1.5, 
+                        repeat: Infinity, 
+                        delay: currentStep.highlightSquares!.findIndex(sq => sq.r === r && sq.c === c) * 0.15 
+                      }}
+                    >
+                      <div className="w-full h-full border-2 border-primary/70 bg-primary/20 rounded-sm shadow-[0_0_10px_rgba(0,243,255,0.2)]" />
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

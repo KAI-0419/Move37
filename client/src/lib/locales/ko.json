@@ -19,7 +19,9 @@
       "medium": "보통",
       "hard": "어려움",
       "locked": "LOCKED",
-      "completePrevious": "NEXUS-{{level}} 완료 필요"
+      "completePrevious": "NEXUS-{{level}} 완료 필요",
+      "lockedTitle": "난이도 잠김",
+      "lockedMessage": "이 난이도를 해제하려면 NEXUS-{{level}}을(를) 먼저 완료해야 합니다."
     },
     "stats": {
       "title": "플레이어 통계",
@@ -30,7 +32,11 @@
       "streak": "연승",
       "avgTurns": "평균 턴",
       "noData": "데이터 없음",
-      "noDataDescription": "게임을 플레이하여 통계를 생성하세요"
+      "noDataDescription": "게임을 플레이하여 통계를 생성하세요",
+      "recentPerformance": "최근 성적",
+      "win": "승리",
+      "loss": "패배",
+      "draw": "무승부"
     },
     "footer": "MOVE 37 © 2026 // SYSTEM VERSION 0.9.1 BETA",
     "toast": {
