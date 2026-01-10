@@ -35,6 +35,7 @@ export type CreateGameRequest = {
 export type MoveRequest = {
   from: { r: number; c: number };
   to: { r: number; c: number };
+  destroy?: { r: number; c: number }; // For games that require destroy selection (e.g., ISOLATION)
   moveTimeSeconds?: number;
   hoverCount?: number;
 };

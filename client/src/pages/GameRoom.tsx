@@ -88,10 +88,10 @@ export default function GameRoom() {
     );
   }, [validatedGameType, uiConfig.interactionPattern, uiConfig.turnSystemType]);
 
-  // Update interaction handler when game changes (for select-then-move pattern)
+  // Update interaction handler when game changes (for select-then-move and direct-move patterns)
   useEffect(() => {
-    if (game && 'updateGame' in interactionHandler && typeof (interactionHandler as any).updateGame === 'function') {
-      (interactionHandler as any).updateGame(game);
+    if (game && interactionHandler.updateGame) {
+      interactionHandler.updateGame(game);
     }
   }, [game, interactionHandler]);
 
@@ -249,20 +249,38 @@ export default function GameRoom() {
     t,
   });
 
-  // Get interaction state for select-then-move pattern
+  // Get interaction state for select-then-move and direct-move patterns
   const selectedSquare = useMemo(() => {
     if (uiConfig.interactionPattern === 'select-then-move' && interactionState) {
       return interactionState.selectedSquare;
     }
+    if (uiConfig.interactionPattern === 'direct-move' && interactionHandler.getInteractionState) {
+      const state = interactionHandler.getInteractionState();
+      return state?.selectedSquare || null;
+    }
     return null;
-  }, [interactionState, uiConfig.interactionPattern]);
+  }, [interactionState, uiConfig.interactionPattern, interactionHandler]);
 
   const validMoves = useMemo(() => {
     if (uiConfig.interactionPattern === 'select-then-move' && interactionState) {
       return interactionState.validMoves;
     }
+    // Support direct-move pattern (used by GAME_2/Isolation)
+    if (uiConfig.interactionPattern === 'direct-move' && interactionHandler.getInteractionState) {
+      const state = interactionHandler.getInteractionState();
+      return state?.validMoves || [];
+    }
     return [];
-  }, [interactionState, uiConfig.interactionPattern]);
+  }, [interactionState, uiConfig.interactionPattern, interactionHandler]);
+
+  // Get destroy candidates for games that require destroy selection (e.g., GAME_2/Isolation)
+  const destroyCandidates = useMemo(() => {
+    // Only get destroy candidates if the interaction handler supports it
+    if (interactionHandler.getDestroyCandidates) {
+      return interactionHandler.getDestroyCandidates();
+    }
+    return [];
+  }, [interactionHandler, interactionState, game?.board, game?.turn]);
 
   // Parse last move using game engine (MUST be before any early returns to comply with React hooks rules)
   const lastMove = useMemo(() => {
@@ -407,18 +425,19 @@ export default function GameRoom() {
                   ? (game.turn as 'player' | 'ai')
                   : undefined;
                 return (
-                  <BoardComponent
-                    boardString={game.board}
-                    turn={turnProp}
-                    selectedSquare={selectedSquare}
-                    validMoves={validMoves}
-                    onSquareClick={handleSquareClick}
-                    onSquareHover={handleSquareHover}
-                    lastMove={lastMove}
-                    isProcessing={makeMove.isPending}
-                    difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
-                    hasError={hasError}
-                  />
+                <BoardComponent
+                  boardString={game.board}
+                  turn={turnProp}
+                  selectedSquare={selectedSquare}
+                  validMoves={validMoves}
+                  destroyCandidates={destroyCandidates}
+                  onSquareClick={handleSquareClick}
+                  onSquareHover={handleSquareHover}
+                  lastMove={lastMove}
+                  isProcessing={makeMove.isPending}
+                  difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
+                  hasError={hasError}
+                />
                 );
               } catch (error) {
                 console.error(`Failed to load board component for game type ${gameType}:`, error);
@@ -559,6 +578,7 @@ export default function GameRoom() {
                   turn={turnProp}
                   selectedSquare={selectedSquare}
                   validMoves={validMoves}
+                  destroyCandidates={destroyCandidates}
                   onSquareClick={handleSquareClick}
                   lastMove={lastMove}
                   isProcessing={makeMove.isPending}

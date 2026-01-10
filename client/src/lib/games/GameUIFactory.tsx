@@ -9,6 +9,7 @@
 import type { GameType } from "@shared/schema";
 import type { GameBoardComponent } from "./GameBoardInterface";
 import { MiniChessBoard } from "./miniChess/MiniChessBoard";
+import { IsolationBoard } from "./isolation/IsolationBoard";
 
 /**
  * Game UI Factory
@@ -42,6 +43,9 @@ export class GameUIFactory {
         break;
       
       case "GAME_2":
+        BoardComponent = IsolationBoard;
+        break;
+      
       case "GAME_3":
       case "GAME_4":
       case "GAME_5":

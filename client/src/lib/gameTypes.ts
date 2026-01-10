@@ -28,9 +28,9 @@ export const AVAILABLE_GAMES: GameInfo[] = [
     id: "GAME_2",
     nameKey: "games.game2.name",
     descriptionKey: "games.game2.description",
-    icon: "🔒",
-    available: false,
-    comingSoon: true,
+    icon: "⚡",
+    available: true,
+    comingSoon: false,
   },
   {
     id: "GAME_3",

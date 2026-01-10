@@ -75,7 +75,8 @@ export function useMakeMove(gameId: number) {
       }
       const result = await makeGameMove(gameId, move.from, move.to, {
         moveTimeSeconds: move.moveTimeSeconds,
-        hoverCount: move.hoverCount
+        hoverCount: move.hoverCount,
+        destroy: move.destroy
       });
       return result;
     },

@@ -109,6 +109,17 @@
       "calculationError": "Calculation error. No valid moves.",
       "calculationErrorKo": "Calculation error: No valid moves available.",
       "calculationErrorNoSelection": "Calculation error: Unable to select a valid move.",
+      "isolation": {
+        "initializing": "Sector 7G: ISOLATION protocol engaged. Ground deletion system active.",
+        "noMoves": "No valid moves available. Isolation complete.",
+        "playerExpanding": "Human expanding territory. Connectivity analysis: {{area}} sectors accessible.",
+        "playerTrapped": "Human mobility decreasing. Connectivity analysis: {{area}} sectors accessible.",
+        "playerBalanced": "Human maintaining position. Connectivity analysis: {{area}} sectors accessible.",
+        "aiAdvantage": "AI connectivity advantage: {{diff}} sectors. Human territory shrinking.",
+        "playerAdvantage": "Human connectivity advantage: {{diff}} sectors. AI territory shrinking.",
+        "balanced": "Connectivity balanced. Both players have equal mobility.",
+        "sectorDeleted": "Sector {{r}}-{{c}}: DELETED"
+      },
       "psychology": {
         "capturedPiece1": "You captured my piece. Expected behavior.",
         "capturedPiece2": "Pursuing material gain. But that's the trap.",
@@ -193,6 +204,28 @@
       "start": {
         "title": "Starting the Game",
         "description": "Click a piece to select it, then click the square you want to move to. Valid move squares are highlighted in blue. You're now ready to face the AI!"
+      },
+      "isolation": {
+        "goal": {
+          "title": "Game Objective",
+          "description": "ISOLATION: A battle for survival space. You and AI each control one Queen piece on a 7x7 board. Move to adjacent squares (8 directions), then destroy one empty square. Last player with valid moves wins."
+        },
+        "movement": {
+          "title": "Movement Rules",
+          "description": "Your Queen can move to any adjacent square (up, down, left, right, or diagonally). After moving, you must destroy one empty square. Destroyed squares become permanently inaccessible."
+        },
+        "destroy": {
+          "title": "Destroying Squares",
+          "description": "After each move, you must choose one empty square to destroy. Destroyed squares (marked with X) cannot be entered by either player. Choose wisely - destroying the wrong square can trap you!"
+        },
+        "victory": {
+          "title": "Victory Condition",
+          "description": "Win by trapping your opponent: If the opponent has no valid moves, you win. The AI uses Flood Fill to calculate reachable areas and will try to isolate you. Think ahead!\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
+        },
+        "start": {
+          "title": "Starting the Game",
+          "description": "Click your Queen piece to see valid moves (highlighted in blue). Click a valid move square to move, then click an empty square (highlighted in red) to destroy it. The ground beneath you disappears - plan your escape route!"
+        }
       }
     },
     "legend": {
@@ -223,8 +256,8 @@
       "description": "Strategic game on 5x5 board against AI"
     },
     "game2": {
-      "name": "Game 2",
-      "description": "Coming soon"
+      "name": "ISOLATION",
+      "description": "The ground beneath you disappears. Last man standing wins."
     },
     "game3": {
       "name": "Game 3",

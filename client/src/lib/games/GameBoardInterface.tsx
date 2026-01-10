@@ -22,6 +22,7 @@ export interface BaseGameBoardProps {
   selectedSquare: { r: number; c: number } | null;
   lastMove: { from: { r: number; c: number }, to: { r: number; c: number } } | null;
   validMoves?: { r: number; c: number }[];
+  destroyCandidates?: { r: number; c: number }[]; // For games that require destroy selection
   onSquareClick: (r: number, c: number) => void;
   onSquareHover?: (r: number, c: number) => void; // Optional hover handler for tracking hesitation
   isProcessing?: boolean;

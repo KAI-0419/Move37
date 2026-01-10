@@ -97,7 +97,7 @@ export async function makeGameMove(
   gameId: number,
   from: { r: number; c: number },
   to: { r: number; c: number },
-  metadata?: { moveTimeSeconds?: number; hoverCount?: number }
+  metadata?: { moveTimeSeconds?: number; hoverCount?: number; destroy?: { r: number; c: number } }
 ): Promise<{ game: Game; aiLogs: string[]; playerMove?: { from: { r: number, c: number }, to: { r: number, c: number }, piece: any, captured?: any, moveTimeSeconds?: number, hoverCount?: number } }> {
   const game = await gameStorage.getGame(gameId);
   if (!game) {
@@ -140,7 +140,10 @@ export async function makeGameMove(
   const capturedPiece = board[to.r]?.[to.c];
 
   // Validate Player Move using engine
-  const move: { from: { r: number; c: number }, to: { r: number; c: number } } = { from, to };
+  const move: GameMove = { from, to };
+  if (metadata?.destroy) {
+    move.destroy = metadata.destroy;
+  }
   const validation = engine.isValidMove(game.board, move, true);
   
   if (!validation.valid) {
@@ -286,13 +289,16 @@ export async function calculateAIMove(
   // Calculate AI move using engine
   let aiResult;
   
+  // AI turn count should be player's turnCount + 1
+  const aiTurnCount = (game.turnCount || 0) + 1;
+  
   try {
     const boardHistory = game.boardHistory || [];
     aiResult = engine.calculateAIMove(
       game.board,
       playerMove,
       gameDifficulty,
-      newTurnCount,
+      aiTurnCount,
       boardHistory
     );
   } catch (error) {
@@ -349,7 +355,7 @@ export async function calculateAIMove(
     // Check winner using engine
     const aiWinner = engine.checkWinner(
       newBoardFen, 
-      newTurnCount, 
+      aiTurnCount, 
       game.playerTimeRemaining ?? 180, 
       updatedAiTime
     );
@@ -368,7 +374,7 @@ export async function calculateAIMove(
       turn: updatedTurn,
       winner: aiWinner,
       history: aiHistory,
-      turnCount: newTurnCount,
+      turnCount: aiTurnCount,
       aiTimeRemaining: updatedAiTime,
       lastMoveTimestamp: now,
       aiLog

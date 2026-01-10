@@ -10,6 +10,8 @@ import type { Game } from "@shared/schema";
 import type { InteractionPattern, TurnSystemType } from "./GameUIConfig";
 import { GameEngineFactory } from "./GameEngineFactory";
 import { getValidMovesClient } from "@/lib/gameLogic";
+import { getValidDestroyPositions } from "./isolation/moveValidation";
+import { parseBoardState } from "./isolation/boardUtils";
 
 /**
  * Interaction state for select-then-move pattern
@@ -71,6 +73,16 @@ export interface GameInteractionHandler {
    * Reset interaction state
    */
   resetState?: () => void;
+
+  /**
+   * Update game state (for handlers that need to track game changes)
+   */
+  updateGame?: (game: Game) => void;
+
+  /**
+   * Get destroy candidates (for games that require destroy selection)
+   */
+  getDestroyCandidates?: () => { r: number; c: number }[];
 }
 
 /**
@@ -220,7 +232,7 @@ class SelectThenMoveHandler implements GameInteractionHandler {
     c: number,
     game: Game,
     gameId: number | null,
-    makeMove: (move: { from: { r: number; c: number }; to: { r: number; c: number } }) => Promise<any>,
+    makeMove: (move: { from: { r: number; c: number }; to: { r: number; c: number }; destroy?: { r: number; c: number } }) => Promise<any>,
     setHasError: (hasError: boolean) => void,
     t: (key: string) => string
   ): Promise<void> {
@@ -287,6 +299,11 @@ class SelectThenMoveHandler implements GameInteractionHandler {
 class DirectMoveHandler implements GameInteractionHandler {
   private gameType: GameType;
   private turnSystemType: 'player-ai' | 'none' | 'custom';
+  private selectedPiece: { r: number; c: number } | null = null;
+  private validMoves: { r: number; c: number }[] = [];
+  private pendingMove: { from: { r: number; c: number }; to: { r: number; c: number } } | null = null;
+  private destroyCandidates: { r: number; c: number }[] = [];
+  private game: Game | null = null;
 
   constructor(
     gameType: GameType,
@@ -296,19 +313,219 @@ class DirectMoveHandler implements GameInteractionHandler {
     this.turnSystemType = turnSystemType;
   }
 
+  updateGame(game: Game) {
+    const previousBoard = this.game?.board;
+    this.game = game;
+    
+    // If game board state changed and we have a pending move, reset state
+    // (This should not happen in normal flow, but handle defensively)
+    if (previousBoard && previousBoard !== game.board && this.pendingMove) {
+      console.warn("Game state changed while pending move exists, resetting state");
+      this.resetState();
+      return;
+    }
+    
+    // If we have a selected piece, update valid moves
+    if (this.selectedPiece) {
+      this.updateValidMoves();
+    }
+    
+    // If we have a pending move, recalculate destroy candidates with new board state
+    if (this.pendingMove && this.gameType === "GAME_2") {
+      try {
+        const boardState = parseBoardState(game.board);
+        this.destroyCandidates = getValidDestroyPositions(
+          boardState,
+          this.pendingMove.to,
+          true
+        );
+      } catch (error) {
+        console.error("Error recalculating destroy candidates:", error);
+        this.destroyCandidates = [];
+      }
+    }
+  }
+
+  private updateValidMoves() {
+    if (!this.game || !this.selectedPiece) {
+      this.validMoves = [];
+      return;
+    }
+
+    // Check turn system: if it's player-ai system and it's not player's turn, clear moves
+    if (this.turnSystemType === 'player-ai' && this.game.turn !== 'player') {
+      this.validMoves = [];
+      return;
+    }
+
+    try {
+      const engine = GameEngineFactory.getEngine(this.gameType);
+      this.validMoves = engine.getValidMoves(
+        this.game.board,
+        this.selectedPiece,
+        true
+      );
+    } catch (error) {
+      console.error("Error calculating valid moves:", error);
+      this.validMoves = [];
+    }
+  }
+
+  resetState(): void {
+    this.selectedPiece = null;
+    this.validMoves = [];
+    this.pendingMove = null;
+    this.destroyCandidates = [];
+  }
+
   async handleClick(
     r: number,
     c: number,
     game: Game,
     gameId: number | null,
-    makeMove: (move: { from: { r: number; c: number }; to: { r: number; c: number } }) => Promise<any>,
+    makeMove: (move: { from: { r: number; c: number }; to: { r: number; c: number }; destroy?: { r: number; c: number } }) => Promise<any>,
     setHasError: (hasError: boolean) => void,
     t: (key: string) => string
   ): Promise<void> {
-    // Direct-move pattern: Click directly on piece to move it
-    // This is a placeholder - actual implementation depends on game rules
-    console.warn(`Direct-move pattern not yet fully implemented for game type ${this.gameType}`);
-    // For now, this would need game-specific logic to determine the move
+    if (!gameId || !game) {
+      console.error("Cannot make move: invalid game ID or game not loaded");
+      return;
+    }
+
+    // Check turn system: if it's player-ai system and it's AI's turn, prevent clicks
+    const isAITurn = this.turnSystemType === 'player-ai' && game.turn === 'ai';
+    if (isAITurn || game.winner) {
+      return;
+    }
+
+    const engine = GameEngineFactory.getEngine(this.gameType);
+    const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
+
+    // If we're waiting for destroy selection
+    if (this.pendingMove) {
+      // Check if clicked position is a valid destroy candidate
+      const isValidDestroy = this.destroyCandidates.some(
+        (pos) => pos.r === r && pos.c === c
+      );
+
+      if (isValidDestroy) {
+        try {
+          await makeMove({
+            ...this.pendingMove,
+            destroy: { r, c },
+          });
+          this.resetState();
+        } catch (err: any) {
+          console.error("Move failed:", err);
+          setHasError(true);
+          this.resetState();
+          setTimeout(() => {
+            setHasError(false);
+          }, 500);
+        }
+      } else {
+        // Clicked outside destroy candidates, cancel
+        this.resetState();
+      }
+      return;
+    }
+
+    // If we have a selected piece and clicked a valid move target
+    if (this.selectedPiece) {
+      const isValidTarget = this.validMoves.some(
+        (m) => m.r === r && m.c === c
+      );
+
+      if (isValidTarget) {
+        // Store the move and get destroy candidates
+        this.pendingMove = {
+          from: this.selectedPiece,
+          to: { r, c },
+        };
+
+        // For ISOLATION game, get valid destroy positions
+        if (this.gameType === "GAME_2") {
+          try {
+            const boardState = parseBoardState(game.board);
+            // Pass isPlayer=true since this is a player move
+            this.destroyCandidates = getValidDestroyPositions(boardState, { r, c }, true);
+            
+            console.log(`Destroy candidates for move to (${r}, ${c}):`, this.destroyCandidates);
+            
+            // Isolation game requires destroy after every move
+            // If no destroy candidates available (shouldn't happen in normal gameplay), show error
+            if (this.destroyCandidates.length === 0) {
+              console.warn("No destroy candidates available - this should not happen in Isolation game");
+              setHasError(true);
+              this.resetState();
+              setTimeout(() => {
+                setHasError(false);
+              }, 1000);
+              return;
+            }
+            
+            // Wait for destroy selection (destroyCandidates are set and will be shown in UI)
+          } catch (error) {
+            console.error("Error getting destroy candidates:", error);
+            setHasError(true);
+            this.resetState();
+            setTimeout(() => {
+              setHasError(false);
+            }, 1000);
+            return;
+          }
+        } else {
+          // For other games, make move immediately
+          try {
+            await makeMove({
+              from: this.selectedPiece,
+              to: { r, c },
+            });
+            this.resetState();
+          } catch (err: any) {
+            console.error("Move failed:", err);
+            setHasError(true);
+            this.resetState();
+            setTimeout(() => {
+              setHasError(false);
+            }, 500);
+          }
+        }
+        return;
+      } else {
+        // Clicked outside valid moves, deselect or select new piece
+        if (isMyPiece) {
+          this.selectedPiece = { r, c };
+          this.updateValidMoves();
+        } else {
+          this.resetState();
+        }
+        return;
+      }
+    }
+
+    // Select own piece
+    if (isMyPiece) {
+      this.selectedPiece = { r, c };
+      this.updateValidMoves();
+    }
+  }
+
+  getInteractionState(): SelectThenMoveState | null {
+    // For direct-move, we still use SelectThenMoveState for compatibility
+    return {
+      selectedSquare: this.selectedPiece,
+      validMoves: this.validMoves,
+    };
+  }
+
+  getDestroyCandidates(): { r: number; c: number }[] {
+    // Only return destroy candidates if we have a pending move
+    // (destroy candidates are only valid during the destroy selection phase)
+    if (this.pendingMove) {
+      return this.destroyCandidates;
+    }
+    return [];
   }
 }
 

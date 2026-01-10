@@ -45,29 +45,10 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
     }
   }, [gameType, open, initialBoard]);
 
-  // Validate tutorial steps exist
-  if (tutorialSteps.length === 0) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md bg-black/95 border-2 border-primary/30">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-display font-black text-primary">
-              {t("tutorial.title")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="text-center py-8 text-muted-foreground">
-            <p className="text-sm">{t("tutorial.notAvailable")}</p>
-            <p className="text-xs mt-2">{t("tutorial.notAvailableDescription")}</p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  const step = tutorialSteps[currentStep] || tutorialSteps[0];
-
-  // Handle animation
+  // Handle animation - only when tutorial steps exist
   useEffect(() => {
+    if (tutorialSteps.length === 0) return;
+    
     const currentStepData = tutorialSteps[currentStep];
     if (!currentStepData) return;
     
@@ -95,13 +76,14 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
   }, [currentStep, tutorialSteps, initialBoard, gameType, engine]);
 
   const handleNext = useCallback(() => {
+    if (tutorialSteps.length === 0) return;
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
       setShowAnimation(false);
     } else {
       onOpenChange(false);
     }
-  }, [currentStep, onOpenChange]);
+  }, [currentStep, tutorialSteps, onOpenChange]);
 
   const handlePrev = useCallback(() => {
     if (currentStep > 0) {
@@ -121,7 +103,7 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
 
   // Keyboard navigation (arrow keys)
   useEffect(() => {
-    if (!open) return;
+    if (!open || tutorialSteps.length === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent default behavior only for arrow keys
@@ -138,7 +120,28 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, handlePrev, handleNext]);
+  }, [open, tutorialSteps.length, handlePrev, handleNext]);
+
+  // Validate tutorial steps exist - move conditional rendering to JSX
+  if (tutorialSteps.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md bg-black/95 border-2 border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display font-black text-primary">
+              {t("tutorial.title")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">{t("tutorial.notAvailable")}</p>
+            <p className="text-xs mt-2">{t("tutorial.notAvailableDescription")}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const step = tutorialSteps[currentStep] || tutorialSteps[0];
 
   const displayBoard = showAnimation && step.animation ? animatedBoard : (step.boardState || initialBoard);
 
@@ -272,7 +275,7 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
               </div>
 
               {/* Piece Legend */}
-              {currentStep === 1 && (
+              {currentStep === 1 && gameType === "MINI_CHESS" && (
                 <div className="border border-white/10 p-3 space-y-2 bg-white/5">
                   <div className="flex items-center gap-2">
                     <Crown className="w-5 h-5 text-primary flex-shrink-0" />

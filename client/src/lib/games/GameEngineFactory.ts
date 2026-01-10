@@ -9,6 +9,7 @@
 import type { GameType } from "@shared/schema";
 import type { IGameEngine } from "@shared/gameEngineInterface";
 import { MiniChessEngine } from "./miniChess/MiniChessEngine";
+import { IsolationEngine } from "./isolation/IsolationEngine";
 
 /**
  * Game Engine Factory
@@ -42,6 +43,9 @@ export class GameEngineFactory {
         break;
       
       case "GAME_2":
+        engine = new IsolationEngine();
+        break;
+      
       case "GAME_3":
       case "GAME_4":
       case "GAME_5":

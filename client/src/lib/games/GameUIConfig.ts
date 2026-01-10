@@ -184,19 +184,27 @@ const GAME_UI_CONFIGS: Record<GameType, GameUIConfig> = {
     ],
   },
   GAME_2: {
-    // Minimal game example: No timer, no turn system, minimal UI
-    // Perfect for games that focus purely on gameplay without status displays
-    enableTimer: false,
-    enableTurnSystem: false,
-    turnSystemType: 'none', // No turn system
-    showPlayerCard: false, // No player card (no timer to display)
-    showAICard: false, // No AI card (no timer to display)
-    showTurnBanner: false, // No turn banner (no turn system)
-    showTerminalLog: false, // No terminal log (minimal layout)
-    showWinnerOverlay: true, // Still show winner overlay (game end feedback)
-    interactionPattern: 'select-then-move', // Default pattern, can be customized
-    layoutType: 'minimal', // Minimal layout for games that don't need sidebars
+    // ISOLATION: Full-featured game with timer, turn system, and all UI components
+    enableTimer: true,
+    initialTime: 180,
+    timePerMove: 5,
+    enableTurnSystem: true,
+    turnSystemType: 'player-ai', // Standard player-AI turn system
+    showPlayerCard: true,
+    showAICard: true,
+    showTurnBanner: true,
+    showTerminalLog: true,
+    showWinnerOverlay: true,
+    interactionPattern: 'direct-move', // Direct-move pattern for ISOLATION
+    layoutType: 'standard', // Standard 3-panel layout
+    boardSize: { rows: 7, cols: 7 }, // 7x7 board for ISOLATION
     difficultyColors: DEFAULT_DIFFICULTY_COLORS,
+    // Initial log messages for terminal
+    initialLogMessages: [
+      "gameRoom.log.monitoring",
+      "gameRoom.log.connectionEstablished",
+      "gameRoom.log.isolation.initializing",
+    ],
   },
   GAME_3: {
     // Standard game with timer and turn system, but no terminal log
