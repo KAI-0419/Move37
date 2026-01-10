@@ -570,71 +570,97 @@ export default function GameRoom() {
       <Scanlines />
 
       {/* LEFT PANEL: STATUS & INFO - Mobile: Top Row, Desktop: Left Column */}
-      <aside className="w-full lg:w-1/4 p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col justify-between items-center lg:items-stretch z-10 shrink-0">
-        <div className="flex lg:flex-col items-center lg:items-start gap-4 lg:gap-0">
-          <div className="mb-0 lg:mb-8">
-            <h1 onClick={() => handleNavigateAway("/")} className="text-xl lg:text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors">
+      <aside className="w-full lg:w-1/4 p-2 sm:p-3 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col items-center lg:items-stretch z-10 shrink-0 min-w-0 overflow-hidden">
+        {/* Mobile: Compact horizontal layout */}
+        <div className="flex lg:flex-col items-center lg:items-start gap-2 sm:gap-3 lg:gap-0 flex-1 lg:flex-none min-w-0">
+          {/* Title - Hidden on mobile/tablet, shown only on desktop (lg+) */}
+          <div className="mb-0 lg:mb-8 hidden lg:block shrink-0">
+            <h1 
+              onClick={() => handleNavigateAway("/")} 
+              className="text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors whitespace-nowrap"
+            >
               MOVE 37
             </h1>
           </div>
 
-          <div className="flex lg:flex-col gap-3 lg:gap-6">
+          {/* Cards Container - Flex grow to fill space, prevent overflow */}
+          <div className="flex lg:flex-col gap-2 sm:gap-3 lg:gap-6 flex-1 lg:flex-none min-w-0 w-full">
             {/* Player Card */}
             <div className={cn(
-              "px-3 py-2 lg:p-4 border transition-all duration-300 min-w-[120px] lg:min-w-0",
+              "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-0 flex flex-col",
               isPlayerTurn ? "border-primary bg-primary/5 shadow-[0_0_15px_rgba(0,243,255,0.1)]" : "border-white/10 opacity-50"
             )}>
-              <h3 className="text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal">{t("gameRoom.player")}</h3>
-              <div className="flex items-center gap-2 text-[8px] lg:text-xs">
-                <div className={cn("w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
-                <span className="hidden sm:inline">{isPlayerTurn ? t("gameRoom.awaitingInput") : t("gameRoom.standby")}</span>
-              </div>
-              <div className={cn(
-                "text-[10px] lg:text-xs mt-1 font-mono",
-                playerTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
-                playerTimeRemaining <= 30 ? "text-yellow-500" : 
-                "text-muted-foreground"
-              )}>
-                {formatTime(playerTimeRemaining)}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 lg:mb-1">
+                    <h3 className="text-xs sm:text-sm lg:text-sm font-bold uppercase tracking-tight lg:tracking-normal truncate">
+                      {t("gameRoom.player")}
+                    </h3>
+                    <div className={cn("w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2 lg:h-2 rounded-full shrink-0", isPlayerTurn ? "bg-primary animate-pulse" : "bg-gray-600")} />
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs lg:text-xs">
+                    <span className="hidden sm:inline truncate text-[10px] sm:text-xs">
+                      {isPlayerTurn ? t("gameRoom.awaitingInput") : t("gameRoom.standby")}
+                    </span>
+                  </div>
+                </div>
+                <div className={cn(
+                  "text-sm sm:text-base lg:text-lg font-mono font-bold tabular-nums shrink-0",
+                  playerTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
+                  playerTimeRemaining <= 30 ? "text-yellow-500" : 
+                  "text-primary"
+                )}>
+                  {formatTime(playerTimeRemaining)}
+                </div>
               </div>
             </div>
 
             {/* AI Card */}
             <div className={cn(
-              "px-3 py-2 lg:p-4 border transition-all duration-300 min-w-[120px] lg:min-w-0",
+              "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-0 flex flex-col",
               !isPlayerTurn || makeMove.isPending 
                 ? `${difficultyColors.border} ${difficultyColors.bg} ${difficultyColors.shadow}` 
                 : "border-white/10 opacity-50"
             )}>
-              <h3 className={cn(
-                "text-[10px] lg:text-sm font-bold mb-0 lg:mb-1 uppercase tracking-tighter lg:tracking-normal",
-                difficultyColors.text
-              )}>
-                {difficulty} ({t("gameRoom.aiLabel")})
-              </h3>
-              <div className={cn("flex items-center gap-2 text-[8px] lg:text-xs", difficultyColors.text)}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className={cn("flex items-center gap-1.5 sm:gap-2 mb-0.5 lg:mb-1", difficultyColors.text)}>
+                    <h3 className={cn(
+                      "text-xs sm:text-sm lg:text-sm font-bold uppercase tracking-tight lg:tracking-normal truncate",
+                      difficultyColors.text
+                    )}>
+                      <span className="hidden sm:inline">{difficulty} </span>
+                      <span className="sm:hidden">{difficulty.replace("NEXUS-", "N")}</span>
+                      <span className="text-[10px] sm:text-xs"> ({t("gameRoom.aiLabel")})</span>
+                    </h3>
+                    <div className={cn(
+                      "w-1.5 h-1.5 sm:w-2 sm:h-2 lg:w-2 lg:h-2 rounded-full shrink-0", 
+                      (!isPlayerTurn || makeMove.isPending) 
+                        ? cn(difficultyColors.bgPulse, "animate-pulse") 
+                        : "bg-gray-600"
+                    )} />
+                  </div>
+                  <div className={cn("flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs lg:text-xs", difficultyColors.text)}>
+                    <span className="hidden sm:inline truncate text-[10px] sm:text-xs">
+                      {makeMove.isPending ? t("gameRoom.analyzingMoves") : !isPlayerTurn ? t("gameRoom.calculatingProbabilities") : t("gameRoom.observing")}
+                    </span>
+                  </div>
+                </div>
                 <div className={cn(
-                  "w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full", 
-                  (!isPlayerTurn || makeMove.isPending) 
-                    ? cn(difficultyColors.bgPulse, "animate-pulse") 
-                    : "bg-gray-600"
-                )} />
-                <span className="hidden sm:inline">{makeMove.isPending ? t("gameRoom.analyzingMoves") : !isPlayerTurn ? t("gameRoom.calculatingProbabilities") : t("gameRoom.observing")}</span>
-              </div>
-              <div className={cn(
-                "text-[10px] lg:text-xs mt-1 font-mono",
-                aiTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
-                aiTimeRemaining <= 30 ? "text-yellow-500" : 
-                difficultyColors.text
-              )}>
-                {formatTime(aiTimeRemaining)}
+                  "text-sm sm:text-base lg:text-lg font-mono font-bold tabular-nums shrink-0",
+                  aiTimeRemaining <= 10 ? "text-destructive animate-pulse" : 
+                  aiTimeRemaining <= 30 ? "text-yellow-500" : 
+                  difficultyColors.text
+                )}>
+                  {formatTime(aiTimeRemaining)}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons - Hidden on small mobile top bar, or moved */}
-        <div className="hidden lg:block space-y-2">
+        {/* Action Buttons - Hidden on mobile top bar, shown on desktop */}
+        <div className="hidden lg:block space-y-2 shrink-0">
            <GlitchButton 
              variant="outline" 
              className={cn(
