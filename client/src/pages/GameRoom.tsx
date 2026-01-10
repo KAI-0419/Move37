@@ -744,18 +744,23 @@ export default function GameRoom() {
            <motion.div 
              initial={{ opacity: 0 }}
              animate={{ opacity: 1 }}
-             className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center backdrop-blur-sm"
+             className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 sm:p-6 backdrop-blur-md overflow-y-auto"
            >
-             <div className="text-center space-y-6 max-w-md p-8 border border-white/20 bg-black">
-               {game.winner === 'player' ? (
-                 <Trophy className="w-16 h-16 text-secondary mx-auto mb-4" />
-               ) : game.winner === 'draw' ? (
-                 <AlertTriangle className="w-16 h-16 text-secondary mx-auto mb-4" />
-               ) : (
-                 <Skull className={cn("w-16 h-16 mx-auto mb-4", difficultyColors.icon)} />
-               )}
+             <div className="text-center space-y-4 sm:space-y-6 w-full max-w-md p-6 sm:p-8 lg:p-10 border border-white/20 bg-black my-auto">
+               {/* 아이콘 - 반응형 크기 조정 */}
+               <div className="flex justify-center">
+                 {game.winner === 'player' ? (
+                   <Trophy className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
+                 ) : game.winner === 'draw' ? (
+                   <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
+                 ) : (
+                   <Skull className={cn("w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-4", difficultyColors.icon)} />
+                 )}
+               </div>
+               
+               {/* 타이틀 - 반응형 폰트 크기 */}
                <h2 className={cn(
-                 "text-4xl font-display font-black", 
+                 "text-2xl sm:text-3xl lg:text-4xl font-display font-black leading-tight px-2", 
                  game.winner === 'player' ? "text-primary" : 
                  game.winner === 'draw' ? "text-secondary" :
                  difficultyColors.text
@@ -764,82 +769,95 @@ export default function GameRoom() {
                   game.winner === 'draw' ? t("gameRoom.draw") :
                   t("gameRoom.youLost")}
                </h2>
-               <p className="font-mono text-sm text-muted-foreground">
+               
+               {/* 메시지 - 반응형 폰트 크기 및 최대 너비 제한 */}
+               <p className="font-mono text-xs sm:text-sm text-muted-foreground max-w-[280px] sm:max-w-none mx-auto px-2">
                  {game.winner === 'player' 
                    ? t("gameRoom.victoryMessage")
                    : game.winner === 'draw'
                    ? t("gameRoom.drawMessage")
                    : t("gameRoom.defeatMessage")}
                </p>
+               
+               {/* 언락 메시지 - 반응형 패딩 */}
                {game.winner === 'player' && game.difficulty && (() => {
                  const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
                  const unlocked = getUnlockedDifficulties();
                  if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
                    return (
-                     <p className="font-mono text-xs text-primary border border-primary/30 px-4 py-2 bg-primary/5">
+                     <p className="font-mono text-xs text-primary border border-primary/30 px-3 sm:px-4 py-2 bg-primary/5 mx-auto max-w-[280px] sm:max-w-none">
                        {t("gameRoom.unlocked", { level: "5" })}
                      </p>
                    );
                  } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
                    return (
-                     <p className="font-mono text-xs text-primary border border-primary/30 px-4 py-2 bg-primary/5">
+                     <p className="font-mono text-xs text-primary border border-primary/30 px-3 sm:px-4 py-2 bg-primary/5 mx-auto max-w-[280px] sm:max-w-none">
                        {t("gameRoom.unlocked", { level: "7" })}
                      </p>
                    );
                  }
                  return null;
                })()}
-               <div className="flex gap-4 justify-center">
-                 <GlitchButton onClick={() => {
-                   isNavigatingAwayRef.current = true;
-                   // Force reload unlock status when returning to lobby
-                   window.dispatchEvent(new Event('storage'));
-                   setLocation("/");
-                 }}>
+               
+               {/* 버튼 레이아웃 - 모바일 세로, 데스크톱 가로 */}
+               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-2 sm:pt-4">
+                 <GlitchButton 
+                   className="w-full sm:w-auto"
+                   onClick={() => {
+                     isNavigatingAwayRef.current = true;
+                     // Force reload unlock status when returning to lobby
+                     window.dispatchEvent(new Event('storage'));
+                     setLocation("/");
+                   }}
+                 >
                    {t("gameRoom.returnToLobby")}
                  </GlitchButton>
-                 <GlitchButton variant="outline" onClick={async () => {
-                   try {
-                     const currentDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
-                     
-                     // Get next level
-                     const getNextLevel = (diff: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" | null => {
-                       if (diff === "NEXUS-3") return "NEXUS-5";
-                       if (diff === "NEXUS-5") return "NEXUS-7";
-                       return null;
-                     };
-                     
-                     const unlocked = getUnlockedDifficulties();
-                     const nextLevel = getNextLevel(currentDifficulty);
-                     let targetDifficulty = currentDifficulty;
-                     
-                     // Determine button text and target difficulty
-                     // 졌을 때는 항상 현재 레벨로 새 게임 생성 (다음 레벨이 잠겨있든 열려있든 상관없이)
-                     if (game.winner && game.winner !== 'player' && game.winner !== 'draw') {
-                       targetDifficulty = currentDifficulty;
-                     }
-                     // 이겼을 때
-                     else if (game.winner === 'player') {
-                       // NEXUS-7에서 이겼으면 PLAY AGAIN (다음 레벨 없음)
-                       if (currentDifficulty === "NEXUS-7") {
+                 <GlitchButton 
+                   variant="outline" 
+                   className="w-full sm:w-auto"
+                   onClick={async () => {
+                     try {
+                       const currentDifficulty = (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || "NEXUS-3";
+                       
+                       // Get next level
+                       const getNextLevel = (diff: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" | null => {
+                         if (diff === "NEXUS-3") return "NEXUS-5";
+                         if (diff === "NEXUS-5") return "NEXUS-7";
+                         return null;
+                       };
+                       
+                       const unlocked = getUnlockedDifficulties();
+                       const nextLevel = getNextLevel(currentDifficulty);
+                       let targetDifficulty = currentDifficulty;
+                       
+                       // Determine button text and target difficulty
+                       // 졌을 때는 항상 현재 레벨로 새 게임 생성 (다음 레벨이 잠겨있든 열려있든 상관없이)
+                       if (game.winner && game.winner !== 'player' && game.winner !== 'draw') {
                          targetDifficulty = currentDifficulty;
-                       } 
-                       // 이겼고 다음 레벨이 있으면 NEXT LEVEL (승리 시 잠금 해제되었으므로)
-                       else if (nextLevel) {
-                         targetDifficulty = nextLevel;
                        }
+                       // 이겼을 때
+                       else if (game.winner === 'player') {
+                         // NEXUS-7에서 이겼으면 PLAY AGAIN (다음 레벨 없음)
+                         if (currentDifficulty === "NEXUS-7") {
+                           targetDifficulty = currentDifficulty;
+                         } 
+                         // 이겼고 다음 레벨이 있으면 NEXT LEVEL (승리 시 잠금 해제되었으므로)
+                         else if (nextLevel) {
+                           targetDifficulty = nextLevel;
+                         }
+                       }
+                       
+                       const newGame = await createGame.mutateAsync(targetDifficulty);
+                       setGameId(newGame.id);
+                       // Reset game state for new game
+                       setSelectedSquare(null);
+                       setLogHistory([]);
+                       setHasError(false);
+                     } catch (error) {
+                       console.error("Failed to create new game:", error);
                      }
-                     
-                     const newGame = await createGame.mutateAsync(targetDifficulty);
-                     setGameId(newGame.id);
-                     // Reset game state for new game
-                     setSelectedSquare(null);
-                     setLogHistory([]);
-                     setHasError(false);
-                   } catch (error) {
-                     console.error("Failed to create new game:", error);
-                   }
-                 }}>
+                   }}
+                 >
                    {(() => {
                      if (!game.winner) return t("gameRoom.newGame");
                      
