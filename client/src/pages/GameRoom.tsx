@@ -18,6 +18,7 @@ import { PlayerStatusCard } from "@/components/PlayerStatusCard";
 import { AIStatusCard } from "@/components/AIStatusCard";
 import { TurnBanner } from "@/components/TurnBanner";
 import { TerminalLog } from "@/components/TerminalLog";
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { GameErrorState } from "@/components/GameErrorState";
 import { GameLoadingState } from "@/components/GameLoadingState";
 import { useGameTimer } from "@/hooks/use-game-timer";
@@ -50,7 +51,7 @@ export default function GameRoom() {
       return urlGameType;
     }
     if (game?.gameType) {
-      return validateGameType(game.gameType);
+      return validateGameType(game.gameType as GameType);
     }
     return DEFAULT_GAME_TYPE;
   }, [urlGameType, game?.gameType]);
@@ -124,12 +125,12 @@ export default function GameRoom() {
       console.warn(
         `Game type mismatch: URL has ${gameTypeFromUrl} but game data has ${gameTypeFromData}. Updating URL.`
       );
-      const correctUrl = buildGameRoomUrl(gameTypeFromData);
+      const correctUrl = buildGameRoomUrl(gameTypeFromData as GameType);
       window.history.replaceState(null, "", correctUrl);
     }
     // If URL doesn't have game type but game data does, update URL
     else if (!gameTypeFromUrl && gameTypeFromData) {
-      const correctUrl = buildGameRoomUrl(gameTypeFromData);
+      const correctUrl = buildGameRoomUrl(gameTypeFromData as GameType);
       window.history.replaceState(null, "", correctUrl);
     }
   }, [game?.gameType, urlGameType, isLoading]);
@@ -263,7 +264,12 @@ export default function GameRoom() {
   ]);
 
   // Use prevent navigation hook
-  const { handleNavigateAway } = usePreventNavigation({
+  const { 
+    handleNavigateAway, 
+    isConfirmOpen, 
+    confirmNavigation, 
+    cancelNavigation 
+  } = usePreventNavigation({
     game,
     gameType: validatedGameType,
     isNavigatingAwayRef,
@@ -428,7 +434,7 @@ export default function GameRoom() {
           {/* Turn Indicator Banner - Show if enabled or game has ended */}
           {(uiConfig.showTurnBanner || game.winner) && (
             <TurnBanner
-              winner={game.winner}
+              winner={game.winner as "player" | "ai" | "draw" | null}
               turn={game.turn as 'player' | 'ai'}
               isProcessing={makeMove.isPending}
               enableTurnSystem={uiConfig.enableTurnSystem}
@@ -471,25 +477,10 @@ export default function GameRoom() {
             })()}
           </div>
 
-          {/* Mobile Action Buttons */}
-          <div className="mt-4 lg:hidden w-full max-w-[280px]">
-            <button 
-              className={cn(
-                "w-full text-[10px] py-2 border font-bold uppercase tracking-widest",
-                difficultyColors.borderOpacity,
-                difficultyColors.textOpacity,
-                difficultyColors.bgOpacity
-              )}
-              onClick={() => handleNavigateAway("/")}
-            >
-              [ {t("gameRoom.surrender")} ]
-            </button>
-          </div>
-
           {/* Winner Overlay - Show if enabled and game has ended */}
           {game.winner && uiConfig.showWinnerOverlay && (
             <WinnerOverlay
-              winner={game.winner}
+              winner={game.winner as "player" | "ai" | "draw"}
               difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
               gameType={validatedGameType}
               difficultyColors={difficultyColors}
@@ -517,6 +508,37 @@ export default function GameRoom() {
             />
           )}
         </main>
+
+        {/* Mobile Surrender Button - Positioned at bottom on small screens */}
+        {!game.winner && (
+          <div className="lg:hidden w-full px-4 py-3 border-t border-border bg-black/40 backdrop-blur-sm shrink-0 z-10 flex justify-center">
+            <div className="w-full max-w-[280px]">
+              <GlitchButton 
+                variant="outline"
+                className={cn(
+                  "w-full text-[10px] py-2",
+                  difficultyColors.borderOpacity,
+                  difficultyColors.textOpacity,
+                  difficultyColors.bgHover
+                )}
+                onClick={() => handleNavigateAway("/")}
+              >
+                {t("gameRoom.surrender")}
+              </GlitchButton>
+            </div>
+          </div>
+        )}
+        
+        <ConfirmationDialog
+          isOpen={isConfirmOpen}
+          title={t("gameRoom.confirmLeave")}
+          description={t("gameRoom.confirmLeaveSubtext")}
+          confirmText={t("gameRoom.surrender")}
+          cancelText={t("gameRoom.continueGame")}
+          onConfirm={confirmNavigation}
+          onCancel={cancelNavigation}
+          difficultyColors={difficultyColors}
+        />
       </div>
     );
   }
@@ -530,7 +552,7 @@ export default function GameRoom() {
       {(uiConfig.showPlayerCard || uiConfig.showAICard) && (
         <aside className="w-full lg:w-1/4 p-2 sm:p-3 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col items-center lg:items-stretch z-10 shrink-0 min-w-0 overflow-hidden">
           {/* Mobile: Compact horizontal layout */}
-          <div className="flex lg:flex-col items-center lg:items-start gap-2 sm:gap-3 lg:gap-0 flex-1 lg:flex-none min-w-0">
+          <div className="flex lg:flex-col items-center lg:items-start gap-2 sm:gap-3 lg:gap-0 flex-1 lg:flex-1 min-w-0">
             {/* Title - Hidden on mobile/tablet, shown only on desktop (lg+) */}
             <div className="mb-0 lg:mb-8 hidden lg:block shrink-0">
               <h1 
@@ -555,8 +577,9 @@ export default function GameRoom() {
             </div>
           </div>
 
-          {/* Action Buttons - Hidden on mobile top bar, shown on desktop */}
-          <div className="hidden lg:block space-y-2 shrink-0">
+          {/* Action Buttons - Fixed at bottom of left panel */}
+          {/* Desktop Button */}
+          <div className="hidden lg:block space-y-2 shrink-0 mt-auto">
             <GlitchButton 
               variant="outline" 
               className={cn(
@@ -578,7 +601,7 @@ export default function GameRoom() {
         {/* Turn Indicator Banner - Only render if enabled */}
         {(uiConfig.showTurnBanner || game.winner) && (
           <TurnBanner
-            winner={game.winner}
+            winner={game.winner as "player" | "ai" | "draw" | null}
             turn={game.turn as 'player' | 'ai'}
             isProcessing={makeMove.isPending}
             enableTurnSystem={uiConfig.enableTurnSystem}
@@ -620,27 +643,10 @@ export default function GameRoom() {
           })()}
         </div>
 
-        {/* Mobile Action Buttons - Only show if left panel is not rendered */}
-        {!(uiConfig.showPlayerCard || uiConfig.showAICard) && (
-          <div className="mt-4 lg:hidden w-full max-w-[280px]">
-            <button 
-              className={cn(
-                "w-full text-[10px] py-2 border font-bold uppercase tracking-widest",
-                difficultyColors.borderOpacity,
-                difficultyColors.textOpacity,
-                difficultyColors.bgOpacity
-              )}
-              onClick={() => handleNavigateAway("/")}
-            >
-              [ {t("gameRoom.surrender")} ]
-            </button>
-          </div>
-        )}
-
         {/* Winner Overlay - Show if enabled and game has ended */}
         {game.winner && uiConfig.showWinnerOverlay && (
           <WinnerOverlay
-            winner={game.winner}
+            winner={game.winner as "player" | "ai" | "draw"}
             difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
             gameType={validatedGameType}
             difficultyColors={difficultyColors}
@@ -667,6 +673,26 @@ export default function GameRoom() {
         )}
       </main>
 
+      {/* Mobile Surrender Button - Positioned above terminal log on small screens */}
+      {!game.winner && (
+        <div className="lg:hidden w-full px-4 py-3 border-t border-border bg-black/40 backdrop-blur-sm shrink-0 z-10 flex justify-center">
+          <div className="w-full max-w-[280px]">
+            <GlitchButton 
+              variant="outline"
+              className={cn(
+                "w-full text-[10px] py-2",
+                difficultyColors.borderOpacity,
+                difficultyColors.textOpacity,
+                difficultyColors.bgHover
+              )}
+              onClick={() => handleNavigateAway("/")}
+            >
+              {t("gameRoom.surrender")}
+            </GlitchButton>
+          </div>
+        </div>
+      )}
+
       {/* RIGHT PANEL: TERMINAL LOG - Only render if enabled */}
       {uiConfig.showTerminalLog && (
         <TerminalLog
@@ -674,6 +700,17 @@ export default function GameRoom() {
           difficultyColors={difficultyColors}
         />
       )}
+
+      <ConfirmationDialog
+        isOpen={isConfirmOpen}
+        title={t("gameRoom.confirmLeave")}
+        description={t("gameRoom.confirmLeaveSubtext")}
+        confirmText={t("gameRoom.surrender")}
+        cancelText={t("gameRoom.continueGame")}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+        difficultyColors={difficultyColors}
+      />
     </div>
   );
 }

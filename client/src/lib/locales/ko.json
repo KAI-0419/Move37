@@ -257,7 +257,8 @@
     },
     "uiNotImplemented": "게임 타입 {{gameType}}의 UI가 아직 구현되지 않았습니다.",
     "confirmLeave": "게임이 진행 중입니다. 정말 로비로 돌아가시겠습니까?",
-    "confirmLeaveSubtext": "진행 중인 게임은 저장되지 않습니다."
+    "confirmLeaveSubtext": "진행 중인 게임은 저장되지 않습니다.",
+    "continueGame": "게임 계속하기"
   },
   "tutorial": {
     "title": "TUTORIAL // SYSTEM TRAINING",

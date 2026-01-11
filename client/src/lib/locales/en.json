@@ -254,7 +254,8 @@
     },
     "uiNotImplemented": "UI for game type {{gameType}} is not yet implemented.",
     "confirmLeave": "Game in progress. Are you sure you want to return to the lobby?",
-    "confirmLeaveSubtext": "Your current game will not be saved."
+    "confirmLeaveSubtext": "Your current game will not be saved.",
+    "continueGame": "Continue Game"
   },
   "tutorial": {
     "title": "TUTORIAL // SYSTEM TRAINING",
