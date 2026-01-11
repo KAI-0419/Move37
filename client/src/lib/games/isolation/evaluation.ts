@@ -194,9 +194,9 @@ function getAllMoves(
       // [강화] 난이도별 파괴 후보 수 조정
       // NEXUS-7: 최대 7개 후보 고려 (완벽한 수 찾기)
       // NEXUS-5: 5개 후보 고려
-      // NEXUS-3: 3개 후보 고려 (기존과 동일)
+      // NEXUS-3: 4개 후보 고려 (일반인 수준에 적합한 전략적 선택)
       destroyCandidates.sort((a, b) => b.score - a.score);
-      const candidateCount = difficulty === "NEXUS-7" ? 7 : difficulty === "NEXUS-5" ? 5 : 3;
+      const candidateCount = difficulty === "NEXUS-7" ? 7 : difficulty === "NEXUS-5" ? 5 : 4;
       const topDestroys = destroyCandidates.slice(0, candidateCount);
       
       for (const { pos } of topDestroys) {
@@ -841,15 +841,16 @@ export function getAIMove(
     let selectedMove: typeof validMovesWithScores[0];
     
     if (difficulty === "NEXUS-3") {
-      // 쉬움: 상위 70% 중 랜덤 선택
-      const topMoves = validMovesWithScores.slice(0, Math.max(1, Math.floor(validMovesWithScores.length * 0.7)));
+      // 쉬움: 상위 55% 중 랜덤 선택 (일반인 수준의 일관된 플레이)
+      const topMoves = validMovesWithScores.slice(0, Math.max(1, Math.floor(validMovesWithScores.length * 0.55)));
       selectedMove = topMoves[Math.floor(Math.random() * topMoves.length)];
     } else if (difficulty === "NEXUS-5") {
-      // 보통: 상위 40% 중 랜덤 선택
-      const topMoves = validMovesWithScores.slice(0, Math.max(1, Math.floor(validMovesWithScores.length * 0.4)));
+      // 보통: 상위 25% 중 랜덤 선택 (전문가 수준의 일관된 강한 플레이)
+      const topMoves = validMovesWithScores.slice(0, Math.max(1, Math.floor(validMovesWithScores.length * 0.25)));
       selectedMove = topMoves[Math.floor(Math.random() * topMoves.length)];
     } else {
-      // NEXUS-7: 항상 최적 수 선택 (99% 승률 보장)
+      // NEXUS-7: 최대한 깊이 탐색하여 최적에 가까운 수 선택 (매우 높은 승률)
+      // 깊이 8 탐색과 Iterative Deepening으로 인간을 초월하는 수준의 플레이
       // 승리 확정 경로가 있으면 무조건 선택
       const winningMoves = validMovesWithScores.filter(m => m.score > 5000);
       if (winningMoves.length > 0) {

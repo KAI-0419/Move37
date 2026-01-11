@@ -206,7 +206,7 @@ export function IsolationBoard({
                   backgroundColor: isDestroyed
                     ? "rgba(10, 0, 0, 0.98)" // 파괴된 타일: 매우 어두운 검은색-빨간색 배경
                     : isDestroyCandidate
-                    ? "rgba(255, 100, 100, 0.35)" // 파괴 가능한 타일: 밝은 빨간색 배경으로 명확히 구분
+                    ? "rgba(255, 100, 100, 0.2)" // 파괴 가능한 타일: 가벼운 빨간색 배경
                     : isSelected
                     ? "rgba(0, 243, 255, 0.25)"
                     : isValidMoveTarget
@@ -226,8 +226,8 @@ export function IsolationBoard({
                   "border border-white/5 hover:border-white/20",
                   // 파괴된 타일: 더 어둡고 명확한 비활성화 스타일
                   isDestroyed && "border-red-900/80 border-2 shadow-[inset_0_0_30px_rgba(0,0,0,0.8),inset_0_0_15px_rgba(100,0,0,0.5)]",
-                  // 파괴 가능한 타일: 더 밝고 눈에 띄는 활성화 스타일
-                  isDestroyCandidate && "border-destructive border-2 shadow-[0_0_20px_rgba(255,0,60,0.6),inset_0_0_10px_rgba(255,100,100,0.2)] z-30",
+                  // 파괴 가능한 타일: 가벼운 활성화 스타일
+                  isDestroyCandidate && "border-destructive border-2 shadow-[0_0_10px_rgba(255,0,60,0.3),inset_0_0_5px_rgba(255,100,100,0.1)] z-30",
                   isSelected && "border-primary shadow-[inset_0_0_20px_rgba(0,243,255,0.4)] z-30",
                   isValidMoveTarget && !isSelected && "border-primary/60 shadow-[0_0_10px_rgba(0,243,255,0.2)] z-20",
                   isLastMove && !isSelected && !isValidMoveTarget && "border-secondary/50",
@@ -341,7 +341,7 @@ export function IsolationBoard({
                 {/* Valid Move Indicator - 파괴된 타일이 아닐 때만 표시 */}
                 {isValidMoveTarget && !isSelected && !isDestroyed && (
                   <motion.div
-                    className="absolute inset-0 z-20 pointer-events-none"
+                    className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
                     initial={{ opacity: 0 }}
                     animate={{ 
                       opacity: [0.4, 0.7, 0.4],
@@ -351,7 +351,7 @@ export function IsolationBoard({
                   >
                     <div className="absolute inset-0 border-2 border-primary/60 shadow-[0_0_15px_rgba(0,243,255,0.4)]" />
                     <motion.div
-                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-primary shadow-[0_0_15px_rgba(0,243,255,1)]"
+                      className="relative w-4 h-4 rounded-full bg-primary shadow-[0_0_15px_rgba(0,243,255,1)]"
                       animate={{ 
                         scale: [1, 1.3, 1],
                         opacity: [0.7, 1, 0.7]
@@ -361,30 +361,30 @@ export function IsolationBoard({
                   </motion.div>
                 )}
 
-                {/* Destroy Candidate Indicator - 파괴 가능한 타일: 밝고 활성화된 느낌 */}
+                {/* Destroy Candidate Indicator - 파괴 가능한 타일: 가벼운 느낌 */}
                 {isDestroyCandidate && (
                   <motion.div
                     className="absolute inset-0 flex items-center justify-center z-30"
                     initial={{ opacity: 0 }}
                     animate={{ 
-                      opacity: [0.7, 0.95, 0.7]
+                      opacity: [0.5, 0.7, 0.5]
                     }}
-                    transition={{ duration: 0.9, repeat: Infinity, ease: [0.4, 0, 0.6, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    {/* 밝은 빨간색 글로우 배경 */}
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,100,100,0.4)_0%,rgba(255,0,60,0.1)_60%,transparent_100%)]" />
-                    {/* 밝고 선명한 X 아이콘 */}
+                    {/* 가벼운 빨간색 글로우 배경 */}
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,100,100,0.2)_0%,rgba(255,0,60,0.05)_60%,transparent_100%)]" />
+                    {/* 가벼운 X 아이콘 */}
                     <X 
-                      className="relative w-1/2 h-1/2 text-destructive drop-shadow-[0_0_15px_rgba(255,0,60,1),0_0_25px_rgba(255,100,100,0.8)]" 
-                      strokeWidth={3.5}
+                      className="relative w-1/2 h-1/2 text-destructive/80 drop-shadow-[0_0_8px_rgba(255,0,60,0.5)]" 
+                      strokeWidth={2.5}
                     />
                     {/* 가벼운 펄스 링 효과 */}
                     <motion.div
-                      className="absolute inset-0 border-2 border-destructive/80 rounded-sm"
+                      className="absolute inset-0 border-2 border-destructive/60 rounded-sm"
                       animate={{
-                        opacity: [0.5, 0.8, 0.5]
+                        opacity: [0.3, 0.5, 0.3]
                       }}
-                      transition={{ duration: 0.9, repeat: Infinity, ease: [0.4, 0, 0.6, 1] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     />
                   </motion.div>
                 )}
