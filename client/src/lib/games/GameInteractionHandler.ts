@@ -445,8 +445,12 @@ class DirectMoveHandler implements GameInteractionHandler {
           }, 500);
         }
       } else {
-        // Clicked outside destroy candidates, cancel
+        // Clicked outside destroy candidates - show error signal like game 1
+        setHasError(true);
         this.resetState();
+        setTimeout(() => {
+          setHasError(false);
+        }, 500);
       }
       return;
     }
@@ -517,7 +521,13 @@ class DirectMoveHandler implements GameInteractionHandler {
         }
         return;
       } else {
-        // Clicked outside valid moves, deselect or select new piece
+        // Clicked outside valid moves - show error signal like game 1
+        setHasError(true);
+        setTimeout(() => {
+          setHasError(false);
+        }, 500);
+        
+        // Deselect or select new piece
         if (isMyPiece) {
           this.selectedPiece = { r, c };
           this.updateValidMoves();
