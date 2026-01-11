@@ -328,29 +328,338 @@ function orderMoves(
 
 /**
  * Analyze player psychology based on their move
+ * Comprehensive analysis including time, hesitation, movement patterns, and destroy strategy
  */
 function analyzePlayerPsychology(
   board: BoardState,
-  playerMove: PlayerMove | null
+  playerMove: PlayerMove | null,
+  turnCount?: number
 ): string {
   if (!playerMove) {
     return "gameRoom.log.isolation.initializing";
   }
+
+  // 개발 환경에서만 데이터 전달 체인 검증 로깅
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[analyzePlayerPsychology] 분석 데이터:', {
+      moveTimeSeconds: playerMove.moveTimeSeconds,
+      hoverCount: playerMove.hoverCount,
+      from: playerMove.from,
+      to: playerMove.to,
+      destroy: playerMove.destroy,
+      turnCount
+    });
+  }
+
+  // Extract move data
+  const moveTimeSeconds = playerMove.moveTimeSeconds;
+  const hoverCount = playerMove.hoverCount ?? 0;
+  const destroyPos = playerMove.destroy as { r: number; c: number } | undefined;
+
+  // Calculate movement metrics
+  const dr = playerMove.to.r - playerMove.from.r;
+  const dc = playerMove.to.c - playerMove.from.c;
+  const moveDistance = Math.max(Math.abs(dr), Math.abs(dc)); // Chebyshev distance (queen move)
+  const manhattanDistance = Math.abs(dr) + Math.abs(dc);
+
+  // Calculate direction towards AI
+  const aiDirR = board.aiPos.r - playerMove.from.r;
+  const aiDirC = board.aiPos.c - playerMove.from.c;
+  const moveDirR = dr;
+  const moveDirC = dc;
   
-  // Analyze the move pattern
+  // Check if moving towards AI (aggressive) or away (defensive)
+  const dotProduct = moveDirR * aiDirR + moveDirC * aiDirC;
+  const isMovingTowardsAI = dotProduct > 0;
+  const isMovingAwayFromAI = dotProduct < 0;
+
+  // Calculate center position
+  const centerR = board.boardSize.rows / 2;
+  const centerC = board.boardSize.cols / 2;
+  const distToCenterBefore = Math.abs(playerMove.from.r - centerR) + Math.abs(playerMove.from.c - centerC);
+  const distToCenterAfter = Math.abs(playerMove.to.r - centerR) + Math.abs(playerMove.to.c - centerC);
+  const isMovingToCenter = distToCenterAfter < distToCenterBefore;
+  const isMovingToEdge = distToCenterAfter > distToCenterBefore;
+
+  // Analyze area control
   const playerArea = floodFill(board.playerPos, board);
   const aiArea = floodFill(board.aiPos, board);
-  
-  // Check if player is being defensive or aggressive
   const areaDifference = playerArea - aiArea;
-  
-  if (areaDifference > 10) {
-    return "gameRoom.log.isolation.playerExpanding";
-  } else if (areaDifference < -10) {
-    return "gameRoom.log.isolation.playerTrapped";
-  } else {
-    return "gameRoom.log.isolation.playerBalanced";
+
+  // Analyze destroy strategy
+  let destroyStrategy: 'selfBlocking' | 'aiBlocking' | 'optimal' | 'neutral' | 'unknown' = 'unknown';
+  if (destroyPos) {
+    // Check if destroy blocks player's own path
+    const tempBoardAfterMove: BoardState = {
+      ...board,
+      playerPos: playerMove.to,
+      destroyed: [...board.destroyed, destroyPos],
+    };
+    const playerAreaAfterDestroy = floodFill(playerMove.to, tempBoardAfterMove);
+    const playerAreaBeforeDestroy = floodFill(playerMove.to, {
+      ...board,
+      playerPos: playerMove.to,
+    });
+    const areaReduction = playerAreaBeforeDestroy - playerAreaAfterDestroy;
+    
+    if (areaReduction > 3) {
+      destroyStrategy = 'selfBlocking'; // Significantly reduced own area
+    } else {
+      // Check if destroy blocks AI's path
+      const aiAreaAfterDestroy = floodFill(board.aiPos, tempBoardAfterDestroy);
+      const aiAreaBeforeDestroy = floodFill(board.aiPos, {
+        ...board,
+        playerPos: playerMove.to,
+      });
+      const aiAreaReduction = aiAreaBeforeDestroy - aiAreaAfterDestroy;
+      
+      if (aiAreaReduction > 3) {
+        destroyStrategy = 'aiBlocking'; // Significantly reduced AI area
+      } else if (areaReduction <= 1 && aiAreaReduction <= 1) {
+        destroyStrategy = 'optimal'; // Minimal impact on both
+      } else {
+        destroyStrategy = 'neutral'; // Moderate impact
+      }
+    }
   }
+
+  // Game phase analysis
+  const currentTurn = turnCount || 0;
+  const isEarlyGame = currentTurn <= 5;
+  const isMidGame = currentTurn > 5 && currentTurn <= 15;
+  const isLateGame = currentTurn > 15;
+
+  // Time and hesitation thresholds
+  const QUICK_MOVE_THRESHOLD = 3.0; // 3초 이하 = 빠른 수
+  const LONG_THINK_THRESHOLD = 10.0; // 10초 이상 = 오래 고민한 수
+  const HESITATION_HOVER_THRESHOLD = 3; // 3회 이상 = 망설임 패턴
+
+  const hasTimeData = moveTimeSeconds !== undefined;
+  const isQuickMove = hasTimeData && moveTimeSeconds <= QUICK_MOVE_THRESHOLD;
+  const isLongThink = hasTimeData && moveTimeSeconds >= LONG_THINK_THRESHOLD;
+  const hasHesitation = hoverCount >= HESITATION_HOVER_THRESHOLD;
+  const isMediumTime = hasTimeData && moveTimeSeconds > QUICK_MOVE_THRESHOLD && moveTimeSeconds < LONG_THINK_THRESHOLD;
+
+  // Movement pattern analysis
+  const isShortMove = moveDistance <= 2;
+  const isLongMove = moveDistance >= 4;
+  const isAggressiveMove = isMovingTowardsAI && moveDistance >= 3;
+  const isDefensiveMove = isMovingAwayFromAI || (isShortMove && !isMovingTowardsAI);
+
+  // Build psychology messages array with priority system
+  const psychologyMessages: string[] = [];
+
+  // Priority 1: Complex scenarios (time + hesitation + movement pattern)
+  if (isLongThink && hasHesitation && destroyStrategy === 'selfBlocking') {
+    psychologyMessages.push(
+      "gameRoom.log.isolation.psychology.longHesitationSelfBlock",
+      "gameRoom.log.isolation.psychology.longHesitationSelfBlock2",
+      "gameRoom.log.isolation.psychology.longHesitationSelfBlock3"
+    );
+  } else if (isLongThink && hasHesitation) {
+    psychologyMessages.push(
+      "gameRoom.log.isolation.psychology.longHesitation1",
+      "gameRoom.log.isolation.psychology.longHesitation2",
+      "gameRoom.log.isolation.psychology.longHesitation3"
+    );
+  } else if (isQuickMove && isAggressiveMove && destroyStrategy === 'aiBlocking') {
+    psychologyMessages.push(
+      "gameRoom.log.isolation.psychology.quickAggressiveOptimal",
+      "gameRoom.log.isolation.psychology.quickAggressiveOptimal2",
+      "gameRoom.log.isolation.psychology.quickAggressiveOptimal3"
+    );
+  } else if (isQuickMove && destroyStrategy === 'selfBlocking') {
+    psychologyMessages.push(
+      "gameRoom.log.isolation.psychology.quickSelfBlock",
+      "gameRoom.log.isolation.psychology.quickSelfBlock2",
+      "gameRoom.log.isolation.psychology.quickSelfBlock3"
+    );
+  }
+
+  // Priority 2: Time-based analysis
+  if (psychologyMessages.length === 0) {
+    if (isLongThink) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.longThink1",
+        "gameRoom.log.isolation.psychology.longThink2",
+        "gameRoom.log.isolation.psychology.longThink3"
+      );
+    } else if (isMediumTime && hasHesitation) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.hesitation1",
+        "gameRoom.log.isolation.psychology.hesitation2",
+        "gameRoom.log.isolation.psychology.hesitation3"
+      );
+    } else if (hasHesitation) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.hesitation1",
+        "gameRoom.log.isolation.psychology.hesitation2",
+        "gameRoom.log.isolation.psychology.hesitation3"
+      );
+    } else if (isQuickMove) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.quickMove1",
+        "gameRoom.log.isolation.psychology.quickMove2",
+        "gameRoom.log.isolation.psychology.quickMove3"
+      );
+    }
+  }
+
+  // Priority 3: Destroy strategy analysis
+  if (psychologyMessages.length === 0) {
+    if (destroyStrategy === 'selfBlocking') {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.selfBlocking1",
+        "gameRoom.log.isolation.psychology.selfBlocking2",
+        "gameRoom.log.isolation.psychology.selfBlocking3"
+      );
+    } else if (destroyStrategy === 'aiBlocking') {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.aiBlocking1",
+        "gameRoom.log.isolation.psychology.aiBlocking2",
+        "gameRoom.log.isolation.psychology.aiBlocking3"
+      );
+    } else if (destroyStrategy === 'optimal') {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.optimalDestroy1",
+        "gameRoom.log.isolation.psychology.optimalDestroy2",
+        "gameRoom.log.isolation.psychology.optimalDestroy3"
+      );
+    }
+  }
+
+  // Priority 4: Movement pattern analysis
+  if (psychologyMessages.length === 0) {
+    if (isAggressiveMove && isMovingToCenter) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.aggressiveCenter1",
+        "gameRoom.log.isolation.psychology.aggressiveCenter2",
+        "gameRoom.log.isolation.psychology.aggressiveCenter3"
+      );
+    } else if (isAggressiveMove) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.aggressive1",
+        "gameRoom.log.isolation.psychology.aggressive2",
+        "gameRoom.log.isolation.psychology.aggressive3"
+      );
+    } else if (isDefensiveMove && isMovingToEdge) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.defensiveEdge1",
+        "gameRoom.log.isolation.psychology.defensiveEdge2",
+        "gameRoom.log.isolation.psychology.defensiveEdge3"
+      );
+    } else if (isDefensiveMove) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.defensive1",
+        "gameRoom.log.isolation.psychology.defensive2",
+        "gameRoom.log.isolation.psychology.defensive3"
+      );
+    } else if (isLongMove) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.longMove1",
+        "gameRoom.log.isolation.psychology.longMove2",
+        "gameRoom.log.isolation.psychology.longMove3"
+      );
+    } else if (isShortMove) {
+      psychologyMessages.push(
+        "gameRoom.log.isolation.psychology.shortMove1",
+        "gameRoom.log.isolation.psychology.shortMove2",
+        "gameRoom.log.isolation.psychology.shortMove3"
+      );
+    }
+  }
+
+  // Priority 5: Game phase + area analysis
+  if (psychologyMessages.length === 0) {
+    if (isEarlyGame) {
+      if (areaDifference > 5) {
+        psychologyMessages.push(
+          "gameRoom.log.isolation.psychology.earlyExpanding1",
+          "gameRoom.log.isolation.psychology.earlyExpanding2",
+          "gameRoom.log.isolation.psychology.earlyExpanding3"
+        );
+      } else {
+        psychologyMessages.push(
+          "gameRoom.log.isolation.psychology.earlyBalanced1",
+          "gameRoom.log.isolation.psychology.earlyBalanced2",
+          "gameRoom.log.isolation.psychology.earlyBalanced3"
+        );
+      }
+    } else if (isMidGame) {
+      if (areaDifference < -5) {
+        psychologyMessages.push(
+          "gameRoom.log.isolation.psychology.midTrapped1",
+          "gameRoom.log.isolation.psychology.midTrapped2",
+          "gameRoom.log.isolation.psychology.midTrapped3"
+        );
+      } else {
+        psychologyMessages.push(
+          "gameRoom.log.isolation.psychology.midBalanced1",
+          "gameRoom.log.isolation.psychology.midBalanced2",
+          "gameRoom.log.isolation.psychology.midBalanced3"
+        );
+      }
+    } else if (isLateGame) {
+      if (areaDifference < -10) {
+        psychologyMessages.push(
+          "gameRoom.log.isolation.psychology.lateTrapped1",
+          "gameRoom.log.isolation.psychology.lateTrapped2",
+          "gameRoom.log.isolation.psychology.lateTrapped3"
+        );
+      } else {
+        psychologyMessages.push(
+          "gameRoom.log.isolation.psychology.lateBalanced1",
+          "gameRoom.log.isolation.psychology.lateBalanced2",
+          "gameRoom.log.isolation.psychology.lateBalanced3"
+        );
+      }
+    }
+  }
+
+  // Fallback: Default messages
+  if (psychologyMessages.length === 0) {
+    if (areaDifference > 10) {
+      psychologyMessages.push("gameRoom.log.isolation.playerExpanding");
+    } else if (areaDifference < -10) {
+      psychologyMessages.push("gameRoom.log.isolation.playerTrapped");
+    } else {
+      psychologyMessages.push("gameRoom.log.isolation.playerBalanced");
+    }
+  }
+
+  // Deterministic but varied selection based on board state
+  const hash = board.destroyed.length + playerMove.from.r + playerMove.from.c + (turnCount || 0);
+  const selectedMessage = psychologyMessages[hash % psychologyMessages.length];
+
+  // 개발 환경에서만 분석 결과 로깅
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[analyzePlayerPsychology] 분석 결과:', {
+      패턴: {
+        빠른수: isQuickMove,
+        오래고민: isLongThink,
+        망설임: hasHesitation,
+        중간시간: isMediumTime,
+        공격적: isAggressiveMove,
+        방어적: isDefensiveMove,
+        짧은이동: isShortMove,
+        긴이동: isLongMove,
+        중앙이동: isMovingToCenter,
+        파괴전략: destroyStrategy,
+        게임단계: isEarlyGame ? '초반' : isMidGame ? '중반' : '후반'
+      },
+      데이터: {
+        moveTimeSeconds,
+        hoverCount,
+        hasTimeData,
+        moveDistance,
+        areaDifference
+      },
+      선택된메시지: selectedMessage,
+      가능한메시지수: psychologyMessages.length
+    });
+  }
+
+  return selectedMessage;
 }
 
 /**
@@ -551,22 +860,78 @@ export function getAIMove(
       }
     }
     
-    // Generate psychological insight
-    const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+    // Generate psychological insight (pass turnCount for game phase analysis)
+    const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
     
-    // Calculate strategic insight
+    // Calculate strategic insight with enhanced analysis
     const playerArea = floodFill(board.playerPos, board);
     const aiArea = floodFill(board.aiPos, board);
     const areaDiff = aiArea - playerArea;
+    const totalArea = board.boardSize.rows * board.boardSize.cols;
+    const destroyedCount = board.destroyed.length;
+    const remainingArea = totalArea - destroyedCount - 2; // Exclude player and AI positions
     
-    let strategicLog = "";
-    if (areaDiff > 5) {
-      strategicLog = "gameRoom.log.isolation.aiAdvantage";
+    // Calculate area reduction rate
+    const areaReductionRate = destroyedCount / totalArea;
+    const playerAreaPercentage = (playerArea / remainingArea) * 100;
+    const aiAreaPercentage = (aiArea / remainingArea) * 100;
+    
+    // Estimate remaining turns (rough calculation)
+    const avgAreaPerTurn = destroyedCount / Math.max(1, turnCount || 1);
+    const estimatedTurnsRemaining = Math.floor(remainingArea / Math.max(1, avgAreaPerTurn * 2));
+    
+    // Determine strategic log based on comprehensive analysis
+    const strategicLogs: string[] = [];
+    
+    // Check if AI has winning position
+    if (selectedMove.score > 5000) {
+      strategicLogs.push("gameRoom.log.isolation.strategy.winningPosition");
+    } else if (areaDiff > 10 && areaReductionRate > 0.3) {
+      // AI has significant advantage and game is progressing
+      strategicLogs.push(
+        "gameRoom.log.isolation.strategy.aiDominant",
+        "gameRoom.log.isolation.strategy.aiDominant2",
+        "gameRoom.log.isolation.strategy.aiDominant3"
+      );
+    } else if (areaDiff > 5) {
+      strategicLogs.push("gameRoom.log.isolation.aiAdvantage");
+    } else if (areaDiff < -10 && areaReductionRate > 0.3) {
+      // Player has significant advantage but game is progressing
+      strategicLogs.push(
+        "gameRoom.log.isolation.strategy.playerDominant",
+        "gameRoom.log.isolation.strategy.playerDominant2",
+        "gameRoom.log.isolation.strategy.playerDominant3"
+      );
     } else if (areaDiff < -5) {
-      strategicLog = "gameRoom.log.isolation.playerAdvantage";
+      strategicLogs.push("gameRoom.log.isolation.playerAdvantage");
+    } else if (areaReductionRate > 0.5) {
+      // Late game with balanced position
+      strategicLogs.push(
+        "gameRoom.log.isolation.strategy.lateGameBalanced",
+        "gameRoom.log.isolation.strategy.lateGameBalanced2",
+        "gameRoom.log.isolation.strategy.lateGameBalanced3"
+      );
+    } else if (estimatedTurnsRemaining < 10 && areaDiff > 0) {
+      // Endgame approaching, AI has slight advantage
+      strategicLogs.push(
+        "gameRoom.log.isolation.strategy.endgameAdvantage",
+        "gameRoom.log.isolation.strategy.endgameAdvantage2",
+        "gameRoom.log.isolation.strategy.endgameAdvantage3"
+      );
+    } else if (estimatedTurnsRemaining < 10 && areaDiff < 0) {
+      // Endgame approaching, player has slight advantage
+      strategicLogs.push(
+        "gameRoom.log.isolation.strategy.endgameDisadvantage",
+        "gameRoom.log.isolation.strategy.endgameDisadvantage2",
+        "gameRoom.log.isolation.strategy.endgameDisadvantage3"
+      );
     } else {
-      strategicLog = "gameRoom.log.isolation.balanced";
+      strategicLogs.push("gameRoom.log.isolation.balanced");
     }
+    
+    // Select strategic log deterministically
+    const strategicLogHash = Math.abs(areaDiff) + destroyedCount + (turnCount || 0);
+    const strategicLog = strategicLogs[strategicLogHash % strategicLogs.length];
     
     // Ensure destroy is included in the move
     const finalMove: GameMove = {
