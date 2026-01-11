@@ -208,11 +208,11 @@
       "isolation": {
         "goal": {
           "title": "Game Objective",
-          "description": "ISOLATION: A battle for survival space. You and AI each control one Queen piece on a 7x7 board. Move to adjacent squares (8 directions), then destroy one empty square. Last player with valid moves wins."
+          "description": "ISOLATION: A battle for survival space. You and AI each control one Queen piece on a 7x7 board. Move any distance in 8 directions, then destroy one empty square. Last player with valid moves wins."
         },
         "movement": {
           "title": "Movement Rules",
-          "description": "Your Queen can move to any adjacent square (up, down, left, right, or diagonally). After moving, you must destroy one empty square. Destroyed squares become permanently inaccessible."
+          "description": "Your Queen can move any number of squares in 8 directions (up, down, left, right, or diagonally), as long as the path is not blocked by a destroyed square or the opponent. After moving, you must destroy one empty square. Destroyed squares become permanently inaccessible."
         },
         "destroy": {
           "title": "Destroying Squares",

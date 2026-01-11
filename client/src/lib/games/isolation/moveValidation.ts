@@ -45,17 +45,34 @@ export function isValidMove(
   // Check if to position is occupied
   if (isOccupied(to, playerPos, aiPos)) return false;
   
-  // Isolation game rules: Queen can only move to ADJACENT squares (8 directions)
-  // Check if the move is to an adjacent position
+  // Isolation game rules: Queen can move any number of squares in 8 directions
   const dr = Math.abs(to.r - from.r);
   const dc = Math.abs(to.c - from.c);
   
-  // Must be adjacent: distance of 1 in row, column, or both (diagonal)
-  // Valid adjacent moves: (0,1), (1,0), (1,1) - but not (0,0)
-  if (dr === 0 && dc === 0) return false; // Same position
-  if (dr > 1 || dc > 1) return false; // Not adjacent (must be exactly 1 step away)
+  // Must be in a straight line or diagonal
+  const isStraight = dr === 0 || dc === 0;
+  const isDiagonal = dr === dc;
   
-  // If we reach here, it's a valid adjacent move
+  if (!isStraight && !isDiagonal) return false;
+  if (dr === 0 && dc === 0) return false; // Same position
+  
+  // Check if the path is clear (no destroyed tiles, no pieces)
+  const stepR = to.r === from.r ? 0 : to.r > from.r ? 1 : -1;
+  const stepC = to.c === from.c ? 0 : to.c > from.c ? 1 : -1;
+  
+  let currR = from.r + stepR;
+  let currC = from.c + stepC;
+  
+  while (currR !== to.r || currC !== to.c) {
+    const pos = { r: currR, c: currC };
+    if (isDestroyed(pos, destroyed) || isOccupied(pos, playerPos, aiPos)) {
+      return false; // Path blocked
+    }
+    currR += stepR;
+    currC += stepC;
+  }
+  
+  // If we reach here, it's a valid Queen move
   return true;
 }
 
@@ -84,18 +101,26 @@ export function getValidMoves(
     return validMoves;
   }
   
-  // Get adjacent positions only (8 directions: up, down, left, right, and diagonals)
-  // Isolation game rules: Queen can only move to ADJACENT squares, not unlimited distance
-  const adjacent = getAdjacentPositions(position, boardSize);
+  // Get all valid moves in 8 directions (Queen-like movement)
+  // Isolation game rules: Queen can move any number of squares in 8 directions
+  const directions = [
+    { r: -1, c: -1 }, { r: -1, c: 0 }, { r: -1, c: 1 },
+    { r: 0, c: -1 },                  { r: 0, c: 1 },
+    { r: 1, c: -1 }, { r: 1, c: 0 }, { r: 1, c: 1 },
+  ];
   
-  // Filter valid adjacent moves
-  for (const next of adjacent) {
-    // Check if the adjacent position is valid (not destroyed, not occupied)
-    if (
-      !isDestroyed(next, destroyed) &&
-      !isOccupied(next, playerPos, aiPos)
+  for (const dir of directions) {
+    let nextR = position.r + dir.r;
+    let nextC = position.c + dir.c;
+    
+    while (
+      isValidPosition({ r: nextR, c: nextC }, boardSize) &&
+      !isDestroyed({ r: nextR, c: nextC }, destroyed) &&
+      !isOccupied({ r: nextR, c: nextC }, playerPos, aiPos)
     ) {
-      validMoves.push(next);
+      validMoves.push({ r: nextR, c: nextC });
+      nextR += dir.r;
+      nextC += dir.c;
     }
   }
   

@@ -304,12 +304,15 @@ class DirectMoveHandler implements GameInteractionHandler {
   private pendingMove: { from: { r: number; c: number }; to: { r: number; c: number } } | null = null;
   private destroyCandidates: { r: number; c: number }[] = [];
   private game: Game | null = null;
+  private setState: ((state: SelectThenMoveState) => void) | null = null;
 
   constructor(
     gameType: GameType,
+    setState?: (state: SelectThenMoveState) => void,
     turnSystemType: 'player-ai' | 'none' | 'custom' = 'player-ai'
   ) {
     this.gameType = gameType;
+    this.setState = setState || null;
     this.turnSystemType = turnSystemType;
   }
 
@@ -347,14 +350,20 @@ class DirectMoveHandler implements GameInteractionHandler {
   }
 
   private updateValidMoves() {
+    // Clear pending move and destroy candidates when updating valid moves (new piece selection)
+    this.pendingMove = null;
+    this.destroyCandidates = [];
+
     if (!this.game || !this.selectedPiece) {
       this.validMoves = [];
+      this.notifyStateChange();
       return;
     }
 
     // Check turn system: if it's player-ai system and it's not player's turn, clear moves
     if (this.turnSystemType === 'player-ai' && this.game.turn !== 'player') {
       this.validMoves = [];
+      this.notifyStateChange();
       return;
     }
 
@@ -369,6 +378,17 @@ class DirectMoveHandler implements GameInteractionHandler {
       console.error("Error calculating valid moves:", error);
       this.validMoves = [];
     }
+    
+    this.notifyStateChange();
+  }
+
+  private notifyStateChange() {
+    if (this.setState) {
+      this.setState({
+        selectedSquare: this.selectedPiece,
+        validMoves: this.validMoves,
+      });
+    }
   }
 
   resetState(): void {
@@ -376,6 +396,7 @@ class DirectMoveHandler implements GameInteractionHandler {
     this.validMoves = [];
     this.pendingMove = null;
     this.destroyCandidates = [];
+    this.notifyStateChange();
   }
 
   async handleClick(
@@ -464,7 +485,10 @@ class DirectMoveHandler implements GameInteractionHandler {
               return;
             }
             
-            // Wait for destroy selection (destroyCandidates are set and will be shown in UI)
+            // Clear valid moves as we are now in destroy selection phase
+            this.validMoves = [];
+            // Notify that validMoves are now cleared
+            this.notifyStateChange();
           } catch (error) {
             console.error("Error getting destroy candidates:", error);
             setHasError(true);
@@ -555,7 +579,7 @@ export class GameInteractionHandlerFactory {
         }
         return new SelectThenMoveHandler(gameType, setState, turnSystemType, onHoverCallback);
       case 'direct-move':
-        return new DirectMoveHandler(gameType, turnSystemType);
+        return new DirectMoveHandler(gameType, setState, turnSystemType);
       case 'drag-drop':
         // Drag-drop is typically handled by the board component itself
         // Return a no-op handler for now

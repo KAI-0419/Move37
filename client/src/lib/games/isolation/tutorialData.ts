@@ -34,7 +34,7 @@ export const isolationTutorialSteps: TutorialStep[] = [
     animation: {
       from: tutorialInitialBoard.playerPos,
       to: {
-        r: Math.max(0, tutorialInitialBoard.playerPos.r - 1),
+        r: Math.max(0, tutorialInitialBoard.playerPos.r - 2), // Move 2 squares to show long range
         c: tutorialInitialBoard.playerPos.c,
       },
       delay: 1000,
