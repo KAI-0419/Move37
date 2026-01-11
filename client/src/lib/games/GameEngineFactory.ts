@@ -10,6 +10,7 @@ import type { GameType } from "@shared/schema";
 import type { IGameEngine } from "@shared/gameEngineInterface";
 import { MiniChessEngine } from "./miniChess/MiniChessEngine";
 import { IsolationEngine } from "./isolation/IsolationEngine";
+import { EntropyEngine } from "./entropy/EntropyEngine";
 
 /**
  * Game Engine Factory
@@ -47,6 +48,9 @@ export class GameEngineFactory {
         break;
       
       case "GAME_3":
+        engine = new EntropyEngine();
+        break;
+      
       case "GAME_4":
       case "GAME_5":
         // Future games will be implemented here

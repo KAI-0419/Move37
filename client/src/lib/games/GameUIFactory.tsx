@@ -10,6 +10,7 @@ import type { GameType } from "@shared/schema";
 import type { GameBoardComponent } from "./GameBoardInterface";
 import { MiniChessBoard } from "./miniChess/MiniChessBoard";
 import { IsolationBoard } from "./isolation/IsolationBoard";
+import { EntropyBoard } from "./entropy/EntropyBoard";
 
 /**
  * Game UI Factory
@@ -47,6 +48,9 @@ export class GameUIFactory {
         break;
       
       case "GAME_3":
+        BoardComponent = EntropyBoard;
+        break;
+      
       case "GAME_4":
       case "GAME_5":
         // Future games will be implemented here

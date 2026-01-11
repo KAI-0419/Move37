@@ -8,6 +8,7 @@
 import type { GameType } from "@shared/schema";
 import { miniChessTutorialSteps, miniChessTutorialStepKeys } from "./miniChess/tutorialData";
 import { isolationTutorialSteps, isolationTutorialStepKeys } from "./isolation/tutorialData";
+import { entropyTutorialSteps, entropyTutorialStepKeys } from "./entropy/tutorialData";
 import { GameEngineFactory } from "./GameEngineFactory";
 export type { TutorialStep } from "./TutorialTypes";
 
@@ -26,6 +27,8 @@ export function getTutorialSteps(gameType: GameType): TutorialStep[] {
       return isolationTutorialSteps;
     
     case "GAME_3":
+      return entropyTutorialSteps;
+    
     case "GAME_4":
     case "GAME_5":
       // Future games will return their own tutorial steps
@@ -53,6 +56,8 @@ export function getTutorialStepKeys(gameType: GameType): Array<{ titleKey: strin
       return isolationTutorialStepKeys;
     
     case "GAME_3":
+      return entropyTutorialStepKeys;
+    
     case "GAME_4":
     case "GAME_5":
       return [];

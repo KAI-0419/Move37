@@ -109,6 +109,21 @@
       "calculationError": "Calculation error. No valid moves.",
       "calculationErrorKo": "Calculation error: No valid moves available.",
       "calculationErrorNoSelection": "Calculation error: Unable to select a valid move.",
+      "entropy": {
+        "initializing": "Sector ENTROPY: Topological connection analysis protocol engaged. Invisible wall generation system active.",
+        "noMoves": "No valid moves available. Connection failed.",
+        "observing": "Observing topological connection patterns...",
+        "aiWon": "AI completed top-bottom connection. Topological victory.",
+        "playerWon": "Player completed left-right connection. Visual victory.",
+        "winningMove": "Winning move detected. Connection complete.",
+        "blockingMove": "Blocking player connection. Defensive move executed.",
+        "move37": "Move 37: Created invisible wall. Double threat pattern completed.",
+        "psychology": {
+          "quickMove": "That hasty decision... it's within expected range.",
+          "hesitation": "Hesitation detected. Are you uncertain?",
+          "longThink": "After all that thinking... is that all?"
+        }
+      },
       "isolation": {
         "initializing": "Sector 7G: ISOLATION protocol engaged. Ground deletion system active.",
         "noMoves": "No valid moves available. Isolation complete.",
@@ -313,6 +328,40 @@
           "title": "Starting the Game",
           "description": "Click your Queen piece to see valid moves (highlighted in blue). Click a valid move square to move, then click an empty square (highlighted in red) to destroy it. The ground beneath you disappears - plan your escape route!"
         }
+      },
+      "entropy": {
+        "goal": {
+          "title": "Game Objective",
+          "description": "ENTROPY: A battle between order and chaos. On an 11x11 hexagonal grid, you must connect the left edge to the right edge with your pieces. The AI calculates topological connections to block your path or connect the top to the bottom."
+        },
+        "hexGrid": {
+          "title": "Hexagonal Grid",
+          "description": "The board consists of hexagonal (honeycomb) cells. Each cell has 6 adjacent neighbors. Unlike square grids, hexagonal grids have no diagonal connections, requiring more complex strategies."
+        },
+        "playerGoal": {
+          "title": "Player's Goal",
+          "description": "Your goal is to connect the left edge to the right edge. The connecting path doesn't need to be straight - it just needs to be connected through adjacent hexagonal cells. Visual connection is important."
+        },
+        "aiGoal": {
+          "title": "AI's Goal",
+          "description": "The AI aims to connect the top edge to the bottom edge. The AI calculates topological connections, so what may appear disconnected to you might actually be connected. Beware of the AI's 'invisible wall'."
+        },
+        "makingMoves": {
+          "title": "Making Moves",
+          "description": "Click an empty hexagonal cell to place your piece. Players and AI take turns placing pieces. Each cell can only be used once, and once placed, pieces cannot be removed."
+        },
+        "connection": {
+          "title": "Connection Concept",
+          "description": "Connections are made through adjacent hexagonal cells. The path doesn't need to be straight and can wind in multiple directions. What matters is whether the start and end points are connected."
+        },
+        "topology": {
+          "title": "Topological Connection",
+          "description": "The AI uses Union-Find data structure to check connections in near O(1) time. This is the core of the 'Move 37' moment - the AI creates invisible walls to block your connection. It uses MCTS algorithm to run thousands of simulations to find the optimal move."
+        },
+        "start": {
+          "title": "Starting the Game",
+          "description": "Click an empty hexagonal cell to make your move. Valid move cells are highlighted in blue. Plan your path to connect left to right, but watch out for AI's blocks. You're now ready to face the AI!\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
+        }
       }
     },
     "legend": {
@@ -347,8 +396,8 @@
       "description": "The ground beneath you disappears. Last man standing wins."
     },
     "game3": {
-      "name": "Game 3",
-      "description": "Coming soon"
+      "name": "ENTROPY",
+      "description": "The more you try to connect, the more AI disconnects. Connect left to right."
     },
     "game4": {
       "name": "Game 4",

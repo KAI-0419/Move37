@@ -207,7 +207,7 @@ const GAME_UI_CONFIGS: Record<GameType, GameUIConfig> = {
     ],
   },
   GAME_3: {
-    // Standard game with timer and turn system, but no terminal log
+    // ENTROPY (Hex): Full-featured game with timer, turn system, and all UI components
     enableTimer: true,
     initialTime: 180,
     timePerMove: 5,
@@ -216,11 +216,18 @@ const GAME_UI_CONFIGS: Record<GameType, GameUIConfig> = {
     showPlayerCard: true,
     showAICard: true,
     showTurnBanner: true,
-    showTerminalLog: false, // Example: Game without terminal log
+    showTerminalLog: true,
     showWinnerOverlay: true,
-    interactionPattern: 'select-then-move', // Default pattern, can be customized
+    interactionPattern: 'direct-move', // Direct-move pattern for Hex
     layoutType: 'standard',
+    boardSize: { rows: 11, cols: 11 }, // 11x11 hexagonal board
     difficultyColors: DEFAULT_DIFFICULTY_COLORS,
+    // Initial log messages for terminal
+    initialLogMessages: [
+      "gameRoom.log.monitoring",
+      "gameRoom.log.connectionEstablished",
+      "gameRoom.log.entropy.initializing",
+    ],
   },
   GAME_4: {
     // Full-featured game: All UI components enabled

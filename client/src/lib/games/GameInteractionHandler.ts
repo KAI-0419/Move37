@@ -328,6 +328,24 @@ class DirectMoveHandler implements GameInteractionHandler {
       return;
     }
     
+    // For ENTROPY (Hex), update valid moves (all empty cells)
+    if (this.gameType === "GAME_3") {
+      try {
+        const engine = GameEngineFactory.getEngine(this.gameType);
+        this.validMoves = engine.getValidMoves(
+          game.board,
+          { r: -1, c: -1 }, // Position doesn't matter for Hex
+          true
+        );
+        this.notifyStateChange();
+      } catch (error) {
+        console.error("Error updating valid moves for ENTROPY:", error);
+        this.validMoves = [];
+        this.notifyStateChange();
+      }
+      return;
+    }
+    
     // If we have a selected piece, update valid moves
     if (this.selectedPiece) {
       this.updateValidMoves();
@@ -455,6 +473,40 @@ class DirectMoveHandler implements GameInteractionHandler {
       return;
     }
 
+    // For ENTROPY (Hex) game, handle empty cell clicks directly
+    if (this.gameType === "GAME_3") {
+      const engine = GameEngineFactory.getEngine(this.gameType);
+      const isValidMove = engine.isValidMove(game.board, {
+        from: { r: -1, c: -1 }, // Hex doesn't use from position
+        to: { r, c },
+      }, true);
+
+      if (isValidMove.valid) {
+        try {
+          // Hex game: directly place piece on empty cell
+          await makeMove({
+            from: { r: -1, c: -1 }, // Hex doesn't use from position
+            to: { r, c },
+          });
+          this.resetState();
+        } catch (err: any) {
+          console.error("Move failed:", err);
+          setHasError(true);
+          this.resetState();
+          setTimeout(() => {
+            setHasError(false);
+          }, 500);
+        }
+      } else {
+        // Invalid move - show error
+        setHasError(true);
+        setTimeout(() => {
+          setHasError(false);
+        }, 500);
+      }
+      return;
+    }
+
     // If we have a selected piece and clicked a valid move target
     if (this.selectedPiece) {
       const isValidTarget = this.validMoves.some(
@@ -547,6 +599,23 @@ class DirectMoveHandler implements GameInteractionHandler {
 
   getInteractionState(): SelectThenMoveState | null {
     // For direct-move, we still use SelectThenMoveState for compatibility
+    // For ENTROPY (Hex), return all valid moves (empty cells)
+    if (this.gameType === "GAME_3" && this.game) {
+      try {
+        const engine = GameEngineFactory.getEngine(this.gameType);
+        const validMoves = engine.getValidMoves(
+          this.game.board,
+          { r: -1, c: -1 }, // Position doesn't matter for Hex
+          true
+        );
+        return {
+          selectedSquare: null,
+          validMoves: validMoves,
+        };
+      } catch (error) {
+        console.error("Error getting valid moves for ENTROPY:", error);
+      }
+    }
     return {
       selectedSquare: this.selectedPiece,
       validMoves: this.validMoves,

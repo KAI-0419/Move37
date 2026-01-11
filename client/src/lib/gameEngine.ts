@@ -135,8 +135,9 @@ export async function makeGameMove(
   }
 
   // Parse board to get piece info (for playerMove)
+  // For Hex games (GAME_3), from position is { r: -1, c: -1 } and doesn't represent a piece
   const board = engine.parseBoard(game.board);
-  const playerPiece = board[from.r]?.[from.c];
+  const playerPiece = from.r >= 0 && from.c >= 0 ? board[from.r]?.[from.c] : null;
   const capturedPiece = board[to.r]?.[to.c];
 
   // Validate Player Move using engine
