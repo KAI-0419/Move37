@@ -107,6 +107,7 @@ export default function GameRoom() {
   useEffect(() => {
     if (gameId !== prevGameIdRef.current) {
       hasUnlockedRef.current = false;
+      setJustUnlockedDifficulty(null);
       prevGameIdRef.current = gameId;
     }
   }, [gameId]);
@@ -142,29 +143,49 @@ export default function GameRoom() {
   }, [gameId, isLoading, setLocation]);
 
 
+  // Track if a difficulty was just unlocked in this victory
+  const [justUnlockedDifficulty, setJustUnlockedDifficulty] = useState<"NEXUS-5" | "NEXUS-7" | null>(null);
+
   // Handle victory unlock when player wins
   useEffect(() => {
-    if (game?.winner === 'player' && game?.difficulty && !hasUnlockedRef.current) {
+    // Only process if player won, difficulty exists, and we haven't unlocked yet for this game
+    if (game?.winner === 'player' && game?.difficulty && !hasUnlockedRef.current && validatedGameType) {
       const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
-      // Unlock next difficulty for this specific game type
-      handleVictoryUnlock(difficulty, validatedGameType);
-      hasUnlockedRef.current = true;
       
-      // Log unlock message
-      const unlocked = getUnlockedDifficulties(validatedGameType);
-      if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
-        setLogHistory(prev => [...prev, { 
-          message: t("gameRoom.log.nexusUnlocked", { level: "5", message: t("gameRoom.log.nexus5Unlocked") }), 
-          timestamp: new Date() 
-        }]);
-      } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
-        setLogHistory(prev => [...prev, { 
-          message: t("gameRoom.log.nexusUnlocked", { level: "7", message: t("gameRoom.log.nexus7Unlocked") }), 
-          timestamp: new Date() 
-        }]);
+      // Check what will be unlocked before unlocking
+      const nextDifficulty = difficulty === "NEXUS-3" ? "NEXUS-5" : difficulty === "NEXUS-5" ? "NEXUS-7" : null;
+      
+      // Unlock next difficulty for this specific game type
+      if (nextDifficulty) {
+        // Unlock the difficulty (localStorage is synchronous, so this is immediate)
+        handleVictoryUnlock(difficulty, validatedGameType);
+        hasUnlockedRef.current = true;
+        
+        // Mark that we just unlocked this difficulty
+        setJustUnlockedDifficulty(nextDifficulty);
+        
+        // Verify unlock was successful and log message
+        // getUnlockedDifficulties reads from localStorage which is already updated
+        const unlocked = getUnlockedDifficulties(validatedGameType);
+        if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
+          setLogHistory(prev => [...prev, { 
+            message: t("gameRoom.log.nexusUnlocked", { level: "5", message: t("gameRoom.log.nexus5Unlocked") }), 
+            timestamp: new Date() 
+          }]);
+        } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
+          setLogHistory(prev => [...prev, { 
+            message: t("gameRoom.log.nexusUnlocked", { level: "7", message: t("gameRoom.log.nexus7Unlocked") }), 
+            timestamp: new Date() 
+          }]);
+        }
       }
     }
-  }, [game?.winner, game?.difficulty]);
+    
+    // Reset justUnlockedDifficulty when game changes or winner changes to non-player
+    if (game?.winner !== 'player' || !game?.difficulty) {
+      setJustUnlockedDifficulty(null);
+    }
+  }, [game?.winner, game?.difficulty, validatedGameType, t]);
 
 
   // Determine if it's player's turn based on turn system type
@@ -472,6 +493,7 @@ export default function GameRoom() {
               difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
               gameType={validatedGameType}
               difficultyColors={difficultyColors}
+              justUnlockedDifficulty={justUnlockedDifficulty}
               onReturnToLobby={() => {
                 isNavigatingAwayRef.current = true;
                 window.dispatchEvent(new Event('storage'));
@@ -490,6 +512,7 @@ export default function GameRoom() {
                 }
                 setLogHistory([]);
                 setHasError(false);
+                setJustUnlockedDifficulty(null);
               }}
             />
           )}

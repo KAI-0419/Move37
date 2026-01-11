@@ -19,6 +19,7 @@ export interface WinnerOverlayProps {
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
   gameType: GameType;
   difficultyColors: DifficultyColorConfig;
+  justUnlockedDifficulty?: "NEXUS-5" | "NEXUS-7" | null; // Difficulty that was just unlocked in this victory
   onReturnToLobby: () => void;
   onPlayAgain: (targetDifficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => Promise<void>;
   onResetGameState: () => void;
@@ -29,6 +30,7 @@ export function WinnerOverlay({
   difficulty,
   gameType,
   difficultyColors,
+  justUnlockedDifficulty,
   onReturnToLobby,
   onPlayAgain,
   onResetGameState,
@@ -87,11 +89,21 @@ export function WinnerOverlay({
   };
 
   // Check if unlock message should be shown
-  const shouldShowUnlock = winner === 'player' && 
+  // Show unlock message if:
+  // 1. Player won
+  // 2. A difficulty was just unlocked in this victory (most reliable)
+  // 3. OR the next difficulty is unlocked (fallback for edge cases)
+  const shouldShowUnlock = winner === 'player' && (
+    (justUnlockedDifficulty !== null && justUnlockedDifficulty !== undefined) ||
     ((currentDifficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) ||
-     (currentDifficulty === "NEXUS-5" && unlocked.has("NEXUS-7")));
+     (currentDifficulty === "NEXUS-5" && unlocked.has("NEXUS-7")))
+  );
 
-  const unlockLevel = currentDifficulty === "NEXUS-3" ? "5" : "7";
+  // Determine unlock level: use justUnlockedDifficulty if available, otherwise infer from current difficulty
+  const unlockLevel = justUnlockedDifficulty === "NEXUS-5" ? "5" 
+    : justUnlockedDifficulty === "NEXUS-7" ? "7"
+    : currentDifficulty === "NEXUS-3" ? "5" 
+    : "7";
 
   return (
     <motion.div
