@@ -1,41 +1,42 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Game type definitions (shared across client and server)
-export type GameType = "MINI_CHESS" | "GAME_2" | "GAME_3" | "GAME_4" | "GAME_5";
+export const gameTypes = ["MINI_CHESS", "GAME_2", "GAME_3", "GAME_4", "GAME_5"] as const;
+export type GameType = (typeof gameTypes)[number];
 
-export const games = pgTable("games", {
-  id: serial("id").primaryKey(),
-  gameType: text("game_type").notNull().default("MINI_CHESS"), // Game type identifier for multi-game support
-  board: jsonb("board").$type<any>().notNull(), // Game state representation (string or object)
-  turn: text("turn").notNull().default("player"), // "player" or "ai"
-  history: jsonb("history").$type<string[]>().default([]),
-  boardHistory: jsonb("board_history").$type<string[]>().default([]), // Board state history for repetition detection
-  winner: text("winner"), // "player", "ai", "draw"
-  aiLog: text("ai_log"), // Last AI thought/reasoning
-  turnCount: integer("turn_count").default(0), // Track number of turns for draw condition
-  difficulty: text("difficulty").notNull().default("NEXUS-7"), // AI difficulty: "NEXUS-3", "NEXUS-5", "NEXUS-7"
-  playerTimeRemaining: integer("player_time_remaining").default(180), // Player's remaining time in seconds
-  aiTimeRemaining: integer("ai_time_remaining").default(180), // AI's remaining time in seconds
-  timePerMove: integer("time_per_move").default(5), // Time added per move in seconds
-  lastMoveTimestamp: timestamp("last_move_timestamp"), // Timestamp of last move
-  createdAt: timestamp("created_at").defaultNow(),
+// Game schema using Zod for validation
+export const gameSchema = z.object({
+  id: z.number(),
+  gameType: z.enum(gameTypes).default("MINI_CHESS"),
+  board: z.any(),
+  turn: z.string().default("player"),
+  history: z.array(z.string()).default([]),
+  boardHistory: z.array(z.string()).default([]),
+  winner: z.string().nullable().default(null),
+  aiLog: z.string().nullable().default(null),
+  turnCount: z.number().default(0),
+  difficulty: z.string().default("NEXUS-7"),
+  playerTimeRemaining: z.number().nullable().default(180),
+  aiTimeRemaining: z.number().nullable().default(180),
+  timePerMove: z.number().nullable().default(5),
+  lastMoveTimestamp: z.date().nullable().default(null),
+  createdAt: z.date().default(() => new Date()),
 });
 
-export const insertGameSchema = createInsertSchema(games).omit({ id: true, createdAt: true });
+export const insertGameSchema = gameSchema.omit({ id: true, createdAt: true });
 
-export type Game = typeof games.$inferSelect;
+export type Game = z.infer<typeof gameSchema>;
 export type InsertGame = z.infer<typeof insertGameSchema>;
 
 export type CreateGameRequest = {
-  gameType?: GameType; // Game type identifier (defaults to "MINI_CHESS" for backward compatibility)
-  difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"; // Optional difficulty selection
+  gameType?: GameType;
+  difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
 };
+
 export type MoveRequest = {
   from: { r: number; c: number };
   to: { r: number; c: number };
-  destroy?: { r: number; c: number }; // For games that require destroy selection (e.g., ISOLATION)
+  destroy?: { r: number; c: number };
   moveTimeSeconds?: number;
   hoverCount?: number;
 };
