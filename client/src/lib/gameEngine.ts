@@ -361,9 +361,13 @@ export async function calculateAIMove(
       updatedAiTime
     );
     
-    // Store the single psychological insight message
+    // Store all log messages to preserve complete AI reasoning
+    // Use pipe separator to combine multiple logs into single string
+    // This ensures no information is lost while maintaining backward compatibility
     aiLogs = aiResult.logs;
-    aiLog = aiResult.logs[0] || "gameRoom.log.moveExecuted";
+    aiLog = aiResult.logs.length > 0 
+      ? aiResult.logs.join('|') // 모든 로그 키를 구분자로 결합
+      : "gameRoom.log.moveExecuted";
     
     // Update turn only if turn system is player-ai
     // Otherwise, keep the current turn (for games without turn system)

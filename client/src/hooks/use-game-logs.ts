@@ -13,6 +13,7 @@ import { DEFAULT_GAME_TYPE } from "@shared/gameConfig";
 export interface LogEntry {
   message: string;
   timestamp: Date;
+  turnCount?: number; // 턴 정보 추가: 동일 메시지도 다른 턴에서 발생할 수 있음을 구분
 }
 
 export interface UseGameLogsOptions {
@@ -51,10 +52,13 @@ export function useGameLogs({ game, gameType }: UseGameLogsOptions): UseGameLogs
         "gameRoom.log.accessLevel",
       ];
       
+      // Store initial messages as translation keys (not translated text)
+      // This ensures consistency with AI logs and proper filtering
       setLogHistory(
         initialMessages.map((message) => ({
-          message: t(message),
+          message: message, // Store translation key, not translated text
           timestamp: initialTime,
+          turnCount: undefined, // Initial logs don't have turn count
         }))
       );
     }
@@ -71,24 +75,68 @@ export function useGameLogs({ game, gameType }: UseGameLogsOptions): UseGameLogs
         return;
       }
       
-      // Check if this is a new AI log (not already in history)
+      // Parse combined log keys (separated by pipe)
+      // This allows multiple log messages to be stored in single aiLog field
+      const logKeys = game.aiLog.split('|').filter(key => key.trim().length > 0);
+      const currentTurn = game.turnCount || 0;
+      
+      // System messages that should be filtered out (using translation keys directly)
+      const SYSTEM_MESSAGE_KEYS = [
+        "gameRoom.log.analyzing",
+        "gameRoom.log.systemInitialized",
+        "gameRoom.log.processing"
+      ];
+      
       setLogHistory((prev) => {
-        // Only add if it's a new psychological insight (not system messages)
-        const analyzingText = t("gameRoom.log.analyzing");
-        const systemInitializedText = t("gameRoom.log.systemInitialized");
-        const isNewInsight =
-          game.aiLog &&
-          game.aiLog !== analyzingText &&
-          game.aiLog !== systemInitializedText &&
-          !prev.some((log) => log.message === game.aiLog);
+        let newHistory = [...prev];
+        let hasChanged = false;
 
-        if (isNewInsight) {
-          return [...prev, { message: game.aiLog!, timestamp: new Date() }];
-        }
-        return prev;
+        // Process each log key separately
+        logKeys.forEach(logKey => {
+          const trimmedKey = logKey.trim();
+          
+          // Skip system messages (using translation keys directly, not translated text)
+          if (SYSTEM_MESSAGE_KEYS.includes(trimmedKey)) {
+            return; // Skip this log key
+          }
+          
+          // Check uniqueness based on message key + turn count
+          // This allows same message to appear in different turns
+          const isAlreadyLoggedThisTurn = prev.some(
+            (log) => {
+              // Compare message keys directly (not translated text)
+              const logMessageKey = log.message.startsWith("gameRoom.") || 
+                                   log.message.startsWith("lobby.") || 
+                                   log.message.startsWith("tutorial.")
+                ? log.message 
+                : null;
+              
+              // If log entry has a translation key format, compare keys
+              // Otherwise compare messages directly
+              if (logMessageKey && trimmedKey.startsWith("gameRoom.")) {
+                return logMessageKey === trimmedKey && log.turnCount === currentTurn;
+              }
+              
+              // Fallback: compare messages directly (for backward compatibility)
+              return log.message === trimmedKey && log.turnCount === currentTurn;
+            }
+          );
+
+          // Add new log entry if not already logged in this turn
+          if (!isAlreadyLoggedThisTurn) {
+            newHistory.push({ 
+              message: trimmedKey, 
+              timestamp: new Date(),
+              turnCount: currentTurn 
+            });
+            hasChanged = true;
+          }
+        });
+
+        return hasChanged ? newHistory : prev;
       });
     }
-  }, [game?.aiLog, game?.gameType, gameType, t]);
+  }, [game?.aiLog, game?.turnCount, game?.gameType, gameType, t]);
 
   return {
     logHistory,

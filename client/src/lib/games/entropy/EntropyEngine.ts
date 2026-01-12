@@ -196,7 +196,7 @@ export class EntropyEngine implements IGameEngine {
                 from: { r: -1, c: -1 },
                 to: validMoves[0],
               },
-              logs: result.logs || ["gameRoom.log.moveExecuted"],
+              logs: ["gameRoom.log.entropy.error.recalculation"],
             };
           }
         }
@@ -224,7 +224,7 @@ export class EntropyEngine implements IGameEngine {
       
       return {
         move: null,
-        logs: ["gameRoom.log.calculationErrorKo"],
+        logs: ["gameRoom.log.entropy.error.criticalFailure"],
       };
     }
   }

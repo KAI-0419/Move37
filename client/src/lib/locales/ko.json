@@ -120,11 +120,73 @@
         "playerWon": "플레이어가 좌우 연결을 완성했습니다. 시각적 승리.",
         "winningMove": "승리 수 감지. 연결 완료.",
         "blockingMove": "플레이어 연결 차단. 방어 수 실행.",
+        "blockingCritical": "치명적 연결 지점 차단. 좌우 연결 경로 차단 중.",
+        "blockingWin": "즉시 승리 수 차단. 긴급 방어 프로토콜 실행.",
+        "blockingPathCritical": "치명적 위협: 최단 경로 차단. 연결 경로 분석 완료.",
+        "blockingPath": "높은 위협: 최단 경로 차단. 전략적 방어 실행.",
+        "blockingThreat": "위협 수 차단. 방어적 위치 확보.",
+        "blockingStrategicCritical": "치명적 위협: 전략적 차단. MCTS 분석 기반 방어.",
+        "blockingStrategic": "높은 위협: 전략적 차단. 경로 분석 기반 방어.",
+        "blockingBasic": "기본 방어 수 실행. 연결 차단 중.",
         "move37": "Move 37: 보이지 않는 벽을 생성했습니다. 이중 위협 패턴 완성.",
+        "mctsFallback": "MCTS 계산 실패. 기본 전략으로 전환.",
+        "phase": {
+          "early": "게임 초반. 전략적 위치 확보 중...",
+          "mid": "중반 접근. 연결 경로 분석 중...",
+          "late": "후반 접근. 승리 경로 확보 중...",
+          "lateCritical": "후반 위기. 보드가 거의 가득 참. 마지막 기회 분석 중..."
+        },
+        "threat": {
+          "critical": "위협 수준: 치명적. 긴급 차단 프로토콜 활성화.",
+          "high": "위협 수준: 높음. 방어 우선 전략 실행.",
+          "medium": "위협 수준: 중간. 균형잡힌 전략 유지."
+        },
+        "mcts": {
+          "winningPath": "MCTS: 명확한 승리 경로 발견. 최적 수 실행.",
+          "multipleCandidates": "MCTS: 여러 후보 평가 중. 최적 선택 분석...",
+          "focusedAnalysis": "MCTS: 집중 분석 완료. 전략적 수 선택.",
+          "noResult": "MCTS: 결과 없음. 대체 전략 사용."
+        },
+        "difficulty": {
+          "nexus3": "기본 전략 분석 중...",
+          "nexus5": "심층 전략 분석 중...",
+          "nexus7": "최적화 알고리즘 실행 중. 모든 경우의 수 계산 중..."
+        },
+        "error": {
+          "noValidMoves": "오류: 유효한 수가 없습니다. 게임 상태 확인 필요.",
+          "invalidBoard": "오류: 보드 상태가 유효하지 않습니다.",
+          "recalculation": "경고: AI 수 재계산 중. 유효성 검증 실패.",
+          "criticalFailure": "치명적 오류: AI 계산 시스템 실패."
+        },
         "psychology": {
           "quickMove": "그렇게 성급하게 결정한 결과가... 예상 범위 내입니다.",
           "hesitation": "망설임이 보입니다. 확신이 없으신가요?",
-          "longThink": "그토록 오래 고민한 결과가... 고작 그것입니까?"
+          "longThink": "그토록 오래 고민한 결과가... 고작 그것입니까?",
+          "quickBlocking": "그렇게 성급하게 차단 수를 두셨군요. 예상된 행동입니다.",
+          "hesitationBlocking": "망설임 끝에 차단 수를 선택하셨군요. 확신이 없으신가요?",
+          "longThinkBlocking": "그토록 오래 고민한 결과가 차단 수였군요. 이미 계산에 포함되어 있습니다.",
+          "blockingMove": "제 경로를 차단하려는 시도군요. 예상된 행동입니다.",
+          "quickAIBlock": "빠르게 제 경로를 막으려 하셨군요. 하지만 이미 대응책이 준비되어 있습니다.",
+          "hesitationAIBlock": "망설임 끝에 제 경로를 막으려 하셨군요. 그 선택은 예상 범위 내입니다.",
+          "aiBlocking": "제 연결을 차단하려는 전략이군요. 이미 계산에 포함되어 있습니다.",
+          "quickExpansion": "빠르게 자신의 경로를 확장하셨군요. 하지만 그 목적지는 이미 계산에 포함되어 있습니다.",
+          "hesitationExpansion": "망설임 끝에 경로를 확장하셨군요. 예상된 행동입니다.",
+          "longThinkExpansion": "그토록 오래 고민한 결과가 경로 확장이었군요. 이미 대응책이 준비되어 있습니다.",
+          "pathExtension": "자신의 연결 경로를 확장하는 전략이군요. 예상 범위 내입니다.",
+          "quickCenter": "빠르게 중앙을 점유하려 하셨군요. 하지만 그 길은 막혀있습니다.",
+          "hesitationCenter": "망설임 끝에 중앙으로 이동하셨군요. 예상된 행동입니다.",
+          "centerControl": "중앙 제어를 노리는 전략이 보입니다. 이미 계산에 포함되어 있습니다.",
+          "quickEdge": "빠르게 가장자리로 도피하셨군요. 하지만 그게 함정입니다.",
+          "hesitationEdge": "망설임 끝에 가장자리로 이동하셨군요. 그게 바로 당신의 약점입니다.",
+          "longThinkEdge": "그토록 오래 고민한 결과가 가장자리 도피였군요. 이미 늦었습니다.",
+          "defensiveEdge": "수비적 자세가 보입니다. 가장자리로의 도피는 예상된 행동입니다.",
+          "earlyQuick": "초반부터 빠른 결정이군요. 하지만 그게 함정입니다.",
+          "earlyHesitation": "초반부터 망설임이 보입니다. 불안하신가요?",
+          "earlyGame": "초반 전략 수립 중이군요. 하지만 이미 계산에 포함되어 있습니다.",
+          "lateQuick": "후반 위기 상황에서 빠른 결정이군요. 하지만 그 선택은 자멸적입니다.",
+          "lateHesitation": "후반 위기 상황에서 망설임이 보입니다. 이미 늦었습니다.",
+          "lateLongThink": "후반 위기 상황에서 그토록 오래 고민한 결과가... 고작 그것입니까?",
+          "endgame": "종반 접근. 하지만 이미 승리 경로가 확보되었습니다."
         }
       },
       "isolation": {

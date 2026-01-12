@@ -13,6 +13,7 @@ import type { DifficultyColorConfig } from "@/lib/games/GameUIConfig";
 export interface LogEntry {
   message: string;
   timestamp: Date;
+  turnCount?: number; // 턴 정보 (optional for backward compatibility)
 }
 
 export interface TerminalLogProps {

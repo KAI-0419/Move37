@@ -117,11 +117,73 @@
         "playerWon": "Player completed left-right connection. Visual victory.",
         "winningMove": "Winning move detected. Connection complete.",
         "blockingMove": "Blocking player connection. Defensive move executed.",
+        "blockingCritical": "Blocking critical connection point. Intercepting left-right path.",
+        "blockingWin": "Blocking immediate win. Emergency defense protocol executed.",
+        "blockingPathCritical": "CRITICAL threat: Blocking shortest path. Connection path analysis complete.",
+        "blockingPath": "HIGH threat: Blocking shortest path. Strategic defense executed.",
+        "blockingThreat": "Blocking threat move. Securing defensive position.",
+        "blockingStrategicCritical": "CRITICAL threat: Strategic block. MCTS analysis-based defense.",
+        "blockingStrategic": "HIGH threat: Strategic block. Path analysis-based defense.",
+        "blockingBasic": "Basic defensive move executed. Blocking connection.",
         "move37": "Move 37: Created invisible wall. Double threat pattern completed.",
+        "mctsFallback": "MCTS calculation failed. Switching to basic strategy.",
+        "phase": {
+          "early": "Early game. Securing strategic positions...",
+          "mid": "Mid game. Analyzing connection paths...",
+          "late": "Late game. Securing victory path...",
+          "lateCritical": "Late game crisis. Board nearly full. Analyzing final opportunities..."
+        },
+        "threat": {
+          "critical": "Threat level: CRITICAL. Emergency blocking protocol activated.",
+          "high": "Threat level: HIGH. Defensive priority strategy executing.",
+          "medium": "Threat level: MEDIUM. Balanced strategy maintained."
+        },
+        "mcts": {
+          "winningPath": "MCTS: Clear winning path found. Executing optimal move.",
+          "multipleCandidates": "MCTS: Evaluating multiple candidates. Analyzing optimal choice...",
+          "focusedAnalysis": "MCTS: Focused analysis complete. Strategic move selected.",
+          "noResult": "MCTS: No result. Using alternative strategy."
+        },
+        "difficulty": {
+          "nexus3": "Basic strategy analysis in progress...",
+          "nexus5": "Deep strategy analysis in progress...",
+          "nexus7": "Optimization algorithm running. Calculating all possibilities..."
+        },
+        "error": {
+          "noValidMoves": "Error: No valid moves available. Game state verification required.",
+          "invalidBoard": "Error: Board state is invalid.",
+          "recalculation": "Warning: AI move recalculation in progress. Validation failed.",
+          "criticalFailure": "Critical error: AI calculation system failure."
+        },
         "psychology": {
           "quickMove": "That hasty decision... it's within expected range.",
           "hesitation": "Hesitation detected. Are you uncertain?",
-          "longThink": "After all that thinking... is that all?"
+          "longThink": "After all that thinking... is that all?",
+          "quickBlocking": "You quickly blocked my path. Expected behavior.",
+          "hesitationBlocking": "After hesitation, you chose to block. Are you uncertain?",
+          "longThinkBlocking": "After all that thinking, you chose to block. Already calculated.",
+          "blockingMove": "Attempting to block my path. Expected behavior.",
+          "quickAIBlock": "Quickly trying to block my path. But countermeasures are already prepared.",
+          "hesitationAIBlock": "After hesitation, trying to block my path. That choice is within expected range.",
+          "aiBlocking": "Strategy to block my connection. Already calculated.",
+          "quickExpansion": "Quickly expanding your own path. But that destination is already calculated.",
+          "hesitationExpansion": "After hesitation, expanding your path. Expected behavior.",
+          "longThinkExpansion": "After all that thinking, you chose path expansion. Countermeasures already prepared.",
+          "pathExtension": "Strategy to extend your connection path. Within expected range.",
+          "quickCenter": "Quickly trying to occupy the center. But that path is blocked.",
+          "hesitationCenter": "After hesitation, moving to center. Expected behavior.",
+          "centerControl": "Strategy to control center detected. Already calculated.",
+          "quickEdge": "Quickly fleeing to edge. But that's a trap.",
+          "hesitationEdge": "After hesitation, moving to edge. That's your weakness.",
+          "longThinkEdge": "After all that thinking, you chose to flee to edge. Too late.",
+          "defensiveEdge": "Defensive posture detected. Fleeing to edge is expected behavior.",
+          "earlyQuick": "Quick decision from early game. But that's a trap.",
+          "earlyHesitation": "Hesitation detected from early game. Are you anxious?",
+          "earlyGame": "Early game strategy formation. Already calculated.",
+          "lateQuick": "Quick decision in late game crisis. But that choice is self-destructive.",
+          "lateHesitation": "Hesitation detected in late game crisis. Too late.",
+          "lateLongThink": "After all that thinking in late game crisis... is that all?",
+          "endgame": "Endgame approach. But victory path already secured."
         }
       },
       "isolation": {

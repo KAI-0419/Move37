@@ -264,6 +264,7 @@ function getHexDistance(
 
 /**
  * Analyze player psychology based on their move
+ * Enhanced with strategic context, game phase, and board state analysis
  */
 function analyzePlayerPsychology(
   board: BoardState,
@@ -276,22 +277,152 @@ function analyzePlayerPsychology(
 
   const moveTime = playerMove.moveTimeSeconds || 0;
   const hoverCount = playerMove.hoverCount || 0;
-
-  // Quick move analysis
+  const playerMovePos: Move = { r: playerMove.to.r, c: playerMove.to.c };
+  
+  // Analyze strategic context of the move
+  const pathAnalysis = analyzePlayerPath(board);
+  const aiShortestPath = calculateShortestPath(board, 'AI');
+  const playerShortestPath = calculateShortestPath(board, 'PLAYER');
+  
+  // Check if player's move blocks AI's path
+  const blocksAI = wouldBlockOpponent(board, playerMovePos, 'PLAYER');
+  
+  // Check if player's move is on their own shortest path
+  const onPlayerPath = playerShortestPath.path.some(
+    pos => pos.r === playerMovePos.r && pos.c === playerMovePos.c
+  );
+  
+  // Check if player's move is on AI's shortest path (blocking)
+  const onAIPath = aiShortestPath.path.some(
+    pos => pos.r === playerMovePos.r && pos.c === playerMovePos.c
+  );
+  
+  // Check if move is in center or edge
+  const { rows, cols } = board.boardSize;
+  const centerR = Math.floor(rows / 2);
+  const centerC = Math.floor(cols / 2);
+  const distanceFromCenter = getHexDistance(playerMovePos, { r: centerR, c: centerC });
+  const isCenterMove = distanceFromCenter <= 2;
+  const isEdgeMove = playerMovePos.c === 0 || playerMovePos.c === cols - 1 || 
+                     playerMovePos.r === 0 || playerMovePos.r === rows - 1;
+  
+  // Determine game phase
+  const totalCells = rows * cols;
+  const emptyCells = getEmptyCells(board);
+  const emptyCount = emptyCells.length;
+  const gamePhase = turnCount && turnCount < totalCells * 0.3 ? 'early' :
+                   turnCount && turnCount < totalCells * 0.7 ? 'mid' : 'late';
+  
+  // Check if move is on critical position
+  const isCritical = pathAnalysis.criticalPositions.some(
+    cp => cp.r === playerMovePos.r && cp.c === playerMovePos.c
+  );
+  
+  // Strategic move analysis with priority order
+  
+  // 1. Critical blocking move (highest priority)
+  if (blocksAI && isCritical) {
+    if (moveTime < 3 && hoverCount < 3) {
+      return "gameRoom.log.entropy.psychology.quickBlocking";
+    }
+    if (hoverCount > 5) {
+      return "gameRoom.log.entropy.psychology.hesitationBlocking";
+    }
+    if (moveTime > 30) {
+      return "gameRoom.log.entropy.psychology.longThinkBlocking";
+    }
+    return "gameRoom.log.entropy.psychology.blockingMove";
+  }
+  
+  // 2. AI path blocking (not critical but still blocking)
+  if (blocksAI || onAIPath) {
+    if (moveTime < 3 && hoverCount < 3) {
+      return "gameRoom.log.entropy.psychology.quickAIBlock";
+    }
+    if (hoverCount > 5) {
+      return "gameRoom.log.entropy.psychology.hesitationAIBlock";
+    }
+    return "gameRoom.log.entropy.psychology.aiBlocking";
+  }
+  
+  // 3. Player path extension (aggressive)
+  if (onPlayerPath) {
+    if (moveTime < 3 && hoverCount < 3) {
+      return "gameRoom.log.entropy.psychology.quickExpansion";
+    }
+    if (hoverCount > 5) {
+      return "gameRoom.log.entropy.psychology.hesitationExpansion";
+    }
+    if (moveTime > 30) {
+      return "gameRoom.log.entropy.psychology.longThinkExpansion";
+    }
+    return "gameRoom.log.entropy.psychology.pathExtension";
+  }
+  
+  // 4. Center control (aggressive)
+  if (isCenterMove && !isEdgeMove) {
+    if (moveTime < 3 && hoverCount < 3) {
+      return "gameRoom.log.entropy.psychology.quickCenter";
+    }
+    if (hoverCount > 5) {
+      return "gameRoom.log.entropy.psychology.hesitationCenter";
+    }
+    return "gameRoom.log.entropy.psychology.centerControl";
+  }
+  
+  // 5. Edge move (defensive)
+  if (isEdgeMove) {
+    if (moveTime < 3 && hoverCount < 3) {
+      return "gameRoom.log.entropy.psychology.quickEdge";
+    }
+    if (hoverCount > 5) {
+      return "gameRoom.log.entropy.psychology.hesitationEdge";
+    }
+    if (moveTime > 30) {
+      return "gameRoom.log.entropy.psychology.longThinkEdge";
+    }
+    return "gameRoom.log.entropy.psychology.defensiveEdge";
+  }
+  
+  // 6. Game phase specific analysis
+  if (gamePhase === 'early') {
+    if (moveTime < 3 && hoverCount < 3) {
+      return "gameRoom.log.entropy.psychology.earlyQuick";
+    }
+    if (hoverCount > 5) {
+      return "gameRoom.log.entropy.psychology.earlyHesitation";
+    }
+    return "gameRoom.log.entropy.psychology.earlyGame";
+  }
+  
+  if (gamePhase === 'late') {
+    if (emptyCount <= 10) {
+      if (moveTime < 3 && hoverCount < 3) {
+        return "gameRoom.log.entropy.psychology.lateQuick";
+      }
+      if (hoverCount > 5) {
+        return "gameRoom.log.entropy.psychology.lateHesitation";
+      }
+      if (moveTime > 30) {
+        return "gameRoom.log.entropy.psychology.lateLongThink";
+      }
+      return "gameRoom.log.entropy.psychology.endgame";
+    }
+  }
+  
+  // 7. Fallback to time-based analysis
   if (moveTime < 3 && hoverCount < 3) {
     return "gameRoom.log.entropy.psychology.quickMove";
   }
-
-  // Hesitation analysis
+  
   if (hoverCount > 5) {
     return "gameRoom.log.entropy.psychology.hesitation";
   }
-
-  // Long thinking
+  
   if (moveTime > 30) {
     return "gameRoom.log.entropy.psychology.longThink";
   }
-
+  
   return "gameRoom.log.entropy.observing";
 }
 
@@ -376,6 +507,39 @@ export function getAIMove(
     // Analyze player's path to understand their connection strategy
     const pathAnalysis = analyzePlayerPath(board);
     
+    // Determine game phase and board state for contextual logging
+    const { rows, cols } = board.boardSize;
+    const totalCells = rows * cols;
+    const emptyCount = validMoves.length;
+    const filledCount = totalCells - emptyCount;
+    const gamePhase = turnCount && turnCount < totalCells * 0.3 ? 'early' :
+                     turnCount && turnCount < totalCells * 0.7 ? 'mid' : 'late';
+    const boardDensity = filledCount / totalCells;
+    
+    // Generate game phase log message
+    let phaseLogMessage: string | null = null;
+    if (gamePhase === 'early' && turnCount && turnCount <= 5) {
+      phaseLogMessage = "gameRoom.log.entropy.phase.early";
+    } else if (gamePhase === 'mid') {
+      phaseLogMessage = "gameRoom.log.entropy.phase.mid";
+    } else if (gamePhase === 'late') {
+      if (emptyCount <= 10) {
+        phaseLogMessage = "gameRoom.log.entropy.phase.lateCritical";
+      } else {
+        phaseLogMessage = "gameRoom.log.entropy.phase.late";
+      }
+    }
+    
+    // Generate threat level log message
+    let threatLogMessage: string | null = null;
+    if (pathAnalysis.threatLevel === 'CRITICAL') {
+      threatLogMessage = "gameRoom.log.entropy.threat.critical";
+    } else if (pathAnalysis.threatLevel === 'HIGH') {
+      threatLogMessage = "gameRoom.log.entropy.threat.high";
+    } else if (pathAnalysis.threatLevel === 'MEDIUM') {
+      threatLogMessage = "gameRoom.log.entropy.threat.medium";
+    }
+    
     // Check for immediate block (prevent player from winning)
     // PRIORITY 1: Block critical positions that would connect player's left and right groups
     if (pathAnalysis.criticalPositions.length > 0) {
@@ -401,9 +565,10 @@ export function getAIMove(
           from: { r: -1, c: -1 },
           to: bestBlockingMove,
         };
+        // Critical position blocking - more specific log message
         return {
           move: gameMove,
-          logs: ["gameRoom.log.entropy.blockingMove"],
+          logs: ["gameRoom.log.entropy.blockingCritical"],
         };
       }
     }
@@ -415,9 +580,10 @@ export function getAIMove(
           from: { r: -1, c: -1 },
           to: move,
         };
+        // Immediate win prevention - urgent blocking message
         return {
           move: gameMove,
-          logs: ["gameRoom.log.entropy.blockingMove"],
+          logs: ["gameRoom.log.entropy.blockingWin"],
         };
       }
     }
@@ -439,9 +605,13 @@ export function getAIMove(
             from: { r: -1, c: -1 },
             to: pathPos,
           };
+          // Shortest path blocking - strategic blocking message
+          const blockingLog = pathAnalysis.threatLevel === 'CRITICAL' 
+            ? "gameRoom.log.entropy.blockingPathCritical"
+            : "gameRoom.log.entropy.blockingPath";
           return {
             move: gameMove,
-            logs: ["gameRoom.log.entropy.blockingMove"],
+            logs: [blockingLog],
           };
         }
       }
@@ -456,9 +626,10 @@ export function getAIMove(
             from: { r: -1, c: -1 },
             to: threat,
           };
+          // Threat move blocking - defensive message
           return {
             move: gameMove,
-            logs: ["gameRoom.log.entropy.blockingMove"],
+            logs: ["gameRoom.log.entropy.blockingThreat"],
           };
         }
       }
@@ -468,11 +639,50 @@ export function getAIMove(
     // MCTS now uses path analysis to predict player moves in simulations
     const config = getMCTSConfig(difficulty);
     const bestMove = runMCTS(board, 'AI', config);
+    
+    // Analyze MCTS result quality
+    let mctsLogMessage: string | null = null;
+    if (bestMove) {
+      // Check if MCTS found a winning move
+      if (wouldWin(board, bestMove, 'AI')) {
+        mctsLogMessage = "gameRoom.log.entropy.mcts.winningPath";
+      } else if (validMoves.length > 10) {
+        // Many candidates - MCTS evaluated multiple options
+        mctsLogMessage = "gameRoom.log.entropy.mcts.multipleCandidates";
+      } else {
+        // Few candidates - more focused analysis
+        mctsLogMessage = "gameRoom.log.entropy.mcts.focusedAnalysis";
+      }
+    } else {
+      // MCTS returned null - will use fallback
+      mctsLogMessage = "gameRoom.log.entropy.mcts.noResult";
+    }
 
     // For NEXUS-5 and NEXUS-7, integrate path analysis with MCTS result
     // IMPORTANT: When threat is high, prioritize blocking over "Move 37" creativity
     let selectedMove: Move | null = bestMove;
     let logMessage = "gameRoom.log.moveExecuted";
+    
+    // Add difficulty-specific analysis depth log
+    let difficultyLogMessage: string | null = null;
+    if (difficulty === "NEXUS-3") {
+      difficultyLogMessage = "gameRoom.log.entropy.difficulty.nexus3";
+    } else if (difficulty === "NEXUS-5") {
+      difficultyLogMessage = "gameRoom.log.entropy.difficulty.nexus5";
+    } else if (difficulty === "NEXUS-7") {
+      difficultyLogMessage = "gameRoom.log.entropy.difficulty.nexus7";
+    }
+    
+    // Priority: MCTS log > phase log > threat log > difficulty log > default
+    if (mctsLogMessage) {
+      logMessage = mctsLogMessage;
+    } else if (phaseLogMessage) {
+      logMessage = phaseLogMessage;
+    } else if (threatLogMessage) {
+      logMessage = threatLogMessage;
+    } else if (difficultyLogMessage) {
+      logMessage = difficultyLogMessage;
+    }
 
     if (bestMove && (difficulty === "NEXUS-5" || difficulty === "NEXUS-7")) {
       const strategicMoves = detectStrategicMoves(board, playerLastMove);
@@ -484,7 +694,10 @@ export function getAIMove(
           // Only consider moves that actually block (high score from blocking)
           if (strategic.score >= 100) { // High score indicates blocking move
             selectedMove = strategic.move;
-            logMessage = "gameRoom.log.entropy.blockingMove";
+            // Use more specific blocking message based on threat level
+            logMessage = pathAnalysis.threatLevel === 'CRITICAL'
+              ? "gameRoom.log.entropy.blockingStrategicCritical"
+              : "gameRoom.log.entropy.blockingStrategic";
             break;
           }
         }
@@ -528,14 +741,25 @@ export function getAIMove(
         const topStrategic = strategicMoves[0];
         if (wouldBlockOpponent(board, topStrategic.move, 'AI')) {
           selectedMove = topStrategic.move;
-          logMessage = "gameRoom.log.entropy.blockingMove";
+          // Use simpler blocking message for NEXUS-3
+          logMessage = "gameRoom.log.entropy.blockingBasic";
         }
       }
     }
     
     // Fallback: if MCTS failed, use first valid move
     if (!selectedMove) {
-      selectedMove = validMoves[0];
+      if (validMoves.length > 0) {
+        selectedMove = validMoves[0];
+        // MCTS failed, using fallback
+        logMessage = "gameRoom.log.entropy.mctsFallback";
+      } else {
+        // No valid moves available - this should not happen
+        return {
+          move: null,
+          logs: ["gameRoom.log.entropy.error.noValidMoves"],
+        };
+      }
     }
 
     if (!selectedMove) {
@@ -559,6 +783,15 @@ export function getAIMove(
     };
   } catch (error) {
     console.error("Error in getAIMove:", error);
+    // Try to provide more specific error message
+    if (error instanceof Error) {
+      if (error.message.includes("board") || error.message.includes("parse")) {
+        return {
+          move: null,
+          logs: ["gameRoom.log.entropy.error.invalidBoard"],
+        };
+      }
+    }
     return {
       move: null,
       logs: ["gameRoom.log.calculationErrorKo"],
