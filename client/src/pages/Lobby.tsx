@@ -6,6 +6,7 @@ import { Scanlines } from "@/components/Scanlines";
 import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
+import { Logo } from "@/components/Logo";
 import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock, Gamepad2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -252,14 +253,7 @@ export default function Lobby() {
       {/* Header */}
       <header className="z-10 w-full p-4 sm:p-5 lg:p-6 border-b-2 border-white/20 bg-black/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
-          <motion.h1 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black font-display tracking-tighter"
-          >
-            MOVE
-            <span className="text-primary ml-1 sm:ml-2 inline-block transform -skew-x-12">37</span>
-          </motion.h1>
+          <Logo size="md" variant="full" />
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
