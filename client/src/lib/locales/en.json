@@ -149,6 +149,13 @@
           "nexus5": "Deep strategy analysis in progress...",
           "nexus7": "Optimization algorithm running. Calculating all possibilities..."
         },
+        "alien": {
+          "criticalThreat": "Threat level: CRITICAL. 42,900 simulation paths analyzed. Blocking protocol executed.",
+          "winningProbability": "Win probability calculated: {0}%. This path is already included in calculations.",
+          "playerAdvantage": "Analysis result: Your win probability is {0}%. Disappointing.",
+          "winningMove": "Winning path found. It took 1.2 seconds to understand the meaning of this move.",
+          "observation": "Interesting pattern detected. Observing human thought process..."
+        },
         "error": {
           "noValidMoves": "Error: No valid moves available. Game state verification required.",
           "invalidBoard": "Error: Board state is invalid.",

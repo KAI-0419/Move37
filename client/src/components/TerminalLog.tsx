@@ -75,11 +75,35 @@ export function TerminalLog({ logHistory, difficultyColors }: TerminalLogProps) 
                     : "text-foreground"
                 )}
               >
-                {log.message.startsWith("gameRoom.") ||
-                log.message.startsWith("lobby.") ||
-                log.message.startsWith("tutorial.")
-                  ? t(log.message as any)
-                  : log.message}
+                {(() => {
+                  const message = log.message;
+                  
+                  // Handle messages with parameters (format: "key|param1|param2")
+                  if (message.includes("|")) {
+                    const parts = message.split("|");
+                    const key = parts[0];
+                    const params = parts.slice(1);
+                    
+                    if (key.startsWith("gameRoom.") || key.startsWith("lobby.") || key.startsWith("tutorial.")) {
+                      let translated = t(key as any);
+                      // Replace {0}, {1}, etc. with parameters
+                      params.forEach((param, index) => {
+                        translated = translated.replace(`{${index}}`, param);
+                      });
+                      return translated;
+                    }
+                    return message;
+                  }
+                  
+                  // Standard translation
+                  if (message.startsWith("gameRoom.") ||
+                      message.startsWith("lobby.") ||
+                      message.startsWith("tutorial.")) {
+                    return t(message as any);
+                  }
+                  
+                  return message;
+                })()}
               </span>
             </div>
           );

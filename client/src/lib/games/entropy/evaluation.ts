@@ -11,17 +11,17 @@ import type { GameMove, PlayerMove, AIMoveResult } from "@shared/gameEngineInter
 import { parseBoardState } from "./boardUtils";
 import { isConnected, wouldWin, getEmptyCells } from "./connectionCheck";
 import { getValidMoves, getMovesNearOpponent, wouldBlockOpponent, findThreatMoves } from "./moveValidation";
-import { runMCTS, type MCTSConfig } from "./mcts";
+import { runMCTS, type MCTSConfig, type AIPersonality } from "./mcts";
 import { getValidNeighbors } from "./boardUtils";
 import { analyzePlayerPath, findCriticalPositions, predictPlayerNextMove, calculateShortestPath } from "./pathAnalysis";
 
 /**
  * Get MCTS configuration based on difficulty
  * 
- * Optimized parameters for each difficulty level:
+ * Optimized parameters for each difficulty level with AI personality:
  * - NEXUS-3 (일반인): Balanced exploration/exploitation, moderate simulations
  * - NEXUS-5 (전문가): Higher exploitation, more simulations for deeper analysis
- * - NEXUS-7 (인간 초월): Maximum exploitation with strategic depth, highest simulations
+ * - NEXUS-7 (인간 초월): Maximum exploitation with strategic depth, highest simulations, ALIEN personality
  */
 function getMCTSConfig(
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"
@@ -29,27 +29,30 @@ function getMCTSConfig(
   switch (difficulty) {
     case "NEXUS-3":
       // 일반인 수준: 적절한 탐색과 활용의 균형
-      // UCB1 상수를 약간 높여 탐색을 장려 (약간의 실수 허용)
       return {
         simulations: 1000,
-        ucb1Constant: Math.sqrt(2) * 1.1, // 약간 높은 탐색
-        timeLimit: 3000, // 3 seconds
+        ucb1Constant: Math.sqrt(2) * 1.1,
+        timeLimit: 3000,
+        personality: 'BALANCED',
+        dynamicUCB1: true,
       };
     case "NEXUS-5":
       // 전문가 수준: 더 깊은 분석과 전략적 사고
-      // 표준 UCB1로 균형잡힌 탐색/활용, 더 많은 시뮬레이션
       return {
         simulations: 3000,
-        ucb1Constant: Math.sqrt(2), // 표준 균형
-        timeLimit: 5000, // 5 seconds
+        ucb1Constant: Math.sqrt(2),
+        timeLimit: 5000,
+        personality: 'AGGRESSIVE',
+        dynamicUCB1: true,
       };
     case "NEXUS-7":
-      // 인간 초월: 최대한의 전략적 깊이
-      // 약간 낮은 UCB1로 활용 우선 (이미 좋은 수를 찾았으면 더 탐색)
+      // 인간 초월: ALIEN personality로 기괴한 수를 두는 능력
       return {
         simulations: 5000,
-        ucb1Constant: Math.sqrt(2) * 0.9, // 활용 우선
-        timeLimit: 8000, // 8 seconds
+        ucb1Constant: Math.sqrt(2) * 0.9,
+        timeLimit: 8000,
+        personality: 'ALIEN', // 기괴한 수를 두는 "Move 37" 스타일
+        dynamicUCB1: true,
       };
   }
 }
@@ -638,7 +641,7 @@ export function getAIMove(
     // Use MCTS to find best move (primary decision maker)
     // MCTS now uses path analysis to predict player moves in simulations
     const config = getMCTSConfig(difficulty);
-    const bestMove = runMCTS(board, 'AI', config);
+    const bestMove = runMCTS(board, 'AI', config, pathAnalysis.threatLevel);
     
     // Analyze MCTS result quality
     let mctsLogMessage: string | null = null;
@@ -777,9 +780,49 @@ export function getAIMove(
     // Generate psychological analysis
     const psychology = analyzePlayerPsychology(board, playerLastMove, turnCount);
 
+    // Generate Alien-style log messages for NEXUS-7 (ALIEN personality)
+    const alienLogs: string[] = [];
+    if (difficulty === "NEXUS-7" && config.personality === 'ALIEN') {
+      // Calculate win probability estimate based on board state
+      const emptyCount = validMoves.length;
+      const totalCells = board.boardSize.rows * board.boardSize.cols;
+      const filledCount = totalCells - emptyCount;
+      const gameProgress = filledCount / totalCells;
+      
+      // Calculate shortest path distances for both players
+      const playerShortestPath = calculateShortestPath(board, 'PLAYER');
+      const aiShortestPath = calculateShortestPath(board, 'AI');
+      const pathAdvantage = playerShortestPath.distance - aiShortestPath.distance;
+      
+      // Generate alien-style messages based on game state
+      if (pathAnalysis.threatLevel === 'CRITICAL') {
+        alienLogs.push("gameRoom.log.entropy.alien.criticalThreat");
+      } else if (selectedMove && wouldWin(board, selectedMove, 'AI')) {
+        alienLogs.push("gameRoom.log.entropy.alien.winningMove");
+      } else if (gameProgress > 0.7) {
+        // Late game: estimate win probability based on path advantage
+        let winProb = 50;
+        if (pathAdvantage > 2) {
+          // AI has path advantage
+          winProb = Math.min(95, 50 + (pathAdvantage * 5) + (gameProgress * 15));
+          alienLogs.push(`gameRoom.log.entropy.alien.winningProbability|${winProb.toFixed(1)}`);
+        } else if (pathAdvantage < -2) {
+          // Player has path advantage
+          winProb = Math.max(5, 50 - (Math.abs(pathAdvantage) * 5) - (gameProgress * 15));
+          alienLogs.push(`gameRoom.log.entropy.alien.playerAdvantage|${winProb.toFixed(1)}`);
+        }
+      } else if (pathAnalysis.threatLevel === 'LOW' && Math.random() < 0.3) {
+        // Random alien observation
+        alienLogs.push("gameRoom.log.entropy.alien.observation");
+      }
+    }
+
+    // Combine all logs
+    const allLogs = [logMessage, ...alienLogs, psychology].filter(Boolean);
+
     return {
       move: gameMove,
-      logs: [logMessage, psychology],
+      logs: allLogs,
     };
   } catch (error) {
     console.error("Error in getAIMove:", error);

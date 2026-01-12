@@ -10,6 +10,7 @@ import { cloneBoard, setCellState } from "./boardUtils";
 import { isConnected, getEmptyCells } from "./connectionCheck";
 import { getValidMoves } from "./moveValidation";
 import { analyzePlayerPath, predictPlayerNextMove, calculateShortestPath } from "./pathAnalysis";
+import { getNodePool, resetNodePool } from "./nodePool";
 
 /**
  * MCTS Node structure
@@ -26,33 +27,95 @@ export interface MCTSNode {
 }
 
 /**
- * MCTS Configuration
+ * AI Personality Types
+ */
+export type AIPersonality = 'AGGRESSIVE' | 'DEFENSIVE' | 'BALANCED' | 'ALIEN';
+
+/**
+ * MCTS Configuration with Dynamic UCB1
  */
 export interface MCTSConfig {
   simulations: number; // Number of simulations to run
-  ucb1Constant: number; // UCB1 exploration constant (default: sqrt(2))
+  ucb1Constant: number; // Base UCB1 exploration constant (default: sqrt(2))
   timeLimit?: number; // Time limit in milliseconds
+  personality?: AIPersonality; // AI personality for dynamic behavior
+  dynamicUCB1?: boolean; // Enable dynamic UCB1 adjustment based on game state
 }
 
 const DEFAULT_UCB1_CONSTANT = Math.sqrt(2);
 
 /**
- * Create root node for MCTS
+ * Calculate dynamic UCB1 constant based on game state and personality
+ * 
+ * @param baseConstant - Base UCB1 constant
+ * @param winRate - Current win rate (0-1)
+ * @param personality - AI personality type
+ * @param threatLevel - Threat level from path analysis ('LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL')
+ * @returns Adjusted UCB1 constant
+ */
+function calculateDynamicUCB1(
+  baseConstant: number,
+  winRate: number,
+  personality: AIPersonality = 'BALANCED',
+  threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+): number {
+  let adjustment = 1.0;
+  
+  // Personality-based adjustments
+  switch (personality) {
+    case 'AGGRESSIVE':
+      // When losing, explore more aggressively (higher constant)
+      // When winning, exploit more (lower constant)
+      adjustment = winRate < 0.4 ? 1.5 : winRate > 0.7 ? 0.7 : 1.0;
+      break;
+      
+    case 'DEFENSIVE':
+      // When losing, exploit known good moves (lower constant)
+      // When winning, maintain exploration (higher constant)
+      adjustment = winRate < 0.4 ? 0.6 : winRate > 0.7 ? 1.3 : 1.0;
+      break;
+      
+    case 'ALIEN':
+      // Unpredictable: high variance in exploration
+      // When losing badly, extreme exploration (gambling)
+      // When winning, still explore weird moves
+      if (winRate < 0.3) {
+        adjustment = 2.5; // Extreme exploration when desperate
+      } else if (winRate > 0.8) {
+        adjustment = 1.8; // Still explore when winning (weird moves)
+      } else {
+        adjustment = 1.2 + Math.random() * 0.6; // Random variance
+      }
+      break;
+      
+    case 'BALANCED':
+    default:
+      // Standard adjustment based on win rate
+      adjustment = winRate < 0.5 ? 1.2 : 0.9;
+      break;
+  }
+  
+  // Threat-based adjustments
+  if (threatLevel === 'CRITICAL') {
+    adjustment *= 0.5; // Focus on blocking (exploitation)
+  } else if (threatLevel === 'HIGH') {
+    adjustment *= 0.7;
+  } else if (threatLevel === 'LOW') {
+    adjustment *= 1.3; // More exploration when safe
+  }
+  
+  return baseConstant * adjustment;
+}
+
+/**
+ * Create root node for MCTS using node pool
  */
 export function createRootNode(
   board: BoardState,
   currentPlayer: Player
 ): MCTSNode {
-  return {
-    board: cloneBoard(board),
-    move: null,
-    parent: null,
-    children: [],
-    visits: 0,
-    wins: 0,
-    untriedMoves: getValidMoves(board),
-    player: currentPlayer,
-  };
+  const pool = getNodePool();
+  return pool.acquire(null, null, board, currentPlayer);
 }
 
 /**
@@ -113,7 +176,7 @@ function select(node: MCTSNode, ucb1Constant: number): MCTSNode {
 }
 
 /**
- * Expansion phase: add a new child node
+ * Expansion phase: add a new child node using node pool
  */
 function expand(node: MCTSNode): MCTSNode | null {
   if (node.untriedMoves.length === 0) {
@@ -130,17 +193,9 @@ function expand(node: MCTSNode): MCTSNode | null {
   const nextPlayer: Player = node.player === 'PLAYER' ? 'AI' : 'PLAYER';
   setCellState(newBoard, move, node.player);
 
-  // Create child node
-  const childNode: MCTSNode = {
-    board: newBoard,
-    move,
-    parent: node,
-    children: [],
-    visits: 0,
-    wins: 0,
-    untriedMoves: getValidMoves(newBoard),
-    player: nextPlayer,
-  };
+  // Create child node using pool
+  const pool = getNodePool();
+  const childNode = pool.acquire(node, move, newBoard, nextPlayer);
 
   node.children.push(childNode);
   return childNode;
@@ -320,20 +375,33 @@ function backpropagate(node: MCTSNode, winner: Player, currentPlayer: Player): v
 }
 
 /**
- * Run one MCTS iteration
+ * Run one MCTS iteration with dynamic UCB1
  * @param root - Root node
  * @param currentPlayer - Current player
- * @param ucb1Constant - Exploration constant from config
+ * @param ucb1Constant - Base exploration constant from config
  * @param playerPredictedMoves - Optional: predicted moves for player (computed once at root)
+ * @param dynamicUCB1 - Whether to use dynamic UCB1
+ * @param personality - AI personality
+ * @param threatLevel - Current threat level
  */
 function mctsIteration(
   root: MCTSNode,
   currentPlayer: Player,
   ucb1Constant: number,
-  playerPredictedMoves?: Move[]
+  playerPredictedMoves?: Move[],
+  dynamicUCB1: boolean = false,
+  personality: AIPersonality = 'BALANCED',
+  threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 ): void {
+  // Calculate dynamic UCB1 if enabled
+  let effectiveUCB1 = ucb1Constant;
+  if (dynamicUCB1 && root.visits > 0) {
+    const winRate = root.wins / root.visits;
+    effectiveUCB1 = calculateDynamicUCB1(ucb1Constant, winRate, personality, threatLevel);
+  }
+  
   // Selection
-  const leaf = select(root, ucb1Constant);
+  const leaf = select(root, effectiveUCB1);
 
   // Check if leaf is terminal (winning state)
   if (isConnected(leaf.board, 'PLAYER')) {
@@ -367,13 +435,18 @@ function mctsIteration(
  * @param board - Current board state
  * @param currentPlayer - Player to find best move for
  * @param config - MCTS configuration
+ * @param threatLevel - Optional threat level for dynamic UCB1
  * @returns Best move found by MCTS
  */
 export function runMCTS(
   board: BoardState,
   currentPlayer: Player,
-  config: MCTSConfig
+  config: MCTSConfig,
+  threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 ): Move | null {
+  // Reset node pool before starting new search
+  resetNodePool();
+  
   const root = createRootNode(board, currentPlayer);
 
   // Check if there are any valid moves
@@ -387,7 +460,6 @@ export function runMCTS(
   }
 
   // Pre-compute player predicted moves once at root level for efficiency
-  // This improves simulation quality without significant performance cost
   const playerPredictedMoves = currentPlayer === 'AI' 
     ? predictPlayerNextMove(board, null)
     : undefined;
@@ -395,6 +467,8 @@ export function runMCTS(
   const startTime = Date.now();
   let iterations = 0;
   const ucb1Constant = config.ucb1Constant;
+  const personality = config.personality || 'BALANCED';
+  const dynamicUCB1 = config.dynamicUCB1 ?? true; // Default to enabled
 
   // Run simulations
   while (iterations < config.simulations) {
@@ -406,11 +480,23 @@ export function runMCTS(
       }
     }
 
-    mctsIteration(root, currentPlayer, ucb1Constant, playerPredictedMoves);
+    // Calculate current win rate for dynamic UCB1
+    const currentWinRate = root.visits > 0 ? root.wins / root.visits : 0.5;
+    
+    mctsIteration(
+      root, 
+      currentPlayer, 
+      ucb1Constant, 
+      playerPredictedMoves,
+      dynamicUCB1,
+      personality,
+      threatLevel
+    );
     iterations++;
   }
 
   // Select best move (most visited child)
+  // For ALIEN personality, sometimes select a "weird" move with high entropy
   if (root.children.length === 0) {
     // Fallback: return first untried move
     return root.untriedMoves[0] || null;
@@ -423,6 +509,17 @@ export function runMCTS(
     if (root.children[i].visits > mostVisits) {
       mostVisits = root.children[i].visits;
       bestChild = root.children[i];
+    }
+  }
+
+  // ALIEN personality: occasionally pick a "weird" move (high visits but not best)
+  if (personality === 'ALIEN' && Math.random() < 0.15 && root.children.length > 2) {
+    // Sort by visits and pick from top 3, but not always the best
+    const sorted = [...root.children].sort((a, b) => b.visits - a.visits);
+    const candidates = sorted.slice(0, 3);
+    const weirdMove = candidates[Math.floor(Math.random() * candidates.length)];
+    if (weirdMove.visits >= mostVisits * 0.7) { // Only if reasonably good
+      return weirdMove.move;
     }
   }
 
