@@ -4,3 +4,8 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Android Keystore files (보안상 절대 커밋하면 안 됩니다)
+*.jks
+*.keystore
+android/app/release/
