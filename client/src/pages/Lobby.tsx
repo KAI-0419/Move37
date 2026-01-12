@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GameType, loadGameType, saveGameType, getGameInfo } from "@/lib/gameTypes";
 import { buildGameRoomUrl } from "@/lib/routing";
+import { Capacitor } from "@capacitor/core";
+import { admobService } from "@/lib/admob";
 
 // LocalStorage key prefix for selected difficulty (game-specific)
 const DIFFICULTY_STORAGE_KEY_PREFIX = "move37_selected_difficulty_";
@@ -268,6 +270,17 @@ export default function Lobby() {
               {t("lobby.systemOnline")}
             </span>
             
+            {/* Test Ad Button (Native only) */}
+            {Capacitor.isNativePlatform() && (
+              <button
+                onClick={() => admobService.showInterstitial()}
+                className="p-2 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 transition-all duration-300 group rounded"
+                title="Test Ad"
+              >
+                <Zap className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </button>
+            )}
+
             {/* Language Settings Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
