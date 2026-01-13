@@ -21,9 +21,9 @@ export function PlayerStatsModal({ open, onOpenChange, gameType }: PlayerStatsMo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] bg-black/95 border-2 border-primary/30 backdrop-blur-xl p-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[90dvh] bg-black/95 border-2 border-primary/30 backdrop-blur-xl p-0 overflow-hidden" style={{ maxHeight: 'calc(90dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}>
         {/* Custom Header with Close Button */}
-        <div className="relative p-6 border-b border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+        <div className="relative p-4 sm:p-5 md:p-6 border-b border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -50,7 +50,7 @@ export function PlayerStatsModal({ open, onOpenChange, gameType }: PlayerStatsMo
         </div>
 
         {/* Stats Content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-100px)]">
+        <div className="overflow-y-auto max-h-[calc(90dvh-120px)]" style={{ maxHeight: 'calc(90dvh - 120px - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}>
           <PlayerStatsPanel gameType={gameType} className="border-0 rounded-none bg-transparent" />
         </div>
       </DialogContent>

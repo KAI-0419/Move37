@@ -97,7 +97,7 @@ export function DifficultySelector({
   };
 
   return (
-    <div className="space-y-2 sm:space-y-3">
+    <div className="space-y-2 sm:space-y-2.5 md:space-y-3">
       {(["NEXUS-3", "NEXUS-5", "NEXUS-7"] as const).map((difficulty) => {
         const isUnlocked = isDifficultyUnlocked(difficulty, selectedGameType);
         const isSelected = selectedDifficulty === difficulty;
@@ -114,7 +114,7 @@ export function DifficultySelector({
             whileHover={{ scale: 1.02 }}
             whileTap={isUnlocked ? { scale: 0.98 } : {}}
             className={cn(
-              "w-full p-2.5 sm:p-3 border transition-all duration-300 text-left relative rounded-lg",
+              "w-full p-2.5 sm:p-2.5 md:p-3 lg:p-3.5 border transition-all duration-300 text-left relative rounded-lg",
               "backdrop-blur-sm",
               !isUnlocked
                 ? cn(colors.borderLocked, colors.bgLocked, "cursor-pointer hover:border-primary/50 hover:bg-primary/15")
@@ -131,10 +131,10 @@ export function DifficultySelector({
                 </span>
               </div>
             )}
-            <div className={cn("flex items-center gap-2 sm:gap-3", !isUnlocked && "opacity-100")}>
+            <div className={cn("flex items-center gap-2 sm:gap-2.5 md:gap-3", !isUnlocked && "opacity-100")}>
               <Icon
                 className={cn(
-                  "w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0",
+                  "w-4 h-4 sm:w-4.5 sm:h-4.5 md:w-5 md:h-5 flex-shrink-0",
                   isUnlocked
                     ? isSelected
                       ? colors.text
@@ -145,7 +145,7 @@ export function DifficultySelector({
               <div className="flex-1 min-w-0">
                 <h4
                   className={cn(
-                    "text-[10px] sm:text-xs font-bold mb-0.5 truncate",
+                    "text-[10px] sm:text-[11px] md:text-xs font-bold mb-0.5 truncate",
                     isUnlocked ? "text-foreground" : colors.textLabel
                   )}
                 >
@@ -153,7 +153,7 @@ export function DifficultySelector({
                 </h4>
                 <p
                   className={cn(
-                    "text-[9px] sm:text-[10px] line-clamp-1",
+                    "text-[9px] sm:text-[9.5px] md:text-[10px] line-clamp-1",
                     isUnlocked ? "text-muted-foreground" : colors.textLocked
                   )}
                 >
@@ -161,11 +161,11 @@ export function DifficultySelector({
                 </p>
               </div>
               {isSelected && isUnlocked && (
-                <Check className={cn("w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0", colors.text)} />
+                <Check className={cn("w-3.5 h-3.5 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 flex-shrink-0", colors.text)} />
               )}
             </div>
             {!isUnlocked && (
-              <p className={cn("text-[8px] sm:text-[9px] mt-1.5 sm:mt-2 line-clamp-2", colors.textLocked)}>
+              <p className={cn("text-[8px] sm:text-[8.5px] md:text-[9px] mt-1.5 sm:mt-1.5 md:mt-2 line-clamp-2", colors.textLocked)}>
                 {t("lobby.difficulty.completePrevious", { level: level === "5" ? "3" : "5" })}
               </p>
             )}

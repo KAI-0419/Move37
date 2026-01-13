@@ -110,8 +110,14 @@ export function WinnerOverlay({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 sm:p-6 backdrop-blur-md overflow-y-auto"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right))',
+      }}
     >
-      <div className="text-center space-y-4 sm:space-y-6 w-full max-w-md p-6 sm:p-8 lg:p-10 border border-white/20 bg-black my-auto">
+      <div className="text-center space-y-4 sm:space-y-5 md:space-y-6 w-full max-w-[95vw] sm:max-w-md p-4 sm:p-6 md:p-8 lg:p-10 border border-white/20 bg-black my-auto">
         {/* Icon - Responsive sizing */}
         <div className="flex justify-center">
           {winner === 'player' ? (

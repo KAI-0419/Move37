@@ -27,7 +27,8 @@ export function GlitchButton({
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       className={cn(
-        "relative px-8 py-3 font-display font-bold uppercase tracking-wider border-2 transition-all duration-200",
+        "relative px-4 py-2.5 sm:px-6 sm:py-3 md:px-7 md:py-3 lg:px-8 lg:py-3 font-display font-bold uppercase tracking-wider border-2 transition-all duration-200",
+        "min-h-[44px] min-w-[44px]", // Ensure minimum touch target size
         "disabled:opacity-50 disabled:cursor-not-allowed",
         "group overflow-hidden",
         variants[variant],

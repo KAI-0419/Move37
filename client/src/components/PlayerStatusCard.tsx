@@ -26,7 +26,7 @@ export function PlayerStatusCard({
 
   return (
     <div className={cn(
-      "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-0 flex flex-col",
+      "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-[140px] sm:min-w-[160px] lg:min-w-0 flex flex-col",
       isPlayerTurn ? "border-primary bg-primary/5 shadow-[0_0_15px_rgba(0,243,255,0.1)]" : "border-white/10 opacity-50"
     )}>
       <div className="flex items-start justify-between gap-2">

@@ -60,7 +60,7 @@ export function MiniChessBoard({
     rows.push(row);
   }
 
-  // Size configurations - Fixed to use fluid units for true responsiveness
+  // Size configurations - Responsive with MD breakpoint for smooth tablet transition
   const sizeConfig = {
     small: {
       boardSize: "w-[240px] h-[240px]",
@@ -69,15 +69,16 @@ export function MiniChessBoard({
       paddingOffset: "6px"
     },
     medium: {
-      boardSize: "w-[280px] h-[280px] sm:w-[320px] sm:h-[320px]",
+      // Progressive sizing: 280px → 320px → 380px for smooth tablet transition
+      boardSize: "w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] md:w-[380px] md:h-[380px]",
       iconSize: 24,
       padding: "p-1",
       paddingOffset: "6px"
     },
     large: {
-      // 뷰포트 크기에 따라 유동적으로 변하는 보드 크기 (데스크톱 최적화를 위해 최대 크기 상향)
+      // Max 600px for consistency across all game types, responsive to viewport
       boardSize: "w-[min(90vw,75vh,600px)] h-[min(90vw,75vh,600px)]",
-      iconSize: 32, 
+      iconSize: 32,
       padding: "p-2",
       paddingOffset: "10px"
     }

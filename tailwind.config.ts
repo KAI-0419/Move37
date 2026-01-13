@@ -5,6 +5,11 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      screens: {
+        'landscape': { 'raw': '(orientation: landscape)' },
+        'landscape-short': { 'raw': '(orientation: landscape) and (max-height: 600px)' },
+        'landscape-extra-short': { 'raw': '(orientation: landscape) and (max-height: 500px)' },
+      },
       borderRadius: {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */

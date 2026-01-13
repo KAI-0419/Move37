@@ -1,11 +1,11 @@
 /**
  * ENTROPY (Hex) Board Component
- * 
+ *
  * Game-specific board component for ENTROPY (Hex).
  * Handles rendering of the 11x11 hexagonal grid.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
@@ -35,21 +35,85 @@ export function EntropyBoard({
   const boardState = parseBoardState(boardString);
   const { boardSize, cells } = boardState;
 
-  // Size configurations
-  const sizeConfig = {
-    small: {
-      cellSize: 20,
-      padding: "p-2",
-    },
-    medium: {
-      cellSize: 24,
-      padding: "p-3",
-    },
-    large: {
-      cellSize: 28,
-      padding: "p-4",
-    },
-  };
+  // Track viewport width for responsive cell sizing
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth;
+    }
+    return 1024; // Default fallback for SSR
+  });
+
+  // Update viewport width on resize with debouncing
+  useEffect(() => {
+    let resizeTimer: NodeJS.Timeout;
+
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        setViewportWidth(window.innerWidth);
+      }, 150); // 150ms debounce for smooth performance
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Initial measurement
+    setViewportWidth(window.innerWidth);
+
+    return () => {
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Size configurations with responsive cell sizing
+  const sizeConfig = useMemo(() => {
+    // Define max cell sizes for each size variant
+    const maxCellSizes = {
+      small: 20,
+      medium: 24,
+      large: 28,
+    };
+
+    const paddingValues = {
+      small: { className: "p-2", pixels: 8 },    // 0.5rem = 8px
+      medium: { className: "p-3", pixels: 12 },  // 0.75rem = 12px
+      large: { className: "p-4", pixels: 16 },   // 1rem = 16px
+    };
+
+    const maxCellSize = maxCellSizes[size];
+    const paddingConfig = paddingValues[size];
+
+    // Calculate available width for the board
+    // Account for: padding (both sides) + border (2px each side) + some margin for safety
+    const reservedSpace = (paddingConfig.pixels * 2) + 4 + 32; // 32px safety margin
+    const availableWidth = Math.max(320, viewportWidth - reservedSpace); // Minimum 320px
+
+    // Calculate required width ratio for hexagonal grid
+    // Width = cols * cellSize * √3 + cellSize (extra space for offset)
+    const widthRatio = boardSize.cols * Math.sqrt(3) + 1;
+
+    // Calculate cell size that fits within viewport
+    const viewportBasedCellSize = availableWidth / widthRatio;
+
+    // Use the smaller of max size or viewport-based size
+    // Also enforce minimum cell size of 12px for usability
+    const responsiveCellSize = Math.max(12, Math.min(maxCellSize, viewportBasedCellSize));
+
+    return {
+      small: {
+        cellSize: size === 'small' ? responsiveCellSize : maxCellSizes.small,
+        padding: paddingConfig.className,
+      },
+      medium: {
+        cellSize: size === 'medium' ? responsiveCellSize : maxCellSizes.medium,
+        padding: paddingConfig.className,
+      },
+      large: {
+        cellSize: size === 'large' ? responsiveCellSize : maxCellSizes.large,
+        padding: paddingConfig.className,
+      },
+    };
+  }, [size, viewportWidth, boardSize.cols]);
 
   const config = sizeConfig[size];
 

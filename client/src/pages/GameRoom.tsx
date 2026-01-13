@@ -430,7 +430,7 @@ export default function GameRoom() {
         <Scanlines />
 
         {/* CENTER: BOARD ONLY */}
-        <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
+        <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-3 md:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
           {/* Turn Indicator Banner - Show if enabled or game has ended */}
           {(uiConfig.showTurnBanner || game.winner) && (
             <TurnBanner
@@ -550,21 +550,21 @@ export default function GameRoom() {
 
       {/* LEFT PANEL: STATUS & INFO - Only render if needed */}
       {(uiConfig.showPlayerCard || uiConfig.showAICard) && (
-        <aside className="w-full lg:w-1/4 p-2 sm:p-3 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-row lg:flex-col items-center lg:items-stretch z-10 shrink-0 min-w-0 overflow-hidden">
-          {/* Mobile: Compact horizontal layout */}
-          <div className="flex lg:flex-col items-center lg:items-start gap-2 sm:gap-3 lg:gap-0 flex-1 lg:flex-1 min-w-0">
+        <aside className="w-full lg:w-1/4 p-2 sm:p-3 md:p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border bg-black/40 backdrop-blur-sm flex flex-col items-center lg:items-stretch z-10 shrink-0 min-w-0 overflow-hidden">
+          {/* Responsive layout - horizontal on mobile/tablet, vertical on desktop */}
+          <div className="flex flex-col items-center lg:items-start gap-2 sm:gap-2.5 md:gap-3 lg:gap-0 flex-1 lg:flex-1 min-w-0 w-full">
             {/* Title - Hidden on mobile/tablet, shown only on desktop (lg+) */}
             <div className="mb-0 lg:mb-8 hidden lg:block shrink-0">
-              <h1 
-                onClick={() => handleNavigateAway("/")} 
+              <h1
+                onClick={() => handleNavigateAway("/")}
                 className="text-2xl font-display font-black tracking-tighter cursor-pointer hover:text-primary transition-colors whitespace-nowrap"
               >
                 MOVE 37
               </h1>
             </div>
 
-            {/* Cards Container */}
-            <div className="flex lg:flex-col gap-2 sm:gap-3 lg:gap-6 flex-1 lg:flex-none min-w-0 w-full">
+            {/* Cards Container - Horizontal on mobile/tablet for space efficiency, vertical on desktop */}
+            <div className="flex flex-row lg:flex-col gap-2 sm:gap-2.5 md:gap-3 lg:gap-6 flex-1 lg:flex-none min-w-0 w-full">
               {/* Player Card */}
               {playerCardProps && (
                 <PlayerStatusCard {...playerCardProps} />
@@ -597,7 +597,7 @@ export default function GameRoom() {
       )}
 
       {/* CENTER PANEL: BOARD */}
-      <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
+      <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-3 md:p-4 lg:p-8 relative z-0 overflow-hidden min-h-0">
         {/* Turn Indicator Banner - Only render if enabled */}
         {(uiConfig.showTurnBanner || game.winner) && (
           <TurnBanner

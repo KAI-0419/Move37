@@ -126,7 +126,7 @@
   .text-shadow-glow {
     text-shadow: 0 0 10px currentColor;
   }
-  
+
   .box-shadow-glow {
     box-shadow: 0 0 15px -3px currentColor;
   }
@@ -150,9 +150,39 @@
     z-index: 50;
     opacity: 0.6;
   }
-  
+
   .crt-flicker {
     animation: flicker 0.15s infinite;
+  }
+
+  /* Landscape orientation utilities for mobile/tablet */
+  @media (orientation: landscape) and (max-height: 600px) {
+    /* Reduce vertical spacing on landscape mobile */
+    .landscape\:space-y-compact > * + * {
+      margin-top: 0.5rem;
+    }
+
+    .landscape\:py-compact {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .landscape\:h-compact {
+      height: auto;
+      max-height: 80vh;
+    }
+  }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    /* Extra compact for very short landscape screens */
+    .landscape\:extra-compact {
+      padding: 0.25rem;
+    }
+
+    .landscape\:text-compact {
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
   }
 }
 

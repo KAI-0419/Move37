@@ -31,22 +31,22 @@ export function TerminalLog({ logHistory, difficultyColors }: TerminalLogProps) 
   }, [logHistory]);
 
   return (
-    <aside className="w-full lg:w-1/4 h-32 sm:h-48 lg:h-auto border-t lg:border-t-0 lg:border-l border-border bg-black/80 flex flex-col z-10 shrink-0">
-      <div className="p-2 lg:p-3 border-b border-border bg-white/5 flex items-center justify-between">
+    <aside className="w-full lg:w-1/4 h-32 sm:h-40 md:h-48 lg:h-auto border-t lg:border-t-0 lg:border-l border-border bg-black/80 flex flex-col z-10 shrink-0">
+      <div className="p-2 md:p-2.5 lg:p-3 border-b border-border bg-white/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TerminalIcon className="w-3 h-3 lg:w-4 lg:h-4 text-accent" />
-          <span className="text-[10px] lg:text-xs font-bold tracking-widest text-accent">
+          <TerminalIcon className="w-3 h-3 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4 text-accent" />
+          <span className="text-[10px] md:text-[11px] lg:text-xs font-bold tracking-widest text-accent">
             {t("gameRoom.systemLog")}
           </span>
         </div>
         <div className="flex gap-1">
-          <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-red-500/20" />
-          <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-yellow-500/20" />
-          <div className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-green-500/20" />
+          <div className="w-1.5 h-1.5 md:w-1.5 md:h-1.5 lg:w-2 lg:h-2 rounded-full bg-red-500/20" />
+          <div className="w-1.5 h-1.5 md:w-1.5 md:h-1.5 lg:w-2 lg:h-2 rounded-full bg-yellow-500/20" />
+          <div className="w-1.5 h-1.5 md:w-1.5 md:h-1.5 lg:w-2 lg:h-2 rounded-full bg-green-500/20" />
         </div>
       </div>
 
-      <div className="flex-1 p-2 lg:p-4 overflow-y-auto font-mono text-[10px] lg:text-xs space-y-2 lg:space-y-3 custom-scrollbar">
+      <div className="flex-1 p-2 md:p-3 lg:p-4 overflow-y-auto font-mono text-[10px] md:text-[11px] lg:text-xs space-y-2 md:space-y-2.5 lg:space-y-3 custom-scrollbar">
         {logHistory.map((log, i) => {
           const isAILog = log.message.startsWith(">") || log.message.startsWith("---");
           const isSystemLog = log.message.startsWith("//");

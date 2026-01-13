@@ -35,7 +35,7 @@ export function AIStatusCard({
 
   return (
     <div className={cn(
-      "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-0 flex flex-col",
+      "px-2 sm:px-3 py-1.5 sm:py-2 lg:p-4 border transition-all duration-300 flex-1 lg:w-full min-w-[140px] sm:min-w-[160px] lg:min-w-0 flex flex-col",
       isActive
         ? `${difficultyColors.border} ${difficultyColors.bg} ${difficultyColors.shadow}`
         : "border-white/10 opacity-50"

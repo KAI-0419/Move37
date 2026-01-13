@@ -35,22 +35,23 @@ export function IsolationBoard({
   const boardState = parseBoardState(boardString);
   const { boardSize, playerPos, aiPos, destroyed } = boardState;
 
-  // Size configurations
+  // Size configurations - Standardized to 600px max for consistency across all games
   const sizeConfig = {
     small: {
-      boardSize: "w-[280px] h-[280px]",
+      boardSize: "w-[240px] h-[240px]",
       iconSize: 20,
       padding: "p-1",
       paddingOffset: "6px",
     },
     medium: {
-      boardSize: "w-[320px] h-[320px] sm:w-[400px] sm:h-[400px]",
+      boardSize: "w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] md:w-[380px] md:h-[380px]",
       iconSize: 24,
       padding: "p-1",
       paddingOffset: "6px",
     },
     large: {
-      boardSize: "w-[min(90vw,75vh,700px)] h-[min(90vw,75vh,700px)]",
+      // Standardized max 600px (same as MiniChess) for consistent board sizing across games
+      boardSize: "w-[min(90vw,75vh,600px)] h-[min(90vw,75vh,600px)]",
       iconSize: 32,
       padding: "p-2",
       paddingOffset: "10px",
