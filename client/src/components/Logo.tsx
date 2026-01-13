@@ -128,7 +128,7 @@ export function Logo({
         </span>
         {pixelSize >= 64 && (
           <span className="text-[10px] text-blue-300/60 uppercase tracking-[0.3em] mt-1 font-mono">
-            Neural Strategy Interface
+            Pure Logic Engine
           </span>
         )}
       </motion.div>
