@@ -209,3 +209,25 @@
   95% { opacity: 0.99; }
   100% { opacity: 0.94; }
 }
+
+/* Entropy Board Animations */
+@keyframes entropy-scan {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 0% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* Entropy cell hover enhancement */
+.entropy-cell-empty {
+  transition: all 0.2s ease-out;
+}
+
+.entropy-cell-empty:hover {
+  filter: brightness(1.3);
+}

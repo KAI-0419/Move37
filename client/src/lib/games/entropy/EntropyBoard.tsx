@@ -2,11 +2,11 @@
  * ENTROPY (Hex) Board Component
  *
  * Game-specific board component for ENTROPY (Hex).
- * Handles rendering of the 11x11 hexagonal grid.
+ * Handles rendering of the 11x11 hexagonal grid with polished UI.
  */
 
-import { useMemo, useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 import { parseBoardState } from "./boardUtils";
@@ -14,9 +14,9 @@ import type { CellState } from "./types";
 
 /**
  * ENTROPY Board Component
- * 
- * Renders an 11x11 hexagonal grid board.
- * Uses CSS transforms to create hexagonal cells.
+ *
+ * Renders an 11x11 hexagonal grid board with premium visual effects.
+ * Features edge indicators showing connection goals for each player.
  */
 export function EntropyBoard({
   boardString,
@@ -35,6 +35,10 @@ export function EntropyBoard({
   const boardState = parseBoardState(boardString);
   const { boardSize, cells } = boardState;
 
+  // Track previously placed pieces for animation
+  const prevCellsRef = useRef<CellState[][] | null>(null);
+  const [newlyPlaced, setNewlyPlaced] = useState<{r: number, c: number} | null>(null);
+
   // Track viewport width for responsive cell sizing
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -42,6 +46,24 @@ export function EntropyBoard({
     }
     return 1024; // Default fallback for SSR
   });
+
+  // Detect newly placed pieces for animation
+  useEffect(() => {
+    if (prevCellsRef.current) {
+      for (let r = 0; r < boardSize.rows; r++) {
+        for (let c = 0; c < boardSize.cols; c++) {
+          const prev = prevCellsRef.current[r]?.[c] || 'EMPTY';
+          const curr = cells[r]?.[c] || 'EMPTY';
+          if (prev === 'EMPTY' && curr !== 'EMPTY') {
+            setNewlyPlaced({ r, c });
+            setTimeout(() => setNewlyPlaced(null), 600);
+            break;
+          }
+        }
+      }
+    }
+    prevCellsRef.current = cells.map(row => [...row]);
+  }, [cells, boardSize.rows, boardSize.cols]);
 
   // Update viewport width on resize with debouncing
   useEffect(() => {
@@ -51,12 +73,10 @@ export function EntropyBoard({
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         setViewportWidth(window.innerWidth);
-      }, 150); // 150ms debounce for smooth performance
+      }, 150);
     };
 
     window.addEventListener('resize', handleResize);
-
-    // Initial measurement
     setViewportWidth(window.innerWidth);
 
     return () => {
@@ -67,7 +87,6 @@ export function EntropyBoard({
 
   // Size configurations with responsive cell sizing
   const sizeConfig = useMemo(() => {
-    // Define max cell sizes for each size variant
     const maxCellSizes = {
       small: 20,
       medium: 24,
@@ -75,28 +94,17 @@ export function EntropyBoard({
     };
 
     const paddingValues = {
-      small: { className: "p-2", pixels: 8 },    // 0.5rem = 8px
-      medium: { className: "p-3", pixels: 12 },  // 0.75rem = 12px
-      large: { className: "p-4", pixels: 16 },   // 1rem = 16px
+      small: { className: "p-3", pixels: 12 },
+      medium: { className: "p-4", pixels: 16 },
+      large: { className: "p-5", pixels: 20 },
     };
 
     const maxCellSize = maxCellSizes[size];
     const paddingConfig = paddingValues[size];
-
-    // Calculate available width for the board
-    // Account for: padding (both sides) + border (2px each side) + some margin for safety
-    const reservedSpace = (paddingConfig.pixels * 2) + 4 + 32; // 32px safety margin
-    const availableWidth = Math.max(320, viewportWidth - reservedSpace); // Minimum 320px
-
-    // Calculate required width ratio for hexagonal grid
-    // Width = cols * cellSize * √3 + cellSize (extra space for offset)
+    const reservedSpace = (paddingConfig.pixels * 2) + 4 + 48;
+    const availableWidth = Math.max(320, viewportWidth - reservedSpace);
     const widthRatio = boardSize.cols * Math.sqrt(3) + 1;
-
-    // Calculate cell size that fits within viewport
     const viewportBasedCellSize = availableWidth / widthRatio;
-
-    // Use the smaller of max size or viewport-based size
-    // Also enforce minimum cell size of 12px for usability
     const responsiveCellSize = Math.max(12, Math.min(maxCellSize, viewportBasedCellSize));
 
     return {
@@ -117,18 +125,35 @@ export function EntropyBoard({
 
   const config = sizeConfig[size];
 
-  // Get AI piece color based on difficulty
-  const getAiPieceColor = () => {
+  // Get AI colors based on difficulty
+  const getAiColors = () => {
     switch (difficulty) {
       case "NEXUS-3":
-        return "text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]";
+        return {
+          bg: "rgba(96, 165, 250, 0.25)",
+          border: "rgba(96, 165, 250, 0.8)",
+          glow: "rgba(96, 165, 250, 0.6)",
+          solid: "#60a5fa",
+        };
       case "NEXUS-5":
-        return "text-secondary drop-shadow-[0_0_8px_rgba(255,200,0,0.8)]";
+        return {
+          bg: "rgba(255, 170, 0, 0.25)",
+          border: "rgba(255, 170, 0, 0.8)",
+          glow: "rgba(255, 170, 0, 0.6)",
+          solid: "#ffaa00",
+        };
       case "NEXUS-7":
       default:
-        return "text-destructive drop-shadow-[0_0_8px_rgba(255,0,60,0.8)]";
+        return {
+          bg: "rgba(255, 0, 60, 0.25)",
+          border: "rgba(255, 0, 60, 0.8)",
+          glow: "rgba(255, 0, 60, 0.6)",
+          solid: "#ff003c",
+        };
     }
   };
+
+  const aiColors = getAiColors();
 
   // Get cell state at position
   const getCellState = (r: number, c: number): CellState => {
@@ -140,26 +165,31 @@ export function EntropyBoard({
     const cellSize = config.cellSize;
     const hexWidth = cellSize * Math.sqrt(3);
     const hexHeight = cellSize * 2;
-    
-    // Offset coordinates (odd-r layout)
     const x = c * hexWidth + (r % 2 === 1 ? hexWidth / 2 : 0);
     const y = r * hexHeight * 0.75;
-    
     return { x, y };
   };
 
-  // Determine if interaction should be disabled globally (for AI turn or processing)
-  // Memoize to prevent unnecessary recalculations during polling re-renders
+  // Check if cell is on edge (for goal indicators)
+  const isTopEdge = (r: number) => r === 0;
+  const isBottomEdge = (r: number) => r === boardSize.rows - 1;
+  const isLeftEdge = (c: number, r: number) => c === 0;
+  const isRightEdge = (c: number, r: number) => c === boardSize.cols - 1;
+
+  // Determine if interaction should be disabled globally
   const isAITurnOrProcessing = useMemo(() => {
     return (isProcessing || turn === "ai") && turn !== undefined;
   }, [isProcessing, turn]);
 
+  // Calculate board dimensions
+  const boardWidth = boardSize.cols * config.cellSize * Math.sqrt(3) + config.cellSize;
+  const boardHeight = boardSize.rows * config.cellSize * 1.5 + config.cellSize;
+
   return (
     <motion.div
       className={cn(
-        "relative bg-border border-2 border-border shadow-[0_0_30px_rgba(0,243,255,0.1)] w-fit mx-auto",
+        "relative w-fit mx-auto",
         config.padding,
-        // Apply cursor style at container level to prevent flickering during re-renders
         isAITurnOrProcessing ? "cursor-default" : "cursor-pointer"
       )}
       animate={
@@ -168,24 +198,6 @@ export function EntropyBoard({
               x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
               y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
               rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
-              boxShadow: [
-                "0 0 30px rgba(0,243,255,0.1)",
-                "0 0 40px rgba(255,0,60,0.7)",
-                "0 0 35px rgba(255,0,60,0.5)",
-                "0 0 38px rgba(255,0,60,0.6)",
-                "0 0 33px rgba(255,0,60,0.4)",
-                "0 0 36px rgba(255,0,60,0.3)",
-                "0 0 30px rgba(0,243,255,0.1)",
-              ],
-              borderColor: [
-                "hsl(var(--border))",
-                "rgba(255,0,60,0.9)",
-                "rgba(255,0,60,0.7)",
-                "rgba(255,0,60,0.8)",
-                "rgba(255,0,60,0.6)",
-                "rgba(255,0,60,0.4)",
-                "hsl(var(--border))",
-              ],
             }
           : {}
       }
@@ -199,119 +211,299 @@ export function EntropyBoard({
           : {}
       }
     >
-      {/* Hexagonal Grid Container */}
+      {/* Premium Board Frame */}
       <div
         className="relative"
         style={{
-          width: `${boardSize.cols * config.cellSize * Math.sqrt(3) + config.cellSize}px`,
-          height: `${boardSize.rows * config.cellSize * 1.5 + config.cellSize}px`,
+          background: "linear-gradient(135deg, rgba(0,243,255,0.1) 0%, rgba(0,0,0,0.8) 50%, rgba(255,170,0,0.1) 100%)",
+          padding: "3px",
+          clipPath: "polygon(2% 0%, 98% 0%, 100% 2%, 100% 98%, 98% 100%, 2% 100%, 0% 98%, 0% 2%)",
         }}
       >
-        {/* Transparent overlay to block all interactions during AI turn */}
-        {isAITurnOrProcessing && (
+        {/* Inner frame with gradient border effect */}
+        <div
+          className="relative"
+          style={{
+            background: "linear-gradient(180deg, hsl(var(--background)) 0%, rgba(0,20,25,1) 100%)",
+            boxShadow: `
+              inset 0 0 60px rgba(0,243,255,0.05),
+              0 0 40px rgba(0,243,255,0.15),
+              0 0 80px rgba(0,243,255,0.05)
+            `,
+          }}
+        >
+          {/* Edge indicators - Top (Player goal) */}
           <div
-            className="absolute inset-0 z-50 cursor-default"
+            className="absolute left-0 right-0 h-1 z-10"
             style={{
-              pointerEvents: "auto",
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onMouseEnter={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+              top: "-2px",
+              background: "linear-gradient(90deg, transparent 5%, rgba(0,243,255,0.8) 20%, rgba(0,243,255,1) 50%, rgba(0,243,255,0.8) 80%, transparent 95%)",
+              boxShadow: "0 0 15px rgba(0,243,255,0.6), 0 0 30px rgba(0,243,255,0.3)",
             }}
           />
-        )}
-        {Array.from({ length: boardSize.rows }).map((_, r) =>
-          Array.from({ length: boardSize.cols }).map((_, c) => {
-            const cellState = getCellState(r, c);
-            const isSelected = selectedSquare?.r === r && selectedSquare?.c === c;
-            const isValidMoveTarget = validMoves.some((m) => m.r === r && m.c === c);
-            
-            // Highlight logic
-            const isLastMoveDest =
-              lastMove?.to.r === r && lastMove?.to.c === c;
-            const isLastMove = isLastMoveDest;
 
-            const { x, y } = getHexPosition(r, c);
-            const cellSize = config.cellSize;
+          {/* Edge indicators - Bottom (Player goal) */}
+          <div
+            className="absolute left-0 right-0 h-1 z-10"
+            style={{
+              bottom: "-2px",
+              background: "linear-gradient(90deg, transparent 5%, rgba(0,243,255,0.8) 20%, rgba(0,243,255,1) 50%, rgba(0,243,255,0.8) 80%, transparent 95%)",
+              boxShadow: "0 0 15px rgba(0,243,255,0.6), 0 0 30px rgba(0,243,255,0.3)",
+            }}
+          />
 
-            // Determine if interaction should be disabled for this specific cell
-            // Only disable if it's not selected and not a valid move target
-            const isInteractionDisabled = isAITurnOrProcessing && 
-                                         !isSelected && 
-                                         !isValidMoveTarget;
+          {/* Edge indicators - Left (AI goal) */}
+          <div
+            className="absolute top-0 bottom-0 w-1 z-10"
+            style={{
+              left: "-2px",
+              background: `linear-gradient(180deg, transparent 5%, ${aiColors.border} 20%, ${aiColors.solid} 50%, ${aiColors.border} 80%, transparent 95%)`,
+              boxShadow: `0 0 15px ${aiColors.glow}, 0 0 30px ${aiColors.glow}`,
+            }}
+          />
 
-            return (
+          {/* Edge indicators - Right (AI goal) */}
+          <div
+            className="absolute top-0 bottom-0 w-1 z-10"
+            style={{
+              right: "-2px",
+              background: `linear-gradient(180deg, transparent 5%, ${aiColors.border} 20%, ${aiColors.solid} 50%, ${aiColors.border} 80%, transparent 95%)`,
+              boxShadow: `0 0 15px ${aiColors.glow}, 0 0 30px ${aiColors.glow}`,
+            }}
+          />
+
+          {/* Corner accents */}
+          <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary/50 z-20" />
+          <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary/50 z-20" />
+          <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary/50 z-20" />
+          <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary/50 z-20" />
+
+          {/* AI Analysis Overlay */}
+          <AnimatePresence>
+            {isAITurnOrProcessing && (
               <motion.div
-                key={`${r}-${c}`}
-                className="absolute"
-                style={{
-                  left: `${x}px`,
-                  top: `${y}px`,
-                  width: `${cellSize * Math.sqrt(3)}px`,
-                  height: `${cellSize * 2}px`,
-                  // Disable pointer events when interaction is disabled to prevent hover events
-                  // This prevents hover events from triggering during AI turn
-                  pointerEvents: isInteractionDisabled ? "none" : "auto",
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (!isProcessing && (turn === "player" || turn === undefined || isValidMoveTarget)) {
-                    onSquareClick(r, c);
-                  }
-                }}
-                onMouseEnter={() => {
-                  if (onSquareHover && !isProcessing && (turn === "player" || turn === undefined)) {
-                    onSquareHover(r, c);
-                  }
-                }}
-                animate={{
-                  scale: isSelected ? 1.1 : 1,
-                }}
-                transition={{ duration: 0.2 }}
+                className="absolute inset-0 z-30 pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
               >
-                {/* Hexagonal cell */}
                 <div
-                  className={cn(
-                    "relative w-full h-full flex items-center justify-center",
-                    // Base styles
-                    cellState === 'EMPTY' && "bg-muted/30",
-                    // Only apply hover effect when interaction is enabled
-                    cellState === 'EMPTY' && !isInteractionDisabled && "hover:bg-muted/50",
-                    cellState === 'PLAYER' && "bg-primary/20 border-2 border-primary",
-                    cellState === 'AI' && `bg-destructive/20 border-2 border-destructive ${getAiPieceColor()}`,
-                    // Selection highlight
-                    isSelected && "ring-2 ring-primary ring-offset-2",
-                    // Valid move highlight
-                    isValidMoveTarget && cellState === 'EMPTY' && "bg-primary/10 ring-1 ring-primary/50",
-                    // Last move highlight
-                    isLastMove && "ring-2 ring-secondary",
-                    // Error state
-                    hasError && "bg-destructive/10"
-                  )}
+                  className="w-full h-full entropy-ai-scan"
                   style={{
-                    clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+                    background: `linear-gradient(180deg,
+                      transparent 0%,
+                      ${aiColors.glow.replace('0.6', '0.03')} 45%,
+                      ${aiColors.glow.replace('0.6', '0.08')} 50%,
+                      ${aiColors.glow.replace('0.6', '0.03')} 55%,
+                      transparent 100%
+                    )`,
+                    backgroundSize: "100% 200%",
+                    animation: "entropy-scan 2s ease-in-out infinite",
                   }}
-                >
-                  {/* Cell content */}
-                  {cellState === 'PLAYER' && (
-                    <div className="w-3 h-3 rounded-full bg-primary" />
-                  )}
-                  {cellState === 'AI' && (
-                    <div className={cn("w-3 h-3 rounded-full", getAiPieceColor())} />
-                  )}
-                  {cellState === 'EMPTY' && isValidMoveTarget && (
-                    <div className="w-2 h-2 rounded-full bg-primary/50" />
-                  )}
-                </div>
+                />
               </motion.div>
-            );
-          })
-        )}
+            )}
+          </AnimatePresence>
+
+          {/* Hexagonal Grid Container */}
+          <div
+            className="relative p-4"
+            style={{
+              width: `${boardWidth + 32}px`,
+              height: `${boardHeight + 32}px`,
+            }}
+          >
+            {/* Grid background pattern */}
+            <div
+              className="absolute inset-4 opacity-30"
+              style={{
+                backgroundImage: `
+                  radial-gradient(circle at center, rgba(0,243,255,0.1) 0%, transparent 70%)
+                `,
+              }}
+            />
+
+            {/* Interaction blocker during AI turn */}
+            {isAITurnOrProcessing && (
+              <div
+                className="absolute inset-0 z-50 cursor-default"
+                style={{ pointerEvents: "auto" }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              />
+            )}
+
+            {/* Hex cells */}
+            {Array.from({ length: boardSize.rows }).map((_, r) =>
+              Array.from({ length: boardSize.cols }).map((_, c) => {
+                const cellState = getCellState(r, c);
+                const isSelected = selectedSquare?.r === r && selectedSquare?.c === c;
+                const isValidMoveTarget = validMoves.some((m) => m.r === r && m.c === c);
+                const isLastMoveDest = lastMove?.to.r === r && lastMove?.to.c === c;
+                const isNewlyPlaced = newlyPlaced?.r === r && newlyPlaced?.c === c;
+                const { x, y } = getHexPosition(r, c);
+                const cellSize = config.cellSize;
+                const isInteractionDisabled = isAITurnOrProcessing && !isSelected && !isValidMoveTarget;
+
+                // Edge cell styling
+                const onTopEdge = isTopEdge(r);
+                const onBottomEdge = isBottomEdge(r);
+                const onLeftEdge = isLeftEdge(c, r);
+                const onRightEdge = isRightEdge(c, r);
+                const isPlayerEdge = onTopEdge || onBottomEdge;
+                const isAiEdge = onLeftEdge || onRightEdge;
+
+                return (
+                  <motion.div
+                    key={`${r}-${c}`}
+                    className="absolute"
+                    style={{
+                      left: `${x + 16}px`,
+                      top: `${y + 16}px`,
+                      width: `${cellSize * Math.sqrt(3)}px`,
+                      height: `${cellSize * 2}px`,
+                      pointerEvents: isInteractionDisabled ? "none" : "auto",
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!isProcessing && (turn === "player" || turn === undefined || isValidMoveTarget)) {
+                        onSquareClick(r, c);
+                      }
+                    }}
+                    onMouseEnter={() => {
+                      if (onSquareHover && !isProcessing && (turn === "player" || turn === undefined)) {
+                        onSquareHover(r, c);
+                      }
+                    }}
+                    whileHover={!isInteractionDisabled && cellState === 'EMPTY' ? { scale: 1.08 } : {}}
+                    animate={{
+                      scale: isSelected ? 1.12 : 1,
+                    }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                  >
+                    {/* Hexagonal cell with enhanced styling */}
+                    <div
+                      className={cn(
+                        "relative w-full h-full flex items-center justify-center transition-all duration-200",
+                        cellState === 'EMPTY' && "entropy-cell-empty",
+                        cellState === 'EMPTY' && !isInteractionDisabled && "hover:brightness-150",
+                        hasError && "brightness-75"
+                      )}
+                      style={{
+                        clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+                        background: cellState === 'EMPTY'
+                          ? isValidMoveTarget
+                            ? "linear-gradient(135deg, rgba(0,243,255,0.15) 0%, rgba(0,243,255,0.05) 100%)"
+                            : isPlayerEdge
+                              ? "linear-gradient(135deg, rgba(0,243,255,0.08) 0%, rgba(0,30,35,0.9) 100%)"
+                              : isAiEdge
+                                ? `linear-gradient(135deg, ${aiColors.bg.replace('0.25', '0.08')} 0%, rgba(0,30,35,0.9) 100%)`
+                                : "linear-gradient(135deg, rgba(40,45,50,0.6) 0%, rgba(20,25,30,0.8) 100%)"
+                          : cellState === 'PLAYER'
+                            ? "linear-gradient(135deg, rgba(0,243,255,0.3) 0%, rgba(0,150,180,0.2) 100%)"
+                            : `linear-gradient(135deg, ${aiColors.bg} 0%, ${aiColors.bg.replace('0.25', '0.15')} 100%)`,
+                        boxShadow: cellState === 'PLAYER'
+                          ? "inset 0 0 15px rgba(0,243,255,0.3), 0 0 10px rgba(0,243,255,0.2)"
+                          : cellState === 'AI'
+                            ? `inset 0 0 15px ${aiColors.glow.replace('0.6', '0.3')}, 0 0 10px ${aiColors.glow.replace('0.6', '0.2')}`
+                            : isValidMoveTarget
+                              ? "inset 0 0 10px rgba(0,243,255,0.2)"
+                              : "inset 0 0 8px rgba(0,0,0,0.5)",
+                        border: cellState === 'PLAYER'
+                          ? "1px solid rgba(0,243,255,0.6)"
+                          : cellState === 'AI'
+                            ? `1px solid ${aiColors.border}`
+                            : isValidMoveTarget
+                              ? "1px solid rgba(0,243,255,0.4)"
+                              : isLastMoveDest
+                                ? "1px solid rgba(255,170,0,0.6)"
+                                : "1px solid rgba(60,70,80,0.4)",
+                      }}
+                    >
+                      {/* Player piece */}
+                      {cellState === 'PLAYER' && (
+                        <motion.div
+                          className="relative"
+                          initial={isNewlyPlaced ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                        >
+                          <div
+                            className="rounded-full"
+                            style={{
+                              width: `${cellSize * 0.45}px`,
+                              height: `${cellSize * 0.45}px`,
+                              background: "radial-gradient(circle at 30% 30%, #80ffff 0%, #00f3ff 40%, #00a0b0 100%)",
+                              boxShadow: "0 0 12px rgba(0,243,255,0.8), 0 0 25px rgba(0,243,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.3)",
+                            }}
+                          />
+                          {isLastMoveDest && (
+                            <div
+                              className="absolute inset-0 rounded-full"
+                              style={{
+                                border: "2px solid rgba(255,170,0,0.8)",
+                                boxShadow: "0 0 10px rgba(255,170,0,0.5)",
+                              }}
+                            />
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* AI piece */}
+                      {cellState === 'AI' && (
+                        <motion.div
+                          className="relative"
+                          initial={isNewlyPlaced ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                        >
+                          <div
+                            className="rounded-full"
+                            style={{
+                              width: `${cellSize * 0.45}px`,
+                              height: `${cellSize * 0.45}px`,
+                              background: `radial-gradient(circle at 30% 30%, ${aiColors.solid}cc 0%, ${aiColors.solid} 40%, ${aiColors.solid}80 100%)`,
+                              boxShadow: `0 0 12px ${aiColors.glow}, 0 0 25px ${aiColors.glow.replace('0.6', '0.4')}, inset 0 -2px 4px rgba(0,0,0,0.3)`,
+                            }}
+                          />
+                          {isLastMoveDest && (
+                            <div
+                              className="absolute inset-0 rounded-full"
+                              style={{
+                                border: "2px solid rgba(255,170,0,0.8)",
+                                boxShadow: "0 0 10px rgba(255,170,0,0.5)",
+                              }}
+                            />
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* Valid move indicator */}
+                      {cellState === 'EMPTY' && isValidMoveTarget && (
+                        <div
+                          className="rounded-full"
+                          style={{
+                            width: `${cellSize * 0.25}px`,
+                            height: `${cellSize * 0.25}px`,
+                            background: "radial-gradient(circle, rgba(0,243,255,0.8) 0%, rgba(0,243,255,0.3) 100%)",
+                            boxShadow: "0 0 8px rgba(0,243,255,0.6)",
+                          }}
+                        />
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Goal labels */}
+      <div className="flex justify-between mt-2 px-4 text-[10px] font-mono uppercase tracking-wider opacity-60">
+        <span className="text-primary">Your Goal: Left ↔ Right</span>
+        <span style={{ color: aiColors.solid }}>AI Goal: Top ↔ Bottom</span>
       </div>
     </motion.div>
   );
