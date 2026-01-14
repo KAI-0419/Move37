@@ -59,17 +59,22 @@ export function GameModeCarousel({
     return -index * itemWidth;
   };
 
-  // Snap to card positions
+  // Snap to card positions and auto-select the first visible game
   const snapToIndex = (index: number) => {
     const clampedIndex = Math.max(0, Math.min(index, maxIndex));
     setCurrentIndex(clampedIndex);
+
+    // Auto-select the first visible game for better UX
+    const firstVisibleGameIndex = clampedIndex;
+    const game = AVAILABLE_GAMES[firstVisibleGameIndex];
+    if (game && game.available && game.id !== selectedGameType) {
+      onGameTypeChange(game.id);
+    }
   };
 
-  // Get the game at the center of the visible cards (for Enter key selection)
-  const getCenterGameIndex = () => {
-    // Return the middle card of the visible cards, or first if only one visible
-    const centerOffset = Math.floor(effectiveCardsToShow / 2);
-    return Math.min(currentIndex + centerOffset, AVAILABLE_GAMES.length - 1);
+  // Get the first visible game (for Enter key selection)
+  const getFirstVisibleGameIndex = () => {
+    return currentIndex;
   };
 
   // Reset currentIndex when cardsToShow changes to prevent out-of-bounds
@@ -104,8 +109,8 @@ export function GameModeCarousel({
           break;
         case "Enter":
           e.preventDefault();
-          const centerIndex = getCenterGameIndex();
-          const game = AVAILABLE_GAMES[centerIndex];
+          const firstVisibleIndex = getFirstVisibleGameIndex();
+          const game = AVAILABLE_GAMES[firstVisibleIndex];
           if (game && game.available) {
             onGameTypeChange(game.id);
           }
@@ -117,7 +122,7 @@ export function GameModeCarousel({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [currentIndex, maxIndex, onGameTypeChange, effectiveCardsToShow, disabled]);
+  }, [currentIndex, maxIndex, onGameTypeChange, disabled]);
 
   // Handle drag end
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
@@ -186,9 +191,10 @@ export function GameModeCarousel({
             mass: 0.8,
           }}
         >
-          {AVAILABLE_GAMES.map((game) => {
+          {AVAILABLE_GAMES.map((game, gameIndex) => {
             const isSelected = selectedGameType === game.id;
             const isAvailable = game.available;
+            const isFirstVisible = gameIndex === currentIndex;
 
             return (
               <motion.div
@@ -221,6 +227,8 @@ export function GameModeCarousel({
                       ? "border-white/30 bg-white/10 cursor-pointer hover:border-primary/40 hover:bg-primary/10"
                       : isSelected
                       ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 shadow-[0_0_20px_rgba(0,243,255,0.3)]"
+                      : isFirstVisible && isAvailable
+                      ? "border-primary/60 bg-primary/5 hover:border-primary/70 hover:bg-primary/15 shadow-[0_0_10px_rgba(0,243,255,0.15)]"
                       : "border-white/10 bg-white/5 hover:border-primary/50 hover:bg-primary/10 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)]"
                   )}
                 >
