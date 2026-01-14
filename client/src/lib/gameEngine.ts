@@ -364,8 +364,17 @@ export async function calculateAIMove(
     // Use game engine to format history entry
     const moveStr = engine.formatHistoryEntry(aiResult.move, false);
 
-    // Play audio and haptic feedback for AI move
-    playMoveEffect();
+    // Check if AI move is a capture (target square has a piece)
+    const boardBeforeMove = engine.parseBoard(game.board);
+    const aiTargetSquare = boardBeforeMove[aiResult.move.to.r]?.[aiResult.move.to.c];
+    const isAICapture = aiTargetSquare !== null && aiTargetSquare !== undefined;
+
+    // Play audio and haptic feedback for AI move (capture vs regular move)
+    if (isAICapture) {
+      playCaptureEffect();
+    } else {
+      playMoveEffect();
+    }
     const aiHistory = [...game.history, moveStr];
     const now = new Date();
     

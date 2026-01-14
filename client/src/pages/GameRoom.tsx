@@ -28,7 +28,7 @@ import { GameInteractionHandlerFactory, type SelectThenMoveState } from "@/lib/g
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
 import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
 import { terminateMCTSWorkerPool } from "@/lib/games/entropy/mctsWorkerPool";
-import { vibrateError, vibrateWarning } from "@/lib/audio";
+import { playErrorEffect, playTimeWarningEffect } from "@/lib/audio";
 
 export default function GameRoom() {
   const { t } = useTranslation();
@@ -104,7 +104,7 @@ export default function GameRoom() {
   // Play error feedback when hasError becomes true
   useEffect(() => {
     if (hasError) {
-      vibrateError();
+      playErrorEffect();
       // Auto-reset error state after animation
       const timer = setTimeout(() => setHasError(false), 500);
       return () => clearTimeout(timer);
@@ -244,7 +244,7 @@ export default function GameRoom() {
 
     for (const threshold of warningThresholds) {
       if (timeLeft === threshold && !timeWarningsPlayedRef.current.has(threshold)) {
-        vibrateWarning();
+        playTimeWarningEffect();
         timeWarningsPlayedRef.current.add(threshold);
         break; // Only play one warning per render
       }

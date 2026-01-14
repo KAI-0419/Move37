@@ -21,6 +21,7 @@ import { GameType, loadGameType, saveGameType, getGameInfo } from "@/lib/gameTyp
 import { buildGameRoomUrl } from "@/lib/routing";
 import { Capacitor } from "@capacitor/core";
 import { admobService } from "@/lib/admob";
+import { playSelectEffect } from "@/lib/audio";
 
 // LocalStorage key prefix for selected difficulty (game-specific)
 const DIFFICULTY_STORAGE_KEY_PREFIX = "move37_selected_difficulty_";
@@ -160,6 +161,12 @@ export default function Lobby() {
       });
       return;
     }
+
+    // Play selection feedback only when actually changing difficulty
+    if (difficulty !== selectedDifficulty) {
+      playSelectEffect();
+    }
+
     setSelectedDifficulty(difficulty);
     saveDifficulty(difficulty, selectedGameType); // Pass gameType
   };
@@ -176,6 +183,12 @@ export default function Lobby() {
       }
       return;
     }
+
+    // Play selection feedback only when actually changing game type
+    if (gameType !== selectedGameType) {
+      playSelectEffect();
+    }
+
     setSelectedGameType(gameType);
     saveGameType(gameType);
     

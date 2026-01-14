@@ -33,6 +33,10 @@ export const GAME_SOUNDS = {
   BUTTON_CLICK: { id: 'button_click', path: 'sounds/button_click.ogg' },
   GAME_START: { id: 'game_start', path: 'sounds/game_start.ogg' },
   TURN_CHANGE: { id: 'turn_change', path: 'sounds/turn_change.ogg' },
+  // 추가 피드백 사운드 (기존 사운드 재활용, 볼륨 조절로 차별화)
+  ERROR: { id: 'error', path: 'sounds/lose.ogg' },           // 에러 피드백
+  TIME_WARNING: { id: 'time_warning', path: 'sounds/turn_change.ogg' }, // 시간 경고
+  SELECT: { id: 'select', path: 'sounds/button_click.ogg' }, // 선택 피드백
 } as const;
 
 // 진동 패턴 타입
@@ -374,6 +378,10 @@ export const playDrawSound = () => audioManager.playSound(GAME_SOUNDS.DRAW.id);
 export const playButtonClickSound = () => audioManager.playSound(GAME_SOUNDS.BUTTON_CLICK.id);
 export const playGameStartSound = () => audioManager.playSound(GAME_SOUNDS.GAME_START.id);
 export const playTurnChangeSound = () => audioManager.playSound(GAME_SOUNDS.TURN_CHANGE.id);
+// 추가 사운드 함수들
+export const playErrorSound = () => audioManager.playSound(GAME_SOUNDS.ERROR.id, 0.6); // 낮은 볼륨으로 차별화
+export const playTimeWarningSound = () => audioManager.playSound(GAME_SOUNDS.TIME_WARNING.id, 0.8);
+export const playSelectSound = () => audioManager.playSound(GAME_SOUNDS.SELECT.id, 0.5); // 부드러운 선택음
 
 export const vibrateLight = () => audioManager.vibrate('light');
 export const vibrateMedium = () => audioManager.vibrate('medium');
@@ -420,5 +428,21 @@ export const playGameStartEffect = () => {
 
 export const playTurnChangeEffect = () => {
   playTurnChangeSound();
+  vibrateLight();
+};
+
+// 추가 통합 효과 함수들
+export const playErrorEffect = () => {
+  playErrorSound();
+  vibrateError();
+};
+
+export const playTimeWarningEffect = () => {
+  playTimeWarningSound();
+  vibrateWarning();
+};
+
+export const playSelectEffect = () => {
+  playSelectSound();
   vibrateLight();
 };
