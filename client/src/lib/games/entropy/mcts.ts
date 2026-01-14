@@ -533,7 +533,10 @@ function backpropagate(
       const relevantMoves = parentIsAI ? aiMoves : playerMoves;
       const isWinForParent = winner === current.parent.player;
 
-      for (const moveKey of relevantMoves) {
+      // Convert Set to array to avoid downlevelIteration issues
+      const movesArray = Array.from(relevantMoves);
+      for (let i = 0; i < movesArray.length; i++) {
+        const moveKey = movesArray[i];
         let stats = current.parent.raveStats.get(moveKey);
         if (!stats) {
           stats = { visits: 0, wins: 0 };

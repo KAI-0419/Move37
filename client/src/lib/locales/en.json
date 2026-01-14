@@ -155,6 +155,9 @@
           "winningMove": "Winning path found. It took 1.2 seconds to understand the meaning of this move.",
           "observation": "Interesting pattern detected. Observing human thought process..."
         },
+        "openingBook": "Opening book: Move selected based on verified strategy. Optimal opening pattern executed.",
+        "endgameSolved": "Endgame fully analyzed. Winning path confirmed.",
+        "endgameDefense": "Endgame fully analyzed. Optimal defensive move executed.",
         "error": {
           "noValidMoves": "Error: No valid moves available. Game state verification required.",
           "invalidBoard": "Error: Board state is invalid.",
