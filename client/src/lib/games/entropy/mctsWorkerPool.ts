@@ -27,7 +27,7 @@ export interface WorkerRequest {
 }
 
 /**
- * Worker response message type
+ * Worker response message type (enhanced with win rate)
  */
 export interface WorkerResponse {
   type: 'MOVE_RESULT';
@@ -35,6 +35,9 @@ export interface WorkerResponse {
   stats?: {
     simulations: number;
     timeElapsed: number;
+    visits?: number;    // Total visits for this move
+    wins?: number;      // Total wins for this move
+    winRate?: number;   // Win rate for this move
   };
   error?: string;
 }
@@ -253,14 +256,10 @@ export class MCTSWorkerPool {
   /**
    * Merge results from multiple Workers
    *
-   * Strategy:
-   * - Each Worker returns a best move based on its simulations
-   * - We count how many Workers selected each move
-   * - The move selected by most Workers is chosen (voting)
-   * - Tie-breaking: if multiple moves have same vote count, use first one
-   *
-   * Alternative strategy (not used):
-   * - Aggregate visit counts from all Workers (requires tree merging, complex)
+   * ENHANCED STRATEGY:
+   * - Primary: Weighted voting by win rate (not just vote count)
+   * - Each worker's vote is weighted by its win rate for that move
+   * - This gives more weight to confident selections
    *
    * @param results - Array of Worker responses
    * @param board - Board state (for validation)
@@ -282,32 +281,62 @@ export class MCTSWorkerPool {
       };
     }
 
-    // Count votes for each move
-    const moveVotes = new Map<string, { move: Move; count: number }>();
+    // Aggregate moves with weighted scoring
+    const moveScores = new Map<string, {
+      move: Move;
+      voteCount: number;
+      totalWeight: number;
+      totalVisits: number;
+      totalWins: number;
+    }>();
 
     for (const result of validResults) {
       if (!result.move) continue;
 
       const moveKey = `${result.move.r},${result.move.c}`;
-      const existing = moveVotes.get(moveKey);
+      const existing = moveScores.get(moveKey);
+
+      // Weight calculation:
+      // - Base weight: 1 (one vote)
+      // - Bonus weight from win rate (0-1)
+      // - Bonus weight from visit count (normalized)
+      const winRate = result.stats?.winRate ?? 0.5;
+      const visits = result.stats?.visits ?? 1;
+      const wins = result.stats?.wins ?? 0;
+
+      // Weight: vote + (winRate * 2) + (visits / 1000)
+      // This gives significant weight to high win rates
+      const weight = 1 + (winRate * 2) + Math.min(visits / 1000, 1);
 
       if (existing) {
-        existing.count++;
+        existing.voteCount++;
+        existing.totalWeight += weight;
+        existing.totalVisits += visits;
+        existing.totalWins += wins;
       } else {
-        moveVotes.set(moveKey, { move: result.move, count: 1 });
+        moveScores.set(moveKey, {
+          move: result.move,
+          voteCount: 1,
+          totalWeight: weight,
+          totalVisits: visits,
+          totalWins: wins,
+        });
       }
     }
 
-    // Find move with most votes
+    // Find move with highest weighted score
     let bestMove: Move | null = null;
-    let maxVotes = 0;
+    let maxScore = -1;
 
-    // Convert Map entries to array for iteration
-    const votesArray = Array.from(moveVotes.values());
-    for (const { move, count } of votesArray) {
-      if (count > maxVotes) {
-        maxVotes = count;
-        bestMove = move;
+    const scoresArray = Array.from(moveScores.values());
+    for (const entry of scoresArray) {
+      // Score = totalWeight (includes vote count, win rate, and visits)
+      // With tie-breaking by raw vote count
+      const score = entry.totalWeight + (entry.voteCount * 0.1);
+
+      if (score > maxScore) {
+        maxScore = score;
+        bestMove = entry.move;
       }
     }
 

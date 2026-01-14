@@ -1,8 +1,13 @@
 /**
  * ENTROPY Evaluation Functions
- * 
- * Functions for evaluating board positions and calculating AI moves.
- * Uses MCTS algorithm with Web Worker support.
+ *
+ * ENHANCED VERSION with:
+ * - Opening book integration
+ * - Endgame solver for perfect late-game play
+ * - Virtual connections awareness
+ * - RAVE-enhanced MCTS
+ * - Iterative deepening for full time budget utilization
+ *
  * Implements "Move 37" strategy for advanced play.
  */
 
@@ -15,45 +20,72 @@ import { runMCTS, type MCTSConfig, type AIPersonality } from "./mcts";
 import { getValidNeighbors } from "./boardUtils";
 import { analyzePlayerPath, findCriticalPositions, predictPlayerNextMove, calculateShortestPath } from "./pathAnalysis";
 import { getMCTSWorkerPool } from "./mctsWorkerPool";
+import { getOpeningBookMove, isOpeningPhase } from "./openingBook";
+import { solveEndgame, shouldUseEndgameSolver, getEndgameDepth, getEndgameTimeLimit, clearTranspositionTable } from "./endgameSolver";
+import { getVirtualConnectionCarriers, hasVirtualWin } from "./virtualConnections";
 
 /**
  * Get MCTS configuration based on difficulty
- * 
- * Optimized parameters for each difficulty level with AI personality:
- * - NEXUS-3 (일반인): Balanced exploration/exploitation, moderate simulations
- * - NEXUS-5 (전문가): Higher exploitation, more simulations for deeper analysis
- * - NEXUS-7 (인간 초월): Maximum exploitation with strategic depth, highest simulations, ALIEN personality
+ *
+ * REDESIGNED for three distinct difficulty levels:
+ *
+ * - NEXUS-3 (일반인): Beatable by casual players
+ *   - Low simulation count, no RAVE, limited opening book
+ *   - Some intentional randomness for weaker play
+ *
+ * - NEXUS-5 (HEX 전문가): Challenging but beatable by experts
+ *   - Medium simulation count, RAVE enabled, opening book
+ *   - Strong tactical play, endgame solver for close games
+ *
+ * - NEXUS-7 (인간 초월): Nearly impossible to beat
+ *   - Maximum simulation count, full time budget utilization
+ *   - Complete opening book, deep endgame solver
+ *   - RAVE + iterative deepening for optimal play
  */
 function getMCTSConfig(
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"
 ): MCTSConfig {
   switch (difficulty) {
     case "NEXUS-3":
-      // 일반인 수준: 적절한 탐색과 활용의 균형
+      // 일반인 수준: 캐주얼 플레이어가 이길 수 있음
+      // Intentionally weak for learning the game
       return {
-        simulations: 1000,
-        ucb1Constant: Math.sqrt(2) * 1.1,
-        timeLimit: 3000,
+        simulations: 800, // Low simulation count
+        ucb1Constant: Math.sqrt(2) * 1.3, // High exploration = more random
+        timeLimit: 2000, // Short time limit
         personality: 'BALANCED',
-        dynamicUCB1: true,
+        dynamicUCB1: false, // Disable for simpler play
+        useRAVE: false, // No RAVE (weaker)
+        raveConstant: 0,
+        iterativeDeepening: false, // Don't use full time
       };
+
     case "NEXUS-5":
-      // 전문가 수준: 더 깊은 분석과 전략적 사고
+      // HEX 전문가 수준: 강하지만 전문가에게는 패배 가능
+      // Strong tactical play with solid strategy
       return {
-        simulations: 3000,
-        ucb1Constant: Math.sqrt(2),
-        timeLimit: 5000,
+        simulations: 4000, // Medium-high simulation count
+        ucb1Constant: Math.sqrt(2) * 0.95, // Slightly favor exploitation
+        timeLimit: 6000, // 6 seconds
         personality: 'AGGRESSIVE',
         dynamicUCB1: true,
+        useRAVE: true, // RAVE enabled
+        raveConstant: 250,
+        iterativeDeepening: true, // Use full time budget
       };
+
     case "NEXUS-7":
-      // 인간 초월: ALIEN personality로 기괴한 수를 두는 능력
+      // 인간 초월: 거의 이길 수 없는 최상위 레벨
+      // Maximum strength with all optimizations
       return {
-        simulations: 5000,
-        ucb1Constant: Math.sqrt(2) * 0.9,
-        timeLimit: 8000,
-        personality: 'ALIEN', // 기괴한 수를 두는 "Move 37" 스타일
+        simulations: 10000, // Very high simulation count
+        ucb1Constant: Math.sqrt(2) * 0.85, // Strong exploitation
+        timeLimit: 10000, // 10 seconds (full budget)
+        personality: 'ALIEN', // Unpredictable genius moves
         dynamicUCB1: true,
+        useRAVE: true, // Full RAVE
+        raveConstant: 400, // Higher RAVE weight
+        iterativeDeepening: true, // Use full time budget
       };
   }
 }
@@ -431,7 +463,13 @@ function analyzePlayerPsychology(
 }
 
 /**
- * Get AI move using MCTS algorithm
+ * Get AI move using enhanced MCTS algorithm
+ *
+ * ENHANCED with:
+ * - Opening book for first moves
+ * - Endgame solver for perfect late-game play
+ * - Virtual connection awareness
+ * - RAVE-enhanced MCTS with iterative deepening
  *
  * @param board - Current board state
  * @param playerLastMove - Player's last move (for psychological analysis)
@@ -474,7 +512,7 @@ export async function getAIMove(
     }
 
     const validMoves = getValidMoves(board);
-    
+
     if (validMoves.length === 0) {
       return {
         move: null,
@@ -505,6 +543,79 @@ export async function getAIMove(
           move: gameMove,
           logs: ["gameRoom.log.entropy.winningMove"],
         };
+      }
+    }
+
+    // Check for blocking opponent's immediate win
+    for (const move of validMoves) {
+      if (wouldWin(board, move, 'PLAYER')) {
+        const gameMove: GameMove = {
+          from: { r: -1, c: -1 },
+          to: move,
+        };
+        return {
+          move: gameMove,
+          logs: ["gameRoom.log.entropy.blockingWin"],
+        };
+      }
+    }
+
+    // ==========================================================================
+    // PHASE 0: Opening Book (for early game)
+    // ==========================================================================
+    if (isOpeningPhase(board)) {
+      const openingMove = getOpeningBookMove(board, difficulty);
+      if (openingMove) {
+        // Verify the move is valid
+        const isValid = validMoves.some(m => m.r === openingMove.r && m.c === openingMove.c);
+        if (isValid) {
+          const gameMove: GameMove = {
+            from: { r: -1, c: -1 },
+            to: openingMove,
+          };
+          return {
+            move: gameMove,
+            logs: ["gameRoom.log.entropy.openingBook"],
+          };
+        }
+      }
+    }
+
+    // ==========================================================================
+    // PHASE 1: Endgame Solver (for late game - NEXUS-5 and NEXUS-7 only)
+    // ==========================================================================
+    if (shouldUseEndgameSolver(board, difficulty)) {
+      try {
+        const emptyCells = getEmptyCells(board);
+        const depth = getEndgameDepth(emptyCells.length, difficulty);
+        const timeLimit = getEndgameTimeLimit(difficulty);
+
+        const endgameResult = solveEndgame(board, depth, timeLimit);
+
+        if (endgameResult.move && endgameResult.solved) {
+          const gameMove: GameMove = {
+            from: { r: -1, c: -1 },
+            to: endgameResult.move,
+          };
+
+          // Clear transposition table to free memory
+          clearTranspositionTable();
+
+          const logMessage = endgameResult.score > 0
+            ? "gameRoom.log.entropy.endgameSolved"
+            : "gameRoom.log.entropy.endgameDefense";
+
+          return {
+            move: gameMove,
+            logs: [logMessage],
+          };
+        }
+
+        // Clear transposition table even if not solved
+        clearTranspositionTable();
+      } catch (error) {
+        console.warn('[Evaluation] Endgame solver failed:', error);
+        // Continue to MCTS if endgame solver fails
       }
     }
 

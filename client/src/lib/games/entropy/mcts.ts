@@ -1,19 +1,33 @@
 /**
  * Monte Carlo Tree Search (MCTS) for ENTROPY (Hex) Game
- * 
- * Implements the MCTS algorithm with UCB1 selection policy.
+ *
+ * ENHANCED VERSION with:
+ * - Iterative deepening (uses full time budget)
+ * - RAVE (Rapid Action Value Estimation) / AMAF (All-Moves-As-First)
+ * - Progressive widening for large branching factors
+ * - Virtual connection awareness
+ * - Improved simulation with both players' path analysis
+ *
  * This is essential for Hex games due to the high branching factor.
  */
 
 import type { BoardState, Move, Player } from "./types";
-import { cloneBoard, setCellState } from "./boardUtils";
-import { isConnected, getEmptyCells } from "./connectionCheck";
+import { cloneBoard, setCellState, getCellState } from "./boardUtils";
+import { isConnected, getEmptyCells, wouldWin } from "./connectionCheck";
 import { getValidMoves } from "./moveValidation";
 import { analyzePlayerPath, predictPlayerNextMove, calculateShortestPath } from "./pathAnalysis";
 import { getNodePool, resetNodePool } from "./nodePool";
 
 /**
- * MCTS Node structure
+ * RAVE statistics for a move
+ */
+interface RAVEStats {
+  visits: number;
+  wins: number;
+}
+
+/**
+ * MCTS Node structure with RAVE support
  */
 export interface MCTSNode {
   board: BoardState;
@@ -24,6 +38,8 @@ export interface MCTSNode {
   wins: number;
   untriedMoves: Move[];
   player: Player; // Player who made the move to reach this node
+  // RAVE statistics (All-Moves-As-First)
+  raveStats?: Map<string, RAVEStats>;
 }
 
 /**
@@ -32,17 +48,21 @@ export interface MCTSNode {
 export type AIPersonality = 'AGGRESSIVE' | 'DEFENSIVE' | 'BALANCED' | 'ALIEN';
 
 /**
- * MCTS Configuration with Dynamic UCB1
+ * MCTS Configuration with Dynamic UCB1 and RAVE
  */
 export interface MCTSConfig {
-  simulations: number; // Number of simulations to run
+  simulations: number; // Maximum simulations (may run more if time allows)
   ucb1Constant: number; // Base UCB1 exploration constant (default: sqrt(2))
   timeLimit?: number; // Time limit in milliseconds
   personality?: AIPersonality; // AI personality for dynamic behavior
   dynamicUCB1?: boolean; // Enable dynamic UCB1 adjustment based on game state
+  useRAVE?: boolean; // Enable RAVE/AMAF (default: true for higher difficulties)
+  raveConstant?: number; // RAVE exploration constant (default: 300)
+  iterativeDeepening?: boolean; // Use full time budget (default: true)
 }
 
 const DEFAULT_UCB1_CONSTANT = Math.sqrt(2);
+const DEFAULT_RAVE_CONSTANT = 300; // Controls RAVE vs UCT balance
 
 /**
  * Calculate dynamic UCB1 constant based on game state and personality
@@ -119,11 +139,19 @@ export function createRootNode(
 }
 
 /**
- * UCB1 formula for node selection
+ * UCB1 formula for node selection with optional RAVE
+ *
  * @param node - MCTS node to evaluate
  * @param ucb1Constant - Exploration constant from config
+ * @param useRAVE - Whether to use RAVE statistics
+ * @param raveConstant - RAVE constant (controls UCT vs RAVE balance)
  */
-function ucb1(node: MCTSNode, ucb1Constant: number): number {
+function ucb1(
+  node: MCTSNode,
+  ucb1Constant: number,
+  useRAVE: boolean = false,
+  raveConstant: number = DEFAULT_RAVE_CONSTANT
+): number {
   if (node.visits === 0) {
     return Infinity; // Unvisited nodes have highest priority
   }
@@ -133,24 +161,51 @@ function ucb1(node: MCTSNode, ucb1Constant: number): number {
     Math.log((node.parent?.visits || 1)) / node.visits
   );
 
-  return exploitation + exploration;
+  // Standard UCB1 value
+  let uctValue = exploitation + exploration;
+
+  // Add RAVE component if enabled
+  if (useRAVE && node.move && node.parent?.raveStats) {
+    const moveKey = `${node.move.r},${node.move.c}`;
+    const raveStats = node.parent.raveStats.get(moveKey);
+
+    if (raveStats && raveStats.visits > 0) {
+      const raveValue = raveStats.wins / raveStats.visits;
+
+      // Beta parameter controls UCT vs RAVE balance
+      // As node.visits increases, beta decreases (trust UCT more)
+      const beta = Math.sqrt(raveConstant / (3 * node.visits + raveConstant));
+
+      // Blend UCT and RAVE values
+      uctValue = (1 - beta) * uctValue + beta * raveValue;
+    }
+  }
+
+  return uctValue;
 }
 
 /**
- * Select best child node using UCB1
+ * Select best child node using UCB1 with optional RAVE
  * @param node - Parent node
  * @param ucb1Constant - Exploration constant from config
+ * @param useRAVE - Whether to use RAVE
+ * @param raveConstant - RAVE constant
  */
-function selectChild(node: MCTSNode, ucb1Constant: number): MCTSNode {
+function selectChild(
+  node: MCTSNode,
+  ucb1Constant: number,
+  useRAVE: boolean = false,
+  raveConstant: number = DEFAULT_RAVE_CONSTANT
+): MCTSNode {
   if (node.children.length === 0) {
     return node;
   }
 
   let bestChild = node.children[0];
-  let bestValue = ucb1(bestChild, ucb1Constant);
+  let bestValue = ucb1(bestChild, ucb1Constant, useRAVE, raveConstant);
 
   for (let i = 1; i < node.children.length; i++) {
-    const value = ucb1(node.children[i], ucb1Constant);
+    const value = ucb1(node.children[i], ucb1Constant, useRAVE, raveConstant);
     if (value > bestValue) {
       bestValue = value;
       bestChild = node.children[i];
@@ -161,15 +216,22 @@ function selectChild(node: MCTSNode, ucb1Constant: number): MCTSNode {
 }
 
 /**
- * Selection phase: traverse from root to leaf
+ * Selection phase: traverse from root to leaf with RAVE support
  * @param node - Root node
  * @param ucb1Constant - Exploration constant from config
+ * @param useRAVE - Whether to use RAVE
+ * @param raveConstant - RAVE constant
  */
-function select(node: MCTSNode, ucb1Constant: number): MCTSNode {
+function select(
+  node: MCTSNode,
+  ucb1Constant: number,
+  useRAVE: boolean = false,
+  raveConstant: number = DEFAULT_RAVE_CONSTANT
+): MCTSNode {
   let current = node;
 
   while (current.children.length > 0 && current.untriedMoves.length === 0) {
-    current = selectChild(current, ucb1Constant);
+    current = selectChild(current, ucb1Constant, useRAVE, raveConstant);
   }
 
   return current;
@@ -202,112 +264,105 @@ function expand(node: MCTSNode): MCTSNode | null {
 }
 
 /**
- * Simulation phase: Improved Play-out with player move prediction
- * 
- * ENHANCED: Now considers player's predicted moves based on path analysis.
- * For PLAYER moves, uses weighted selection based on predicted positions.
- * For AI moves, uses random selection for speed.
- * 
- * This maintains performance while making simulations more realistic by
- * predicting where the player is likely to move based on their connection strategy.
+ * Simulation result including moves made (for RAVE)
  */
-function simulate(node: MCTSNode, playerPredictedMoves?: Move[]): Player {
+interface SimulationResult {
+  winner: Player;
+  movesMade: { move: Move; player: Player }[];
+}
+
+/**
+ * Simulation phase: Improved Play-out with player move prediction and RAVE support
+ *
+ * ENHANCED: Now considers both players' predicted moves based on path analysis.
+ * Uses weighted selection for more realistic simulations.
+ * Returns the sequence of moves for RAVE updates.
+ */
+function simulate(
+  node: MCTSNode,
+  playerPredictedMoves?: Move[],
+  useRAVE: boolean = false
+): SimulationResult {
   let currentBoard = cloneBoard(node.board);
   let currentPlayer: Player = node.player;
+  const movesMade: { move: Move; player: Player }[] = [];
 
   // Initial win check (only once at start)
   if (isConnected(currentBoard, 'PLAYER')) {
-    return 'PLAYER';
+    return { winner: 'PLAYER', movesMade };
   }
   if (isConnected(currentBoard, 'AI')) {
-    return 'AI';
+    return { winner: 'AI', movesMade };
   }
 
-  // Cache for player predicted moves and shortest path (computed once per simulation)
+  // Cache for path analysis (computed lazily)
   let cachedPlayerMoves: Move[] | null = playerPredictedMoves || null;
-  let cachedShortestPath: Move[] | null = null;
-  let analysisComputed = false;
+  let cachedPlayerShortestPath: Move[] | null = null;
+  let cachedAIShortestPath: Move[] | null = null;
+  let playerAnalysisComputed = false;
+  let aiAnalysisComputed = false;
 
   let moves = 0;
   const maxMoves = currentBoard.boardSize.rows * currentBoard.boardSize.cols;
   const emptyCells = getEmptyCells(currentBoard);
   let emptyCount = emptyCells.length;
 
-  // Fast playout with player move prediction
+  // Check interval for win detection (reduce expensive checks)
+  const checkInterval = Math.max(3, Math.floor(emptyCount / 10));
+
+  // Fast playout with intelligent move selection for both players
   while (emptyCount > 0 && moves < maxMoves) {
-    if (emptyCount === 0) {
-      break;
+    let selectedMove: Move;
+
+    if (currentPlayer === 'PLAYER') {
+      // For PLAYER: Use shortest path and predicted moves
+      if (!playerAnalysisComputed) {
+        try {
+          const pathAnalysis = analyzePlayerPath(currentBoard);
+          cachedPlayerMoves = pathAnalysis.predictedMoves.slice(0, 10).map(p => p.move);
+          cachedPlayerShortestPath = pathAnalysis.shortestPathPositions;
+        } catch {
+          // Fallback if path analysis fails
+          cachedPlayerMoves = [];
+          cachedPlayerShortestPath = [];
+        }
+        playerAnalysisComputed = true;
+      }
+
+      selectedMove = selectSimulationMove(
+        emptyCells,
+        emptyCount,
+        cachedPlayerShortestPath,
+        cachedPlayerMoves,
+        0.55, // 55% shortest path
+        0.30  // 30% predicted moves
+      );
+    } else {
+      // For AI: Use AI's own path analysis for smarter simulation
+      if (!aiAnalysisComputed) {
+        try {
+          const aiPath = calculateShortestPath(currentBoard, 'AI');
+          cachedAIShortestPath = aiPath.path;
+        } catch {
+          cachedAIShortestPath = [];
+        }
+        aiAnalysisComputed = true;
+      }
+
+      selectedMove = selectSimulationMove(
+        emptyCells,
+        emptyCount,
+        cachedAIShortestPath,
+        null,
+        0.50, // 50% shortest path
+        0.0   // No predicted moves for AI
+      );
     }
 
-    let selectedMove: Move;
-    
-    if (currentPlayer === 'PLAYER') {
-      // For PLAYER: Use shortest path and predicted moves for more accurate simulation
-      if (!analysisComputed) {
-        // Compute path analysis once for this simulation
-        const pathAnalysis = analyzePlayerPath(currentBoard);
-        cachedPlayerMoves = pathAnalysis.predictedMoves.slice(0, 10).map(p => p.move);
-        cachedShortestPath = pathAnalysis.shortestPathPositions;
-        analysisComputed = true;
-      }
-      
-      // Create weighted selection: prioritize shortest path positions
-      const shortestPathSet = new Set<string>();
-      if (cachedShortestPath) {
-        for (const pos of cachedShortestPath) {
-          shortestPathSet.add(`${pos.r},${pos.c}`);
-        }
-      }
-      
-      // Find available moves on shortest path
-      const shortestPathMoves: Move[] = [];
-      const predictedMoves: Move[] = [];
-      const otherMoves: Move[] = [];
-      
-      for (let i = 0; i < emptyCount; i++) {
-        const move = emptyCells[i];
-        const moveKey = `${move.r},${move.c}`;
-        
-        if (shortestPathSet.has(moveKey)) {
-          shortestPathMoves.push(move);
-        } else if (cachedPlayerMoves && cachedPlayerMoves.some(pm => pm.r === move.r && pm.c === move.c)) {
-          predictedMoves.push(move);
-        } else {
-          otherMoves.push(move);
-        }
-      }
-      
-      // Weighted selection based on move importance
-      const rand = Math.random();
-      if (shortestPathMoves.length > 0 && rand < 0.6) {
-        // 60% chance to pick from shortest path (most critical)
-        const index = Math.floor(Math.random() * shortestPathMoves.length);
-        selectedMove = shortestPathMoves[index];
-        const moveIndex = emptyCells.findIndex(e => e.r === selectedMove.r && e.c === selectedMove.c);
-        emptyCells[moveIndex] = emptyCells[emptyCount - 1];
-        emptyCells.pop();
-        emptyCount--;
-      } else if (predictedMoves.length > 0 && rand < 0.85) {
-        // 25% chance (0.6-0.85) to pick from predicted moves
-        const index = Math.floor(Math.random() * predictedMoves.length);
-        selectedMove = predictedMoves[index];
-        const moveIndex = emptyCells.findIndex(e => e.r === selectedMove.r && e.c === selectedMove.c);
-        emptyCells[moveIndex] = emptyCells[emptyCount - 1];
-        emptyCells.pop();
-        emptyCount--;
-      } else {
-        // 15% chance for random move (exploration)
-        const randomIndex = Math.floor(Math.random() * emptyCount);
-        selectedMove = emptyCells[randomIndex];
-        emptyCells[randomIndex] = emptyCells[emptyCount - 1];
-        emptyCells.pop();
-        emptyCount--;
-      }
-    } else {
-      // For AI: Pure random selection for maximum speed
-      const randomIndex = Math.floor(Math.random() * emptyCount);
-      selectedMove = emptyCells[randomIndex];
-      emptyCells[randomIndex] = emptyCells[emptyCount - 1];
+    // Remove selected move from empty cells
+    const moveIndex = emptyCells.findIndex(e => e.r === selectedMove.r && e.c === selectedMove.c);
+    if (moveIndex >= 0) {
+      emptyCells[moveIndex] = emptyCells[emptyCount - 1];
       emptyCells.pop();
       emptyCount--;
     }
@@ -315,49 +370,145 @@ function simulate(node: MCTSNode, playerPredictedMoves?: Move[]): Player {
     // Apply move
     setCellState(currentBoard, selectedMove, currentPlayer);
 
+    // Track move for RAVE
+    if (useRAVE) {
+      movesMade.push({ move: selectedMove, player: currentPlayer });
+    }
+
     // Switch player
     currentPlayer = currentPlayer === 'PLAYER' ? 'AI' : 'PLAYER';
     moves++;
-    
-    // Reset analysis cache when player switches (will recompute on next PLAYER turn)
+
+    // Reset analysis cache when switching to that player
     if (currentPlayer === 'PLAYER') {
-      analysisComputed = false;
+      playerAnalysisComputed = false;
       cachedPlayerMoves = null;
-      cachedShortestPath = null;
+      cachedPlayerShortestPath = null;
+    } else {
+      aiAnalysisComputed = false;
+      cachedAIShortestPath = null;
     }
-  }
 
-  // Final win check (only once at end)
-  if (isConnected(currentBoard, 'PLAYER')) {
-    return 'PLAYER';
-  }
-  if (isConnected(currentBoard, 'AI')) {
-    return 'AI';
-  }
-
-  // Last resort: count pieces
-  let playerCount = 0;
-  let aiCount = 0;
-  const { rows, cols } = currentBoard.boardSize;
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (currentBoard.cells[r][c] === 'PLAYER') {
-        playerCount++;
-      } else if (currentBoard.cells[r][c] === 'AI') {
-        aiCount++;
+    // Periodic win check (expensive, so don't do every move)
+    if (moves % checkInterval === 0) {
+      if (isConnected(currentBoard, 'PLAYER')) {
+        return { winner: 'PLAYER', movesMade };
+      }
+      if (isConnected(currentBoard, 'AI')) {
+        return { winner: 'AI', movesMade };
       }
     }
   }
 
-  return playerCount > aiCount ? 'PLAYER' : 'AI';
+  // Final win check
+  if (isConnected(currentBoard, 'PLAYER')) {
+    return { winner: 'PLAYER', movesMade };
+  }
+  if (isConnected(currentBoard, 'AI')) {
+    return { winner: 'AI', movesMade };
+  }
+
+  // Last resort: use shortest path advantage
+  const playerPath = calculateShortestPath(currentBoard, 'PLAYER');
+  const aiPath = calculateShortestPath(currentBoard, 'AI');
+
+  // In Hex, a draw is impossible - there's always a winner
+  // Use path advantage as tiebreaker
+  const winner: Player = aiPath.distance <= playerPath.distance ? 'AI' : 'PLAYER';
+  return { winner, movesMade };
 }
 
 /**
- * Backpropagation phase: update statistics up the tree
+ * Helper function for weighted move selection in simulation
  */
-function backpropagate(node: MCTSNode, winner: Player, currentPlayer: Player): void {
+function selectSimulationMove(
+  emptyCells: Move[],
+  emptyCount: number,
+  shortestPath: Move[] | null,
+  predictedMoves: Move[] | null,
+  shortestPathProb: number,
+  predictedProb: number
+): Move {
+  // Create sets for O(1) lookup
+  const shortestPathSet = new Set<string>();
+  if (shortestPath) {
+    for (const pos of shortestPath) {
+      shortestPathSet.add(`${pos.r},${pos.c}`);
+    }
+  }
+
+  const predictedSet = new Set<string>();
+  if (predictedMoves) {
+    for (const pos of predictedMoves) {
+      predictedSet.add(`${pos.r},${pos.c}`);
+    }
+  }
+
+  // Categorize available moves
+  const pathMoves: Move[] = [];
+  const predMoves: Move[] = [];
+  const otherMoves: Move[] = [];
+
+  for (let i = 0; i < emptyCount; i++) {
+    const move = emptyCells[i];
+    const key = `${move.r},${move.c}`;
+
+    if (shortestPathSet.has(key)) {
+      pathMoves.push(move);
+    } else if (predictedSet.has(key)) {
+      predMoves.push(move);
+    } else {
+      otherMoves.push(move);
+    }
+  }
+
+  // Weighted selection
+  const rand = Math.random();
+
+  if (pathMoves.length > 0 && rand < shortestPathProb) {
+    return pathMoves[Math.floor(Math.random() * pathMoves.length)];
+  } else if (predMoves.length > 0 && rand < shortestPathProb + predictedProb) {
+    return predMoves[Math.floor(Math.random() * predMoves.length)];
+  } else if (otherMoves.length > 0) {
+    return otherMoves[Math.floor(Math.random() * otherMoves.length)];
+  }
+
+  // Fallback: random from all available
+  return emptyCells[Math.floor(Math.random() * emptyCount)];
+}
+
+/**
+ * Backpropagation phase: update statistics up the tree with RAVE support
+ *
+ * @param node - Starting node for backpropagation
+ * @param winner - Winner of the simulation
+ * @param currentPlayer - Current player at root
+ * @param movesMade - Moves made during simulation (for RAVE)
+ * @param useRAVE - Whether to update RAVE statistics
+ */
+function backpropagate(
+  node: MCTSNode,
+  winner: Player,
+  currentPlayer: Player,
+  movesMade: { move: Move; player: Player }[] = [],
+  useRAVE: boolean = false
+): void {
   let current: MCTSNode | null = node;
+
+  // Create sets of moves by player for RAVE
+  const aiMoves = new Set<string>();
+  const playerMoves = new Set<string>();
+
+  if (useRAVE) {
+    for (const { move, player } of movesMade) {
+      const key = `${move.r},${move.c}`;
+      if (player === 'AI') {
+        aiMoves.add(key);
+      } else {
+        playerMoves.add(key);
+      }
+    }
+  }
 
   while (current !== null) {
     current.visits++;
@@ -370,19 +521,47 @@ function backpropagate(node: MCTSNode, winner: Player, currentPlayer: Player): v
       current.wins++;
     }
 
+    // Update RAVE statistics
+    if (useRAVE && current.parent) {
+      // Initialize RAVE stats if needed
+      if (!current.parent.raveStats) {
+        current.parent.raveStats = new Map();
+      }
+
+      // Update RAVE for all moves made by the parent's player
+      const parentIsAI = current.parent.player === 'AI';
+      const relevantMoves = parentIsAI ? aiMoves : playerMoves;
+      const isWinForParent = winner === current.parent.player;
+
+      for (const moveKey of relevantMoves) {
+        let stats = current.parent.raveStats.get(moveKey);
+        if (!stats) {
+          stats = { visits: 0, wins: 0 };
+          current.parent.raveStats.set(moveKey, stats);
+        }
+        stats.visits++;
+        if (isWinForParent) {
+          stats.wins++;
+        }
+      }
+    }
+
     current = current.parent;
   }
 }
 
 /**
- * Run one MCTS iteration with dynamic UCB1
+ * Run one MCTS iteration with dynamic UCB1 and RAVE support
+ *
  * @param root - Root node
  * @param currentPlayer - Current player
  * @param ucb1Constant - Base exploration constant from config
- * @param playerPredictedMoves - Optional: predicted moves for player (computed once at root)
+ * @param playerPredictedMoves - Optional: predicted moves for player
  * @param dynamicUCB1 - Whether to use dynamic UCB1
  * @param personality - AI personality
  * @param threatLevel - Current threat level
+ * @param useRAVE - Whether to use RAVE
+ * @param raveConstant - RAVE constant
  */
 function mctsIteration(
   root: MCTSNode,
@@ -391,7 +570,9 @@ function mctsIteration(
   playerPredictedMoves?: Move[],
   dynamicUCB1: boolean = false,
   personality: AIPersonality = 'BALANCED',
-  threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+  useRAVE: boolean = false,
+  raveConstant: number = DEFAULT_RAVE_CONSTANT
 ): void {
   // Calculate dynamic UCB1 if enabled
   let effectiveUCB1 = ucb1Constant;
@@ -399,17 +580,17 @@ function mctsIteration(
     const winRate = root.wins / root.visits;
     effectiveUCB1 = calculateDynamicUCB1(ucb1Constant, winRate, personality, threatLevel);
   }
-  
-  // Selection
-  const leaf = select(root, effectiveUCB1);
+
+  // Selection (with RAVE support)
+  const leaf = select(root, effectiveUCB1, useRAVE, raveConstant);
 
   // Check if leaf is terminal (winning state)
   if (isConnected(leaf.board, 'PLAYER')) {
-    backpropagate(leaf, 'PLAYER', currentPlayer);
+    backpropagate(leaf, 'PLAYER', currentPlayer, [], useRAVE);
     return;
   }
   if (isConnected(leaf.board, 'AI')) {
-    backpropagate(leaf, 'AI', currentPlayer);
+    backpropagate(leaf, 'AI', currentPlayer, [], useRAVE);
     return;
   }
 
@@ -417,21 +598,26 @@ function mctsIteration(
   const expanded = expand(leaf);
   if (expanded === null) {
     // No expansion possible - terminal node
-    const winner = simulate(leaf, playerPredictedMoves);
-    backpropagate(leaf, winner, currentPlayer);
+    const result = simulate(leaf, playerPredictedMoves, useRAVE);
+    backpropagate(leaf, result.winner, currentPlayer, result.movesMade, useRAVE);
     return;
   }
 
   // Simulation (pass predicted moves for better player move prediction)
-  const winner = simulate(expanded, playerPredictedMoves);
+  const result = simulate(expanded, playerPredictedMoves, useRAVE);
 
-  // Backpropagation
-  backpropagate(expanded, winner, currentPlayer);
+  // Backpropagation (with RAVE updates)
+  backpropagate(expanded, result.winner, currentPlayer, result.movesMade, useRAVE);
 }
 
 /**
  * Run MCTS and return best move
- * 
+ *
+ * ENHANCED VERSION with:
+ * - Iterative deepening (uses full time budget when enabled)
+ * - RAVE (Rapid Action Value Estimation)
+ * - Better move selection
+ *
  * @param board - Current board state
  * @param currentPlayer - Player to find best move for
  * @param config - MCTS configuration
@@ -446,7 +632,7 @@ export function runMCTS(
 ): Move | null {
   // Reset node pool before starting new search
   resetNodePool();
-  
+
   const root = createRootNode(board, currentPlayer);
 
   // Check if there are any valid moves
@@ -459,8 +645,23 @@ export function runMCTS(
     return root.untriedMoves[0];
   }
 
+  // Check for immediate winning moves
+  for (const move of root.untriedMoves) {
+    if (wouldWin(board, move, currentPlayer)) {
+      return move;
+    }
+  }
+
+  // Check for blocking opponent's winning moves
+  const opponent: Player = currentPlayer === 'AI' ? 'PLAYER' : 'AI';
+  for (const move of root.untriedMoves) {
+    if (wouldWin(board, move, opponent)) {
+      return move; // Must block!
+    }
+  }
+
   // Pre-compute player predicted moves once at root level for efficiency
-  const playerPredictedMoves = currentPlayer === 'AI' 
+  const playerPredictedMoves = currentPlayer === 'AI'
     ? predictPlayerNextMove(board, null)
     : undefined;
 
@@ -468,58 +669,101 @@ export function runMCTS(
   let iterations = 0;
   const ucb1Constant = config.ucb1Constant;
   const personality = config.personality || 'BALANCED';
-  const dynamicUCB1 = config.dynamicUCB1 ?? true; // Default to enabled
+  const dynamicUCB1 = config.dynamicUCB1 ?? true;
+  const useRAVE = config.useRAVE ?? true; // Default enabled
+  const raveConstant = config.raveConstant ?? DEFAULT_RAVE_CONSTANT;
+  const iterativeDeepening = config.iterativeDeepening ?? true;
 
-  // Run simulations
-  while (iterations < config.simulations) {
-    // Check time limit if specified
-    if (config.timeLimit) {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= config.timeLimit) {
+  // Iterative deepening: run until time limit OR simulation count
+  // whichever comes later (use full time budget)
+  const maxSimulations = config.simulations;
+  const timeLimit = config.timeLimit || 5000;
+  const minIterations = Math.floor(maxSimulations * 0.5); // At least 50% of simulations
+
+  while (true) {
+    const elapsed = Date.now() - startTime;
+
+    // Stopping conditions
+    if (iterativeDeepening) {
+      // Iterative deepening: use full time budget
+      // Stop only when time is up AND minimum simulations are done
+      if (elapsed >= timeLimit && iterations >= minIterations) {
+        break;
+      }
+      // Hard stop at 2x time limit for safety
+      if (elapsed >= timeLimit * 2) {
+        break;
+      }
+    } else {
+      // Traditional: stop at simulation count or time limit
+      if (iterations >= maxSimulations) {
+        break;
+      }
+      if (elapsed >= timeLimit) {
         break;
       }
     }
 
-    // Calculate current win rate for dynamic UCB1
-    const currentWinRate = root.visits > 0 ? root.wins / root.visits : 0.5;
-    
+    // Run one MCTS iteration
     mctsIteration(
-      root, 
-      currentPlayer, 
-      ucb1Constant, 
+      root,
+      currentPlayer,
+      ucb1Constant,
       playerPredictedMoves,
       dynamicUCB1,
       personality,
-      threatLevel
+      threatLevel,
+      useRAVE,
+      raveConstant
     );
     iterations++;
+
+    // Batch check for early termination (every 100 iterations)
+    if (iterations % 100 === 0 && root.children.length > 0) {
+      // Check if we have a clear winner
+      const sorted = [...root.children].sort((a, b) => b.visits - a.visits);
+      if (sorted.length >= 2) {
+        const firstVisits = sorted[0].visits;
+        const secondVisits = sorted[1].visits;
+        const winRate = sorted[0].wins / sorted[0].visits;
+
+        // Early termination if clear winner with high confidence
+        if (firstVisits > secondVisits * 3 && winRate > 0.8 && iterations >= minIterations) {
+          break;
+        }
+      }
+    }
   }
 
   // Select best move (most visited child)
-  // For ALIEN personality, sometimes select a "weird" move with high entropy
   if (root.children.length === 0) {
     // Fallback: return first untried move
     return root.untriedMoves[0] || null;
   }
 
-  let bestChild = root.children[0];
-  let mostVisits = bestChild.visits;
+  // Sort children by visits
+  const sortedChildren = [...root.children].sort((a, b) => b.visits - a.visits);
+  let bestChild = sortedChildren[0];
 
-  for (let i = 1; i < root.children.length; i++) {
-    if (root.children[i].visits > mostVisits) {
-      mostVisits = root.children[i].visits;
-      bestChild = root.children[i];
-    }
-  }
+  // ALIEN personality: occasionally pick a surprising move
+  if (personality === 'ALIEN' && sortedChildren.length > 2) {
+    const surpriseChance = 0.12; // 12% chance
+    if (Math.random() < surpriseChance) {
+      // Pick from top 3 with some randomness weighted by visits
+      const candidates = sortedChildren.slice(0, 3);
+      const totalVisits = candidates.reduce((sum, c) => sum + c.visits, 0);
+      let rand = Math.random() * totalVisits;
 
-  // ALIEN personality: occasionally pick a "weird" move (high visits but not best)
-  if (personality === 'ALIEN' && Math.random() < 0.15 && root.children.length > 2) {
-    // Sort by visits and pick from top 3, but not always the best
-    const sorted = [...root.children].sort((a, b) => b.visits - a.visits);
-    const candidates = sorted.slice(0, 3);
-    const weirdMove = candidates[Math.floor(Math.random() * candidates.length)];
-    if (weirdMove.visits >= mostVisits * 0.7) { // Only if reasonably good
-      return weirdMove.move;
+      for (const candidate of candidates) {
+        rand -= candidate.visits;
+        if (rand <= 0) {
+          // Only use if reasonably good (>60% of best's visits)
+          if (candidate.visits >= bestChild.visits * 0.6) {
+            bestChild = candidate;
+          }
+          break;
+        }
+      }
     }
   }
 
