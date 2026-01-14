@@ -478,5 +478,16 @@
       "name": "게임 5",
       "description": "곧 출시 예정"
     }
+  },
+  "settings": {
+    "title": "설정",
+    "close": "닫기",
+    "audio": "사운드",
+    "toggleAudio": "사운드 전환",
+    "haptics": "햅틱",
+    "toggleHaptics": "햅틱 전환",
+    "language": "언어",
+    "info": "설정은 자동으로 저장됩니다",
+    "done": "완료"
   }
 }

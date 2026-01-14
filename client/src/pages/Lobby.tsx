@@ -6,7 +6,7 @@ import { Scanlines } from "@/components/Scanlines";
 import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
-import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock, Gamepad2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Cpu, Skull, Brain, Zap, Lock, Trophy, Activity, Clock, Gamepad2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TutorialModal } from "@/components/TutorialModal";
@@ -17,13 +17,6 @@ import { DifficultySelector } from "@/components/DifficultySelector";
 import { GameModeCarousel } from "@/components/GameModeCarousel";
 import { isDifficultyUnlocked, getUnlockedDifficulties } from "@/lib/storage";
 import { useResponsive, getCardsToShow } from "@/hooks/use-responsive";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { GameType, loadGameType, saveGameType, getGameInfo } from "@/lib/gameTypes";
 import { buildGameRoomUrl } from "@/lib/routing";
 import { Capacitor } from "@capacitor/core";
@@ -124,17 +117,22 @@ export default function Lobby() {
     };
 
     // Load language preference
-    try {
-      const stored = localStorage.getItem('move37_language');
-      if (stored === 'en' || stored === 'ko') {
-        setSelectedLanguage(stored);
-        i18n.changeLanguage(stored);
+    const loadLanguagePreference = () => {
+      try {
+        const stored = localStorage.getItem('move37_language');
+        if (stored === 'en' || stored === 'ko') {
+          setSelectedLanguage(stored);
+          i18n.changeLanguage(stored);
+        }
+      } catch (error) {
+        console.error("Failed to load language preference:", error);
       }
-    } catch (error) {
-      console.error("Failed to load language preference:", error);
-    }
+    };
+
+    loadLanguagePreference();
 
     loadUnlockStatus();
+    loadLanguagePreference();
 
     // Listen for storage changes (when unlock status is updated from GameRoom)
     const handleStorageChange = () => {
@@ -295,49 +293,6 @@ export default function Lobby() {
               <Settings className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
             </button>
 
-            {/* Language Settings Button */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="p-2 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 transition-all duration-300 group rounded"
-                  aria-label={t("lobby.accessibility.languageSettings")}
-                >
-                  <Languages className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                align="end" 
-                className="min-w-[140px] bg-black/95 border-white/10 backdrop-blur-sm"
-              >
-                <DropdownMenuRadioGroup 
-                  value={selectedLanguage} 
-                  onValueChange={(value) => handleLanguageChange(value as "ko" | "en")}
-                >
-                  <DropdownMenuRadioItem 
-                    value="ko"
-                    className="font-mono text-xs cursor-pointer focus:bg-primary/10 focus:text-primary data-[state=checked]:text-primary"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>{t("lobby.language.korean")}</span>
-                      {selectedLanguage === "ko" && (
-                        <Check className="h-3 w-3 text-primary" />
-                      )}
-                    </div>
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem 
-                    value="en"
-                    className="font-mono text-xs cursor-pointer focus:bg-primary/10 focus:text-primary data-[state=checked]:text-primary"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>{t("lobby.language.english")}</span>
-                      {selectedLanguage === "en" && (
-                        <Check className="h-3 w-3 text-primary" />
-                      )}
-                    </div>
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </motion.div>
         </div>
       </header>
@@ -491,6 +446,8 @@ export default function Lobby() {
       <SettingsModal
         isOpen={settingsModalOpen}
         onClose={() => setSettingsModalOpen(false)}
+        selectedLanguage={selectedLanguage}
+        onLanguageChange={handleLanguageChange}
       />
     </div>
   );

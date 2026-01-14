@@ -475,5 +475,16 @@
       "name": "Game 5",
       "description": "Coming soon"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "close": "Close",
+    "audio": "SOUND",
+    "toggleAudio": "Toggle audio",
+    "haptics": "HAPTIC",
+    "toggleHaptics": "Toggle haptics",
+    "language": "Language",
+    "info": "Settings are saved automatically",
+    "done": "Done"
   }
 }

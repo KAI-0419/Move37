@@ -38,9 +38,43 @@ export const GAME_SOUNDS = {
 // 진동 패턴 타입
 export type HapticPattern = 'light' | 'medium' | 'heavy' | 'success' | 'error' | 'warning';
 
-// 오디오 설정
-let audioEnabled = true;
-let hapticsEnabled = true;
+// LocalStorage keys for audio settings
+const AUDIO_ENABLED_KEY = 'move37_audio_enabled';
+const HAPTICS_ENABLED_KEY = 'move37_haptics_enabled';
+
+/**
+ * Load audio enabled setting from localStorage
+ * Returns true by default if no value is stored
+ */
+function loadAudioEnabledSetting(): boolean {
+  try {
+    const stored = localStorage.getItem(AUDIO_ENABLED_KEY);
+    if (stored === null) return true; // Default to enabled
+    return stored === 'true';
+  } catch (error) {
+    console.warn('Failed to load audio setting from localStorage:', error);
+    return true;
+  }
+}
+
+/**
+ * Load haptics enabled setting from localStorage
+ * Returns true by default if no value is stored
+ */
+function loadHapticsEnabledSetting(): boolean {
+  try {
+    const stored = localStorage.getItem(HAPTICS_ENABLED_KEY);
+    if (stored === null) return true; // Default to enabled
+    return stored === 'true';
+  } catch (error) {
+    console.warn('Failed to load haptics setting from localStorage:', error);
+    return true;
+  }
+}
+
+// 오디오 설정 - localStorage에서 초기값 로드
+let audioEnabled = loadAudioEnabledSetting();
+let hapticsEnabled = loadHapticsEnabledSetting();
 let audioInitialized = false;
 
 // 웹 브라우저용 오디오 컨텍스트와 사운드 캐시
@@ -278,10 +312,20 @@ export class AudioManager {
   // 설정 토글
   setAudioEnabled(enabled: boolean): void {
     audioEnabled = enabled;
+    try {
+      localStorage.setItem(AUDIO_ENABLED_KEY, String(enabled));
+    } catch (error) {
+      console.warn('Failed to save audio setting to localStorage:', error);
+    }
   }
 
   setHapticsEnabled(enabled: boolean): void {
     hapticsEnabled = enabled;
+    try {
+      localStorage.setItem(HAPTICS_ENABLED_KEY, String(enabled));
+    } catch (error) {
+      console.warn('Failed to save haptics setting to localStorage:', error);
+    }
   }
 
   // 설정 상태 확인

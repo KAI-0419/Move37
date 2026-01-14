@@ -6,27 +6,61 @@
 
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { X, Volume2, VolumeX, Smartphone } from "lucide-react";
+import { X, Volume2, VolumeX, Smartphone, Languages, ChevronDown } from "lucide-react";
 import { GlitchButton } from "@/components/GlitchButton";
 import { cn } from "@/lib/utils";
 import { audioManager } from "@/lib/audio";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  selectedLanguage?: "ko" | "en";
+  onLanguageChange?: (language: "ko" | "en") => void;
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, selectedLanguage = "ko", onLanguageChange }: SettingsModalProps) {
   const { t } = useTranslation();
   const [audioEnabled, setAudioEnabled] = useState(audioManager.isAudioEnabled());
   const [hapticsEnabled, setHapticsEnabled] = useState(audioManager.isHapticsEnabled());
+  const languageTriggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownWidth, setDropdownWidth] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     // Sync with audio manager on mount
     setAudioEnabled(audioManager.isAudioEnabled());
     setHapticsEnabled(audioManager.isHapticsEnabled());
   }, [isOpen]);
+
+  // Sync language changes when modal opens or props change
+  useEffect(() => {
+    // Language is managed by parent component, no need for internal state
+  }, [selectedLanguage, isOpen]);
+
+  // Measure trigger width for dropdown to match button size
+  useEffect(() => {
+    if (languageTriggerRef.current) {
+      const updateWidth = () => {
+        if (languageTriggerRef.current) {
+          setDropdownWidth(languageTriggerRef.current.offsetWidth);
+        }
+      };
+
+      // Measure immediately
+      updateWidth();
+
+      // Also measure after a small delay to ensure rendering is complete
+      const timeoutId = setTimeout(updateWidth, 100);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isOpen, selectedLanguage]);
 
   const handleToggleAudio = () => {
     const newValue = !audioEnabled;
@@ -84,11 +118,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
               <div>
                 <h3 className="font-bold text-white">
-                  {t("settings.audio", "Sound Effects")}
+                  {t("settings.audio", "SOUND")}
                 </h3>
-                <p className="text-sm text-gray-400">
-                  {t("settings.audioDesc", "Game sounds and music")}
-                </p>
               </div>
             </div>
             <button
@@ -116,11 +147,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )} />
               <div>
                 <h3 className="font-bold text-white">
-                  {t("settings.haptics", "Haptic Feedback")}
+                  {t("settings.haptics", "HAPTIC")}
                 </h3>
-                <p className="text-sm text-gray-400">
-                  {t("settings.hapticsDesc", "Vibration feedback")}
-                </p>
               </div>
             </div>
             <button
@@ -137,6 +165,54 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
               />
             </button>
+          </div>
+
+          {/* Language Settings */}
+          <div className="flex items-center justify-between p-4 bg-black/50 border border-primary/20 rounded">
+            <div className="flex items-center gap-3">
+              <Languages className="w-6 h-6 text-primary" />
+              <div>
+                <h3 className="font-bold text-white">
+                  {t("settings.language", "Language")}
+                </h3>
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  ref={languageTriggerRef}
+                  className="flex items-center gap-2 px-3 py-2 bg-black/50 border border-primary/20 rounded text-sm text-white hover:border-primary/40 transition-colors min-w-[100px] justify-between"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span>{selectedLanguage === "ko" ? "한국어" : "English"}</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={5}
+                className="bg-black/95 border-white/10 backdrop-blur-sm"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: dropdownWidth ? `${dropdownWidth}px` : undefined,
+                  minWidth: dropdownWidth ? `${dropdownWidth}px` : '100px',
+                  zIndex: 9999
+                }}
+              >
+                <DropdownMenuItem
+                  onClick={() => onLanguageChange?.("en")}
+                  className="cursor-pointer focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary"
+                >
+                  English
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onLanguageChange?.("ko")}
+                  className="cursor-pointer focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary"
+                >
+                  한국어
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
