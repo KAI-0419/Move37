@@ -4,7 +4,17 @@
       "WebFetch(domain:support.google.com)",
       "Bash(npm run check:*)",
       "Bash(grep:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "WebSearch",
+      "WebFetch(domain:pixabay.com)",
+      "WebFetch(domain:mixkit.co)",
+      "WebFetch(domain:kenney.nl)",
+      "Bash(curl:*)",
+      "Bash(tar:*)",
+      "Bash(powershell:*)",
+      "Bash(copy:*)",
+      "Bash(copy \"C:\\\\Users\\\\rkdgu\\\\Desktop\\\\Move 37\\\\temp_digital\\\\Audio\\\\laser5.ogg\" \"C:\\\\Users\\\\rkdgu\\\\Desktop\\\\Move 37\\\\client\\\\public\\\\sounds\\\\capture.ogg\")",
+      "Bash(npm install:*)"
     ]
   }
 }

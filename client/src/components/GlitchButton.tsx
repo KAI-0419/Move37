@@ -1,19 +1,28 @@
 import { motion } from "framer-motion";
 import { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
+import { playButtonEffect } from "@/lib/audio";
 
 interface GlitchButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "destructive" | "outline";
 }
 
-export function GlitchButton({ 
-  children, 
-  className, 
-  variant = "primary", 
+export function GlitchButton({
+  children,
+  className,
+  variant = "primary",
   disabled,
-  ...props 
+  onClick,
+  ...props
 }: GlitchButtonProps) {
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!disabled) {
+      playButtonEffect();
+      onClick?.(e);
+    }
+  };
   
   const variants = {
     primary: "bg-primary text-black border-primary hover:bg-primary/90",
@@ -35,6 +44,7 @@ export function GlitchButton({
         className
       )}
       disabled={disabled}
+      onClick={handleClick}
       {...props}
     >
       <span className="relative z-10">{children}</span>

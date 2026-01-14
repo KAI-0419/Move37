@@ -28,6 +28,7 @@ import { GameInteractionHandlerFactory, type SelectThenMoveState } from "@/lib/g
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
 import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
 import { terminateMCTSWorkerPool } from "@/lib/games/entropy/mctsWorkerPool";
+import { vibrateError, vibrateWarning } from "@/lib/audio";
 
 export default function GameRoom() {
   const { t } = useTranslation();
@@ -99,7 +100,17 @@ export default function GameRoom() {
 
   const [hasError, setHasError] = useState(false);
   const prevGameIdRef = useRef<number | null>(null);
-  
+
+  // Play error feedback when hasError becomes true
+  useEffect(() => {
+    if (hasError) {
+      vibrateError();
+      // Auto-reset error state after animation
+      const timer = setTimeout(() => setHasError(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasError]);
+
   // Use game logs hook
   const { logHistory, setLogHistory } = useGameLogs({ game, gameType: validatedGameType });
   const isNavigatingAwayRef = useRef(false);
@@ -218,6 +229,27 @@ export default function GameRoom() {
     isPlayerTurn,
     hasWinner,
   });
+
+  // Time warning feedback at 30s, 10s, 5s
+  const timeWarningsPlayedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (!isPlayerTurn || hasWinner || playerTimeRemaining === null) {
+      // Reset warnings when it's not player's turn or game is over
+      timeWarningsPlayedRef.current.clear();
+      return;
+    }
+
+    const timeLeft = Math.floor(playerTimeRemaining);
+    const warningThresholds = [30, 10, 5];
+
+    for (const threshold of warningThresholds) {
+      if (timeLeft === threshold && !timeWarningsPlayedRef.current.has(threshold)) {
+        vibrateWarning();
+        timeWarningsPlayedRef.current.add(threshold);
+        break; // Only play one warning per render
+      }
+    }
+  }, [playerTimeRemaining, isPlayerTurn, hasWinner]);
 
   // Get difficulty-based color classes from game-specific config (must be before aiCardProps)
   const difficulty = useMemo(() => {

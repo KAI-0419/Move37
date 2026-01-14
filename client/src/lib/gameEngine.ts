@@ -6,6 +6,7 @@ import { GameEngineFactory } from "./games/GameEngineFactory";
 import type { IGameEngine, PlayerMove } from "@shared/gameEngineInterface";
 import { getGameUIConfig } from "./games/GameUIConfig";
 import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
+import { playMoveEffect, playCaptureEffect, playWinEffect, playLoseEffect, playDrawEffect, playGameStartEffect, playTurnChangeEffect, audioManager } from "./audio";
 
 // Simple AI reasoning generator (no OpenAI needed for offline mode)
 function generateSimpleAIReasoning(boardFen: string, move: string): string {
@@ -65,7 +66,10 @@ export async function createGame(
     timePerMove: timePerMove,
     lastMoveTimestamp: now.toISOString(),
   });
-  
+
+  // Play game start sound effect
+  playGameStartEffect();
+
   return game;
 }
 
@@ -171,6 +175,13 @@ export async function makeGameMove(
   const newBoardFen = engine.makeMove(game.board, move);
   const newTurnCount = (game.turnCount || 0) + 1;
   const now = new Date();
+
+  // Play audio and haptic feedback based on move type
+  if (capturedPiece) {
+    playCaptureEffect(); // Capture move
+  } else {
+    playMoveEffect(); // Regular move
+  }
   
   // Update player time (add time bonus for making a move)
   const updatedPlayerTime = playerTimeRemaining + (game.timePerMove ?? 5);
@@ -194,6 +205,15 @@ export async function makeGameMove(
   history.push(historyEntry);
 
   if (winner) {
+    // Play win/lose/draw effect based on winner
+    if (winner === 'player') {
+      playWinEffect();
+    } else if (winner === 'ai') {
+      playLoseEffect();
+    } else if (winner === 'draw') {
+      playDrawEffect();
+    }
+
     const updated = await gameStorage.updateGame(gameId, {
       board: newBoardFen,
       boardHistory: trimmedBoardHistory,
@@ -343,6 +363,9 @@ export async function calculateAIMove(
     const newBoardFen = engine.makeMove(game.board, aiResult.move);
     // Use game engine to format history entry
     const moveStr = engine.formatHistoryEntry(aiResult.move, false);
+
+    // Play audio and haptic feedback for AI move
+    playMoveEffect();
     const aiHistory = [...game.history, moveStr];
     const now = new Date();
     
@@ -372,7 +395,12 @@ export async function calculateAIMove(
     // Update turn only if turn system is player-ai
     // Otherwise, keep the current turn (for games without turn system)
     const updatedTurn = uiConfig.turnSystemType === 'player-ai' ? 'player' : game.turn;
-    
+
+    // Play turn change sound when switching back to player
+    if (uiConfig.turnSystemType === 'player-ai' && !aiWinner) {
+      playTurnChangeEffect();
+    }
+
     const updated = await gameStorage.updateGame(gameId, {
       board: newBoardFen,
       boardHistory: trimmedBoardHistory,
@@ -384,7 +412,7 @@ export async function calculateAIMove(
       lastMoveTimestamp: now,
       aiLog
     });
-    
+
     return { game: updated, aiLogs };
   } else {
     const updated = await gameStorage.updateGame(gameId, {

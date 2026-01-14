@@ -6,12 +6,13 @@ import { Scanlines } from "@/components/Scanlines";
 import { useLocation } from "wouter";
 import { TerminalText } from "@/components/TerminalText";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
-import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock, Gamepad2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Cpu, Skull, Brain, Zap, Lock, Languages, Check, Trophy, Activity, Clock, Gamepad2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TutorialModal } from "@/components/TutorialModal";
 import { TutorialPreview } from "@/components/TutorialPreview";
 import { PlayerStatsModal } from "@/components/PlayerStatsModal";
+import { SettingsModal } from "@/components/SettingsModal";
 import { DifficultySelector } from "@/components/DifficultySelector";
 import { GameModeCarousel } from "@/components/GameModeCarousel";
 import { isDifficultyUnlocked, getUnlockedDifficulties } from "@/lib/storage";
@@ -90,6 +91,7 @@ export default function Lobby() {
   });
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   // Get unlocked difficulties for the selected game type (update when game type changes)
   const unlockedDifficulties = useMemo(() => getUnlockedDifficulties(selectedGameType), [selectedGameType]);
   const [selectedLanguage, setSelectedLanguage] = useState<"ko" | "en">(() => {
@@ -284,6 +286,15 @@ export default function Lobby() {
               </button>
             )}
 
+            {/* Settings Button */}
+            <button
+              onClick={() => setSettingsModalOpen(true)}
+              className="p-2 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 transition-all duration-300 group rounded"
+              aria-label={t("lobby.accessibility.settings", "Settings")}
+            >
+              <Settings className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </button>
+
             {/* Language Settings Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -470,10 +481,16 @@ export default function Lobby() {
       <TutorialModal open={tutorialOpen} onOpenChange={setTutorialOpen} gameType={selectedGameType} />
       
       {/* Player Stats Modal */}
-      <PlayerStatsModal 
-        open={statsModalOpen} 
-        onOpenChange={setStatsModalOpen} 
-        gameType={selectedGameType} 
+      <PlayerStatsModal
+        open={statsModalOpen}
+        onOpenChange={setStatsModalOpen}
+        gameType={selectedGameType}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
       />
     </div>
   );

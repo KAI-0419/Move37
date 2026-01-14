@@ -311,6 +311,235 @@
             filter: drop-shadow(0 0 8px #ff003c);
         }
 
+        /* === DESIGN 1 KO: HERO WITH GAME BOARD (Korean Version) === */
+        .design-1-ko .content {
+            position: relative;
+            z-index: 1;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            padding: 60px;
+            align-items: center;
+        }
+
+        .design-1-ko .left-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .design-1-ko .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .design-1-ko .hex-logo {
+            width: 100px;
+            height: 100px;
+            filter: drop-shadow(0 0 20px rgba(0, 243, 255, 0.5))
+                    drop-shadow(0 0 40px rgba(0, 243, 255, 0.3));
+            transition: filter 0.3s ease;
+        }
+
+        .design-1-ko .hex-logo:hover {
+            filter: drop-shadow(0 0 30px rgba(0, 243, 255, 0.7))
+                    drop-shadow(0 0 60px rgba(0, 243, 255, 0.4));
+        }
+
+        .design-1-ko .logo-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 48px;
+            font-weight: 900;
+            letter-spacing: 0.15em;
+            color: #f0ffff;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px #00f3ff, 0 0 40px rgba(0, 243, 255, 0.5);
+            line-height: 1;
+        }
+
+        .design-1-ko .logo-text h1 .number {
+            color: #00f3ff;
+        }
+
+        .design-1-ko .tagline {
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 16px;
+            letter-spacing: 0.05em;
+            color: #00f3ff;
+            opacity: 0.8;
+            margin-top: -5px;
+        }
+
+        .design-1-ko .headline {
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 48px;
+            font-weight: 900;
+            color: #ffaa00;
+            letter-spacing: -0.02em;
+            text-shadow: 0 0 15px #ffaa00;
+            margin-top: 20px;
+            line-height: 1.2;
+        }
+
+        .design-1-ko .features {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .design-1-ko .feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 18px;
+            color: #f0ffff;
+            opacity: 0.9;
+        }
+
+        .design-1-ko .feature::before {
+            content: '▸';
+            color: #00f3ff;
+            font-size: 18px;
+            text-shadow: 0 0 10px #00f3ff;
+        }
+
+        .design-1-ko .difficulty-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 0, 60, 0.1);
+            border: 2px solid #ff003c;
+            padding: 8px 16px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ff003c;
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 10px #ff003c;
+            box-shadow: 0 0 20px rgba(255, 0, 60, 0.3);
+            margin-top: 10px;
+        }
+
+        .design-1-ko .right-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 1200px;
+            position: relative;
+        }
+
+        .design-1-ko .boards-stack {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            transform-style: preserve-3d;
+        }
+
+        .design-1-ko .game-board-preview {
+            width: 320px;
+            height: 320px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 40px rgba(0, 243, 255, 0.2);
+            transition: all 0.5s ease;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Front board - Mini Chess */
+        .design-1-ko .board-1 {
+            z-index: 4;
+            transform: translateZ(40px) translateY(-10px) rotateZ(2deg);
+            border-color: rgba(0, 243, 255, 0.5);
+            box-shadow: 0 0 50px rgba(0, 243, 255, 0.3);
+        }
+
+        /* Second board - Isolation */
+        .design-1-ko .board-2 {
+            z-index: 3;
+            transform: translateZ(20px) translateY(-5px) translateX(-15px) rotateZ(-3deg);
+            opacity: 0.85;
+            border-color: rgba(255, 170, 0, 0.4);
+            box-shadow: 0 0 40px rgba(255, 170, 0, 0.2);
+        }
+
+        /* Third board - Entropy */
+        .design-1-ko .board-3 {
+            z-index: 2;
+            transform: translateZ(0px) translateY(0px) translateX(-30px) rotateZ(-6deg);
+            opacity: 0.7;
+            border-color: rgba(255, 0, 60, 0.3);
+            box-shadow: 0 0 30px rgba(255, 0, 60, 0.15);
+        }
+
+        /* Fourth board - Future game */
+        .design-1-ko .board-4 {
+            z-index: 1;
+            transform: translateZ(-20px) translateY(5px) translateX(-45px) rotateZ(-9deg);
+            opacity: 0.55;
+            border-color: rgba(0, 255, 0, 0.25);
+            box-shadow: 0 0 25px rgba(0, 255, 0, 0.1);
+        }
+
+        .design-1-ko .boards-stack:hover .board-1 {
+            transform: translateZ(60px) translateY(-15px) rotateZ(3deg);
+        }
+
+        .design-1-ko .boards-stack:hover .board-2 {
+            transform: translateZ(40px) translateY(-10px) translateX(-20px) rotateZ(-4deg);
+            opacity: 0.9;
+        }
+
+        .design-1-ko .boards-stack:hover .board-3 {
+            transform: translateZ(20px) translateY(-5px) translateX(-40px) rotateZ(-7deg);
+            opacity: 0.8;
+        }
+
+        .design-1-ko .boards-stack:hover .board-4 {
+            transform: translateZ(0px) translateY(0px) translateX(-60px) rotateZ(-10deg);
+            opacity: 0.65;
+        }
+
+        .design-1-ko .board-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            width: 100%;
+            height: 100%;
+            gap: 1px;
+            padding: 10px;
+        }
+
+        .design-1-ko .board-cell {
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            border: 1px solid rgba(0, 243, 255, 0.1);
+        }
+
+        .design-1-ko .board-cell:nth-child(odd) {
+            background: #0a0a0a;
+        }
+
+        .design-1-ko .piece-player {
+            color: #00f3ff;
+            text-shadow: 0 0 15px #00f3ff;
+            filter: drop-shadow(0 0 8px #00f3ff);
+        }
+
+        .design-1-ko .piece-ai {
+            color: #ff003c;
+            text-shadow: 0 0 15px #ff003c;
+            filter: drop-shadow(0 0 8px #ff003c);
+        }
+
         /* === DESIGN 2: THREE GAMES SHOWCASE === */
         .design-2 .content {
             position: relative;
@@ -635,11 +864,175 @@
                     <div class="feature">On-Device AI Combat</div>
                     <div class="feature">Multiple Strategy Games</div>
                     <div class="feature">No Internet Required</div>
-                    <div class="feature">Expanding Game Library</div>
                 </div>
+            </div>
 
-                <div class="difficulty-badge">
-                    ⚡ NEXUS-7 UNLOCKED
+            <div class="right-section">
+                <div class="boards-stack">
+                    <!-- Board 4: Future Game (back) -->
+                    <div class="game-board-preview board-4">
+                        <div class="board-grid">
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-ai" style="color: #00ff00;">⬢</span></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-ai" style="color: #00ff00;">⬢</span></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell">?</div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-player" style="color: #00ff00;">⬢</span></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-player" style="color: #00ff00;">⬢</span></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                        </div>
+                    </div>
+
+                    <!-- Board 3: Entropy (third) -->
+                    <div class="game-board-preview board-3">
+                        <div class="board-grid">
+                            <div class="board-cell"><span class="piece-ai" style="color: #ff003c;">⬡</span></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-ai" style="color: #ff003c;">⬡</span></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-player" style="color: #00f3ff;">⬡</span></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-player" style="color: #00f3ff;">⬡</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Board 2: Isolation (second) -->
+                    <div class="game-board-preview board-2">
+                        <div class="board-grid">
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-ai" style="color: #ffaa00;">♛</span></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell">✖</div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell">✖</div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"><span class="piece-player" style="color: #00f3ff;">♛</span></div>
+                            <div class="board-cell"></div>
+                        </div>
+                    </div>
+
+                    <!-- Board 1: Mini Chess (front) -->
+                    <div class="game-board-preview board-1">
+                        <div class="board-grid">
+                            <div class="board-cell"><span class="piece-ai">♞</span></div>
+                            <div class="board-cell"><span class="piece-ai">♟</span></div>
+                            <div class="board-cell"><span class="piece-ai">♚</span></div>
+                            <div class="board-cell"><span class="piece-ai">♟</span></div>
+                            <div class="board-cell"><span class="piece-ai">♞</span></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+                            <div class="board-cell"></div>
+
+                            <div class="board-cell"><span class="piece-player">♘</span></div>
+                            <div class="board-cell"><span class="piece-player">♙</span></div>
+                            <div class="board-cell"><span class="piece-player">♔</span></div>
+                            <div class="board-cell"><span class="piece-player">♙</span></div>
+                            <div class="board-cell"><span class="piece-player">♘</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- DESIGN 1 KO: HERO WITH GAME BOARD (Korean Version) -->
+    <div class="canvas design-1-ko">
+
+        <div class="content">
+            <div class="left-section">
+                <div class="logo-section">
+                    <img src="../../client/public/favicon.svg" alt="Move 37 Logo" class="hex-logo">
+                    <div class="logo-text">
+                        <h1>MOVE <span class="number">37</span></h1>
+                    </div>
+                </div>
+                <div class="tagline">순수 논리 엔진</div>
+
+                <div class="headline">AI를 이길 수 있나요?</div>
+
+                <div class="features">
+                    <div class="feature">온디바이스 AI 전투</div>
+                    <div class="feature">다양한 전략 게임</div>
+                    <div class="feature">인터넷 불필요</div>
                 </div>
             </div>
 
@@ -1029,7 +1422,7 @@
                 </div>
 
                 <!-- Game Cards -->
-                <div style="display: flex; flex-direction: column; gap: 30px; flex: 1;">
+                <div style="display: flex; flex-direction: column; gap: 30px; flex: 1; justify-content: center;">
                     <!-- Mini Chess Card -->
                     <div style="background: rgba(0, 0, 0, 0.6); border: 3px solid rgba(0, 243, 255, 0.5); padding: 40px; display: flex; align-items: center; gap: 30px; box-shadow: 0 0 40px rgba(0, 243, 255, 0.2);">
                         <div style="font-size: 80px; filter: drop-shadow(0 0 20px #00f3ff);">♟️</div>
@@ -1064,7 +1457,7 @@
 
                     <!-- Entropy Card -->
                     <div style="background: rgba(0, 0, 0, 0.6); border: 3px solid rgba(255, 0, 60, 0.5); padding: 40px; display: flex; align-items: center; gap: 30px; box-shadow: 0 0 40px rgba(255, 0, 60, 0.2);">
-                        <div style="font-size: 80px; filter: drop-shadow(0 0 20px #ff003c);">⬡</div>
+                        <div style="font-size: 80px; color: #ffffff; filter: drop-shadow(0 0 20px #ff003c) drop-shadow(0 0 10px #ffffff);">⬡</div>
                         <div style="flex: 1;">
                             <div style="font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 700; color: #ff003c; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px;">
                                 ENTROPY
@@ -1597,7 +1990,7 @@
 
                     <!-- Entropy -->
                     <div style="background: rgba(0, 0, 0, 0.6); border: 3px solid rgba(255, 0, 60, 0.5); padding: 25px; display: flex; flex-direction: column; align-items: center; gap: 15px; box-shadow: 0 0 30px rgba(255, 0, 60, 0.2);">
-                        <div style="font-size: 60px; filter: drop-shadow(0 0 15px #ff003c);">⬡</div>
+                        <div style="font-size: 60px; color: #ffffff; filter: drop-shadow(0 0 15px #ff003c) drop-shadow(0 0 8px #ffffff);">⬡</div>
                         <div style="text-align: center;">
                             <div style="font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: 700; color: #ff003c; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px;">
                                 ENTROPY
@@ -1651,7 +2044,7 @@
             <div style="position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; padding: 50px;">
                 <!-- Left: Game Board -->
                 <div style="display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 450px; height: 450px; background: rgba(0, 0, 0, 0.7); border: 3px solid rgba(0, 243, 255, 0.5); box-shadow: 0 0 50px rgba(0, 243, 255, 0.3); display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 10px;">
+                    <div style="width: 450px; height: 450px; background: rgba(0, 0, 0, 0.7); border: 3px solid rgba(0, 243, 255, 0.5); box-shadow: 0 0 50px rgba(0, 243, 255, 0.3); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 2px; padding: 10px;">
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 48px; color: #ff003c; text-shadow: 0 0 12px #ff003c;">♞</div>
                         <div style="background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 48px; color: #ff003c; text-shadow: 0 0 12px #ff003c;">♟</div>
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 48px; color: #ff003c; text-shadow: 0 0 12px #ff003c;">♚</div>
@@ -1712,7 +2105,7 @@
             <div style="position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; padding: 50px;">
                 <!-- Left: Game Board -->
                 <div style="display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 450px; height: 450px; background: rgba(0, 0, 0, 0.7); border: 3px solid rgba(255, 170, 0, 0.5); box-shadow: 0 0 50px rgba(255, 170, 0, 0.3); display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 10px;">
+                    <div style="width: 450px; height: 450px; background: rgba(0, 0, 0, 0.7); border: 3px solid rgba(255, 170, 0, 0.5); box-shadow: 0 0 50px rgba(255, 170, 0, 0.3); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 2px; padding: 10px;">
                         <div style="background: #0a0a0a;"></div>
                         <div style="background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 60px; color: #ff003c; text-shadow: 0 0 15px #ff003c; border: 2px solid #ff003c; box-shadow: 0 0 20px rgba(255, 0, 60, 0.5);">♛</div>
                         <div style="background: #0a0a0a;"></div>
@@ -1773,7 +2166,7 @@
             <div style="position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; padding: 50px;">
                 <!-- Left: Game Board -->
                 <div style="display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 450px; height: 450px; background: rgba(0, 0, 0, 0.7); border: 3px solid rgba(255, 0, 60, 0.5); box-shadow: 0 0 50px rgba(255, 0, 60, 0.3); display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 10px;">
+                    <div style="width: 450px; height: 450px; background: rgba(0, 0, 0, 0.7); border: 3px solid rgba(255, 0, 60, 0.5); box-shadow: 0 0 50px rgba(255, 0, 60, 0.3); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 2px; padding: 10px;">
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 54px; color: #ff003c; text-shadow: 0 0 15px #ff003c;">⬡</div>
                         <div style="background: #1a1a1a;"></div>
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 54px; color: #ff003c; text-shadow: 0 0 15px #ff003c;">⬡</div>
@@ -2116,7 +2509,7 @@
 
                     <!-- Entropy -->
                     <div style="background: rgba(0, 0, 0, 0.6); border: 4px solid rgba(255, 0, 60, 0.5); padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 25px; box-shadow: 0 0 50px rgba(255, 0, 60, 0.3);">
-                        <div style="font-size: 90px; filter: drop-shadow(0 0 25px #ff003c);">⬡</div>
+                        <div style="font-size: 90px; color: #ffffff; filter: drop-shadow(0 0 25px #ff003c) drop-shadow(0 0 12px #ffffff);">⬡</div>
                         <div style="text-align: center;">
                             <div style="font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 700; color: #ff003c; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px;">
                                 ENTROPY
@@ -2170,7 +2563,7 @@
             <div style="position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; padding: 80px 100px;">
                 <!-- Left: Game Board -->
                 <div style="display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 700px; height: 700px; background: rgba(0, 0, 0, 0.7); border: 5px solid rgba(0, 243, 255, 0.5); box-shadow: 0 0 70px rgba(0, 243, 255, 0.4); display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 15px;">
+                    <div style="width: 700px; height: 700px; background: rgba(0, 0, 0, 0.7); border: 5px solid rgba(0, 243, 255, 0.5); box-shadow: 0 0 70px rgba(0, 243, 255, 0.4); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 3px; padding: 15px;">
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 72px; color: #ff003c; text-shadow: 0 0 18px #ff003c;">♞</div>
                         <div style="background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 72px; color: #ff003c; text-shadow: 0 0 18px #ff003c;">♟</div>
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 72px; color: #ff003c; text-shadow: 0 0 18px #ff003c;">♚</div>
@@ -2231,7 +2624,7 @@
             <div style="position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; padding: 80px 100px;">
                 <!-- Left: Game Board -->
                 <div style="display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 700px; height: 700px; background: rgba(0, 0, 0, 0.7); border: 5px solid rgba(255, 170, 0, 0.5); box-shadow: 0 0 70px rgba(255, 170, 0, 0.4); display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 15px;">
+                    <div style="width: 700px; height: 700px; background: rgba(0, 0, 0, 0.7); border: 5px solid rgba(255, 170, 0, 0.5); box-shadow: 0 0 70px rgba(255, 170, 0, 0.4); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 3px; padding: 15px;">
                         <div style="background: #0a0a0a;"></div>
                         <div style="background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 90px; color: #ff003c; text-shadow: 0 0 25px #ff003c; border: 4px solid #ff003c; box-shadow: 0 0 35px rgba(255, 0, 60, 0.6);">♛</div>
                         <div style="background: #0a0a0a;"></div>
@@ -2292,7 +2685,7 @@
             <div style="position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; padding: 80px 100px;">
                 <!-- Left: Game Board -->
                 <div style="display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 700px; height: 700px; background: rgba(0, 0, 0, 0.7); border: 5px solid rgba(255, 0, 60, 0.5); box-shadow: 0 0 70px rgba(255, 0, 60, 0.4); display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 15px;">
+                    <div style="width: 700px; height: 700px; background: rgba(0, 0, 0, 0.7); border: 5px solid rgba(255, 0, 60, 0.5); box-shadow: 0 0 70px rgba(255, 0, 60, 0.4); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 3px; padding: 15px;">
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 80px; color: #ff003c; text-shadow: 0 0 22px #ff003c;">⬡</div>
                         <div style="background: #1a1a1a;"></div>
                         <div style="background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 80px; color: #ff003c; text-shadow: 0 0 22px #ff003c;">⬡</div>
@@ -2546,7 +2939,7 @@
                     </div>
                 </div>
 
-                <div style="display: flex; flex-direction: column; gap: 30px; flex: 1;">
+                <div style="display: flex; flex-direction: column; gap: 30px; flex: 1; justify-content: center;">
                     <div style="background: rgba(0, 0, 0, 0.6); border: 3px solid rgba(0, 243, 255, 0.5); padding: 40px; display: flex; align-items: center; gap: 30px; box-shadow: 0 0 40px rgba(0, 243, 255, 0.2);">
                         <div style="font-size: 80px; filter: drop-shadow(0 0 20px #00f3ff);">♟️</div>
                         <div style="flex: 1;">
@@ -2578,7 +2971,7 @@
                     </div>
 
                     <div style="background: rgba(0, 0, 0, 0.6); border: 3px solid rgba(255, 0, 60, 0.5); padding: 40px; display: flex; align-items: center; gap: 30px; box-shadow: 0 0 40px rgba(255, 0, 60, 0.2);">
-                        <div style="font-size: 80px; filter: drop-shadow(0 0 20px #ff003c);">⬡</div>
+                        <div style="font-size: 80px; color: #ffffff; filter: drop-shadow(0 0 20px #ff003c) drop-shadow(0 0 10px #ffffff);">⬡</div>
                         <div style="flex: 1;">
                             <div style="font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 700; color: #ff003c; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px;">
                                 ENTROPY
@@ -3013,7 +3406,7 @@
                     </div>
 
                     <div style="background: rgba(0, 0, 0, 0.6); border: 3px solid rgba(255, 0, 60, 0.5); padding: 25px; display: flex; flex-direction: column; align-items: center; gap: 15px; text-align: center; box-shadow: 0 0 30px rgba(255, 0, 60, 0.2);">
-                        <div style="font-size: 60px; filter: drop-shadow(0 0 15px #ff003c);">⬡</div>
+                        <div style="font-size: 60px; color: #ffffff; filter: drop-shadow(0 0 15px #ff003c) drop-shadow(0 0 8px #ffffff);">⬡</div>
                         <div style="font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: 700; color: #ff003c; text-transform: uppercase; letter-spacing: 0.1em;">
                             ENTROPY
                         </div>
@@ -3447,7 +3840,7 @@
                     </div>
 
                     <div style="background: rgba(0, 0, 0, 0.6); border: 4px solid rgba(255, 0, 60, 0.5); padding: 35px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; box-shadow: 0 0 40px rgba(255, 0, 60, 0.2);">
-                        <div style="font-size: 90px; filter: drop-shadow(0 0 20px #ff003c);">⬡</div>
+                        <div style="font-size: 90px; color: #ffffff; filter: drop-shadow(0 0 20px #ff003c) drop-shadow(0 0 12px #ffffff);">⬡</div>
                         <div style="font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 700; color: #ff003c; text-transform: uppercase; letter-spacing: 0.1em;">
                             ENTROPY
                         </div>

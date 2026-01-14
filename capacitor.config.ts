@@ -24,7 +24,9 @@ const config: CapacitorConfig = {
       showSpinner: false,
       splashFullScreen: true,
       splashImmersive: true,
-    }
+    },
+    Haptics: {},
+    NativeAudio: {}
   }
 };
 
