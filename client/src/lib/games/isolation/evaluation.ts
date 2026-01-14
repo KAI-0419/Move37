@@ -663,9 +663,12 @@ function analyzePlayerPsychology(
 }
 
 /**
- * Get AI move using Minimax algorithm
+ * Synchronous version of AI move calculation
+ * Used by Web Worker for background computation
+ *
+ * @returns Object with move, logs, and optional depth/nodesEvaluated for stats
  */
-export function getAIMove(
+export function runMinimaxSearch(
   board: BoardState,
   playerLastMove: PlayerMove | null,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
@@ -674,6 +677,8 @@ export function getAIMove(
 ): {
   move: GameMove | null;
   logs: string[];
+  depth?: number;
+  nodesEvaluated?: number;
 } {
   try {
     // Validate board state
@@ -957,11 +962,12 @@ export function getAIMove(
       }
     }
     
-    console.log(`getAIMove: Selected move from (${finalMove.from.r}, ${finalMove.from.c}) to (${finalMove.to.r}, ${finalMove.to.c}) with destroy (${finalMove.destroy.r}, ${finalMove.destroy.c}) and score ${selectedMove.score}`);
-    
+    console.log(`runMinimaxSearch: Selected move from (${finalMove.from.r}, ${finalMove.from.c}) to (${finalMove.to.r}, ${finalMove.to.c}) with destroy (${finalMove.destroy.r}, ${finalMove.destroy.c}) and score ${selectedMove.score}`);
+
     return {
       move: finalMove,
       logs: [psychologicalInsight, strategicLog],
+      depth: bestDepth,
     };
   } catch (error) {
     console.error("getAIMove: Fatal error", error);
@@ -984,6 +990,48 @@ export function getAIMove(
     return {
       move: null,
       logs: ["gameRoom.log.calculationErrorKo"],
+    };
+  }
+}
+
+/**
+ * Async version of AI move calculation
+ * Uses Web Worker to avoid blocking the main thread
+ *
+ * This function maintains UI responsiveness (timer, animations, scanning effects)
+ * while AI calculation runs in the background.
+ */
+export async function getAIMove(
+  board: BoardState,
+  playerLastMove: PlayerMove | null,
+  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
+  turnCount?: number,
+  boardHistory?: string[]
+): Promise<{
+  move: GameMove | null;
+  logs: string[];
+}> {
+  // Import worker pool dynamically to avoid circular dependency issues
+  const { getMinimaxWorkerPool } = await import("./minimaxWorkerPool");
+
+  try {
+    const workerPool = getMinimaxWorkerPool();
+    const result = await workerPool.calculateMove(
+      board,
+      playerLastMove,
+      difficulty,
+      turnCount,
+      boardHistory
+    );
+
+    return result;
+  } catch (error) {
+    // Fallback to synchronous calculation if Worker fails
+    console.warn('[getAIMove] Worker failed, falling back to synchronous calculation:', error);
+    const result = runMinimaxSearch(board, playerLastMove, difficulty, turnCount, boardHistory);
+    return {
+      move: result.move,
+      logs: result.logs,
     };
   }
 }

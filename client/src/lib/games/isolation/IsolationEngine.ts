@@ -211,17 +211,18 @@ export class IsolationEngine implements IGameEngine {
     }
   }
 
-  calculateAIMove(
+  async calculateAIMove(
     boardState: string,
     playerLastMove: PlayerMove | null,
     difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7",
     turnCount?: number,
     boardHistory?: string[]
-  ): AIMoveResult {
+  ): Promise<AIMoveResult> {
     try {
       const board = parseBoardState(boardState);
-      const result = getAIMove(board, playerLastMove, difficulty, turnCount, boardHistory);
-      
+      // Use async getAIMove which runs in Web Worker
+      const result = await getAIMove(board, playerLastMove, difficulty, turnCount, boardHistory);
+
       // Validate that result has a valid move structure
       if (result && result.move) {
         // Additional validation: check if move is actually valid
@@ -241,7 +242,7 @@ export class IsolationEngine implements IGameEngine {
           }
         }
       }
-      
+
       return result;
     } catch (error) {
       console.error("Error in calculateAIMove:", error);
@@ -261,7 +262,7 @@ export class IsolationEngine implements IGameEngine {
       } catch (fallbackError) {
         console.error("Fallback also failed:", fallbackError);
       }
-      
+
       return {
         move: null,
         logs: ["gameRoom.log.calculationErrorKo"],
