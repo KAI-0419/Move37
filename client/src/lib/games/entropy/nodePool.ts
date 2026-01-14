@@ -119,13 +119,15 @@ export class MCTSNodePool {
    */
   releaseAll(): void {
     // Clear all active node references
-    for (const node of this.activeNodes) {
+    // Convert Set to array for iteration
+    const activeNodesArray = Array.from(this.activeNodes);
+    for (const node of activeNodesArray) {
       // Clean up references to prevent memory leaks
       node.parent = null;
       node.children = [];
       node.untriedMoves = [];
     }
-    
+
     this.activeNodes.clear();
     this.currentIndex = 0; // Reset pool index
   }

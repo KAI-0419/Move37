@@ -6,7 +6,7 @@
   "lobby": {
     "systemOnline": "시스템 온라인",
     "initializingText": " 전략 엔진 초기화 중... 희생 프로토콜 활성화. 논리는 차갑다. 승리는 손실을 요구한다.",
-    "initiateSystem": "게임 시작",
+    "initiateSystem": "시스템 시작",
     "initializing": "초기화 중...",
     "tutorial": "튜토리얼",
     "selectGameMode": "게임 모드 선택",
@@ -19,12 +19,11 @@
       "medium": "보통",
       "hard": "어려움",
       "locked": "LOCKED",
-      "completePrevious": "NEXUS-{{level}} 완료 필요",
       "lockedTitle": "난이도 잠김",
       "lockedMessage": "이 난이도를 해제하려면 NEXUS-{{level}}을(를) 먼저 완료해야 합니다."
     },
     "stats": {
-      "title": "플레이어 통계",
+      "title": "통계",
       "verified": "검증됨",
       "unverified": "미검증",
       "winRate": "승률",

@@ -14,6 +14,7 @@ import { getValidMoves, getMovesNearOpponent, wouldBlockOpponent, findThreatMove
 import { runMCTS, type MCTSConfig, type AIPersonality } from "./mcts";
 import { getValidNeighbors } from "./boardUtils";
 import { analyzePlayerPath, findCriticalPositions, predictPlayerNextMove, calculateShortestPath } from "./pathAnalysis";
+import { getMCTSWorkerPool } from "./mctsWorkerPool";
 
 /**
  * Get MCTS configuration based on difficulty
@@ -431,7 +432,7 @@ function analyzePlayerPsychology(
 
 /**
  * Get AI move using MCTS algorithm
- * 
+ *
  * @param board - Current board state
  * @param playerLastMove - Player's last move (for psychological analysis)
  * @param difficulty - AI difficulty level
@@ -439,13 +440,13 @@ function analyzePlayerPsychology(
  * @param boardHistory - History of board states
  * @returns AI move result with reasoning
  */
-export function getAIMove(
+export async function getAIMove(
   board: BoardState,
   playerLastMove: PlayerMove | null,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
   turnCount?: number,
   boardHistory?: string[]
-): AIMoveResult {
+): Promise<AIMoveResult> {
   try {
     // Validate board state
     if (!board || !board.boardSize || !board.cells) {
@@ -641,7 +642,19 @@ export function getAIMove(
     // Use MCTS to find best move (primary decision maker)
     // MCTS now uses path analysis to predict player moves in simulations
     const config = getMCTSConfig(difficulty);
-    const bestMove = runMCTS(board, 'AI', config, pathAnalysis.threatLevel);
+
+    // Use Worker Pool for parallel MCTS computation (async)
+    // This will distribute simulations across 4-8 Workers for 2-4x speedup
+    let bestMove: Move | null = null;
+
+    try {
+      const workerPool = getMCTSWorkerPool();
+      bestMove = await workerPool.calculateMove(board, 'AI', config, pathAnalysis.threatLevel);
+    } catch (error) {
+      // Fallback to synchronous MCTS if Worker Pool fails
+      console.warn('[Evaluation] Worker Pool failed, using synchronous MCTS:', error);
+      bestMove = runMCTS(board, 'AI', config, pathAnalysis.threatLevel);
+    }
     
     // Analyze MCTS result quality
     let mctsLogMessage: string | null = null;

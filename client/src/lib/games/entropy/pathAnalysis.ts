@@ -13,7 +13,6 @@ import {
   getValidNeighbors,
   positionToIndex,
   indexToPosition,
-  getHexDistance,
 } from "./boardUtils";
 import { getEmptyCells } from "./connectionCheck";
 import type { PlayerMove } from "@shared/gameEngineInterface";
@@ -528,11 +527,14 @@ function calculateThreatLevel(
     for (const leftGroup of leftGroups) {
       for (const rightGroup of rightGroups) {
         // Find minimum distance between groups
-        for (const leftCell of leftGroup) {
-          for (const rightCell of rightGroup) {
+        // Convert Sets to arrays for iteration
+        const leftCells = Array.from(leftGroup);
+        const rightCells = Array.from(rightGroup);
+        for (const leftCell of leftCells) {
+          for (const rightCell of rightCells) {
             const leftPos = indexToPosition(leftCell, board.boardSize);
             const rightPos = indexToPosition(rightCell, board.boardSize);
-            
+
             // Calculate hex distance
             const distance = getHexDistance(leftPos, rightPos);
             minDistance = Math.min(minDistance, distance);

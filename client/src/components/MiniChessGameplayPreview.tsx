@@ -1,0 +1,171 @@
+/**
+ * Mini Chess Gameplay Preview Component
+ *
+ * High-quality cinematic gameplay preview showing automated chess game.
+ * Plays through a predefined sequence at fast speed to showcase the game.
+ */
+
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import { Play, BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { GameType } from "@shared/schema";
+import { GameUIFactory } from "@/lib/games/GameUIFactory";
+import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { quickGameplaySequence } from "@/lib/games/miniChess/gameplaySequence";
+import type { GameMove } from "@shared/gameEngineInterface";
+
+interface MiniChessGameplayPreviewProps {
+  gameType: GameType;
+  className?: string;
+  onOpenTutorial?: () => void;
+  onOpenStats?: () => void;
+}
+
+export function MiniChessGameplayPreview({
+  gameType,
+  className,
+  onOpenTutorial,
+  onOpenStats,
+}: MiniChessGameplayPreviewProps) {
+  const { t } = useTranslation();
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [boardState, setBoardState] = useState<string>("");
+  const [lastMove, setLastMove] = useState<GameMove | null>(null);
+
+  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
+  const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
+
+  // Fast-paced move delay (1680ms for cinematic feel)
+  const MOVE_DELAY = 1680;
+
+  // Initialize board
+  useEffect(() => {
+    setBoardState(engine.getInitialBoard());
+  }, [engine]);
+
+  // Reset game
+  const resetGame = useCallback(() => {
+    setCurrentMoveIndex(0);
+    setBoardState(engine.getInitialBoard());
+    setLastMove(null);
+    setIsPlaying(true);
+  }, [engine]);
+
+  // Auto-play game sequence
+  useEffect(() => {
+    if (!isPlaying || !boardState) return;
+
+    // Check if we've reached the end
+    if (currentMoveIndex >= quickGameplaySequence.length) {
+      // Wait a bit before restarting
+      const restartTimer = setTimeout(() => {
+        resetGame();
+      }, 2000);
+
+      return () => clearTimeout(restartTimer);
+    }
+
+    const timer = setTimeout(() => {
+      const move = quickGameplaySequence[currentMoveIndex];
+
+      // Apply move to board using engine
+      const newBoardState = engine.makeMove(boardState, move);
+      setBoardState(newBoardState);
+      setLastMove(move);
+
+      setCurrentMoveIndex(prev => prev + 1);
+    }, MOVE_DELAY);
+
+    return () => clearTimeout(timer);
+  }, [currentMoveIndex, isPlaying, boardState, resetGame, engine]);
+
+  const togglePlay = () => {
+    setIsPlaying(prev => !prev);
+  };
+
+  return (
+    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
+      {/* Header with controls */}
+      <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black/40 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <motion.span
+            className="text-[10px] font-mono text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded border border-primary/30 cursor-pointer select-none"
+            animate={{
+              boxShadow: [
+                "0 0 10px rgba(0, 243, 255, 0.2)",
+                "0 0 20px rgba(0, 243, 255, 0.4)",
+                "0 0 10px rgba(0, 243, 255, 0.2)",
+              ],
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={togglePlay}
+          >
+            PREVIEW
+          </motion.span>
+        </div>
+        <div className="flex items-center gap-2">
+          {onOpenStats && (
+            <motion.button
+              onClick={onOpenStats}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3 py-1.5 text-xs font-bold text-secondary border border-secondary/50 bg-secondary/10 hover:bg-secondary/20 hover:border-secondary transition-all duration-300 rounded flex items-center gap-2"
+            >
+              <BarChart3 className="w-3 h-3" />
+              {t("lobby.stats.title")}
+            </motion.button>
+          )}
+
+          {onOpenTutorial && (
+            <motion.button
+              onClick={onOpenTutorial}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3 py-1.5 text-xs font-bold text-primary border border-primary/50 bg-primary/10 hover:bg-primary/20 hover:border-primary transition-all duration-300 rounded flex items-center gap-2"
+            >
+              <Play className="w-3 h-3" />
+              {t("lobby.tutorial")}
+            </motion.button>
+          )}
+        </div>
+      </div>
+
+      {/* Board with cinematic effects */}
+      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-black/60 via-black/40 to-black/60">
+        {/* Ambient glow effect */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          animate={{
+            background: [
+              "radial-gradient(circle at 30% 30%, rgba(0, 243, 255, 0.1) 0%, transparent 50%)",
+              "radial-gradient(circle at 70% 70%, rgba(0, 243, 255, 0.1) 0%, transparent 50%)",
+              "radial-gradient(circle at 30% 30%, rgba(0, 243, 255, 0.1) 0%, transparent 50%)",
+            ],
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+        />
+
+        <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
+          <div className="w-[240px] h-[240px] flex items-center justify-center">
+            <BoardComponent
+              boardString={boardState}
+              turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
+              selectedSquare={null}
+              lastMove={lastMove}
+              validMoves={[]}
+              onSquareClick={() => {}}
+              isProcessing={false}
+              size="small"
+              difficulty="NEXUS-7"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

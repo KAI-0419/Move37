@@ -295,7 +295,7 @@ export async function calculateAIMove(
   
   try {
     const boardHistory = game.boardHistory || [];
-    aiResult = engine.calculateAIMove(
+    aiResult = await engine.calculateAIMove(
       game.board,
       playerMove,
       gameDifficulty,

@@ -16,6 +16,9 @@ import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
 import { getTutorialSteps, getTutorialInitialBoard, type TutorialStep } from "@/lib/games/TutorialDataFactory";
 import { getGameUIConfig } from "@/lib/games/GameUIConfig";
+import { EntropyGameplayPreview } from "./EntropyGameplayPreview";
+import { MiniChessGameplayPreview } from "./MiniChessGameplayPreview";
+import { IsolationGameplayPreview } from "./IsolationGameplayPreview";
 
 interface TutorialPreviewProps {
   gameType: GameType;
@@ -24,7 +27,7 @@ interface TutorialPreviewProps {
   onOpenStats?: () => void;
 }
 
-export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenStats }: TutorialPreviewProps) {
+function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenStats }: TutorialPreviewProps) {
   const { t } = useTranslation();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -72,12 +75,12 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
           to: currentStep.animation!.to
         });
         setAnimatedBoard(newBoardState);
-      }, currentStep.animation.delay || 1000);
+      }, currentStep.animation.delay || 2400);
 
       // Move to next step after animation completes
       const nextStepTimer = setTimeout(() => {
         setCurrentStepIndex((prev) => (prev + 1) % tutorialSteps.length);
-      }, (currentStep.animation.delay || 1000) + 2000);
+      }, (currentStep.animation.delay || 2400) + 4800);
 
       return () => {
         clearTimeout(animationTimer);
@@ -87,7 +90,7 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
       // No animation, just wait and move to next step
       const timer = setTimeout(() => {
         setCurrentStepIndex((prev) => (prev + 1) % tutorialSteps.length);
-      }, 3000);
+      }, 7200);
 
       return () => clearTimeout(timer);
     }
@@ -143,62 +146,109 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
 
       {/* Board Preview - Visual Only */}
       <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="relative">
-          <BoardComponent
-            boardString={displayBoard}
-            turn="player"
-            selectedSquare={null}
-            lastMove={currentStep?.animation && showAnimation ? {
-              from: currentStep.animation.from,
-              to: currentStep.animation.to
-            } : null}
-            validMoves={[]}
-            onSquareClick={() => {}}
-            isProcessing={false}
-            size="small"
-            difficulty="NEXUS-7"
-          />
-          
-          {/* Highlight squares overlay */}
-          {currentStep?.highlightSquares && (
-            <div className="absolute inset-0 pointer-events-none" style={{ top: '6px', left: '6px', right: '6px', bottom: '6px' }}>
-              <div 
-                className="grid gap-1 h-full w-full"
-                style={{
-                  gridTemplateColumns: `repeat(${boardSize.cols}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${boardSize.rows}, minmax(0, 1fr))`,
-                }}
-              >
-                {Array.from({ length: boardSize.rows * boardSize.cols }).map((_, idx) => {
-                  const r = Math.floor(idx / boardSize.cols);
-                  const c = idx % boardSize.cols;
-                  const isHighlighted = currentStep.highlightSquares?.some(
-                    sq => sq.r === r && sq.c === c
-                  );
-                  
-                  if (!isHighlighted) return <div key={idx} />;
-                  
-                  return (
-                    <motion.div
-                      key={idx}
-                      className="w-full h-full"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: [0, 0.6, 0] }}
-                      transition={{ 
-                        duration: 1.5, 
-                        repeat: Infinity, 
-                        delay: currentStep.highlightSquares!.findIndex(sq => sq.r === r && sq.c === c) * 0.15 
-                      }}
-                    >
-                      <div className="w-full h-full border-2 border-primary/70 bg-primary/20 rounded-sm shadow-[0_0_10px_rgba(0,243,255,0.2)]" />
-                    </motion.div>
-                  );
-                })}
+        <div className="relative max-w-full max-h-full flex items-center justify-center">
+          <div className="w-[240px] h-[240px] flex items-center justify-center relative">
+            <BoardComponent
+              boardString={displayBoard}
+              turn="player"
+              selectedSquare={null}
+              lastMove={currentStep?.animation && showAnimation ? {
+                from: currentStep.animation.from,
+                to: currentStep.animation.to
+              } : null}
+              validMoves={[]}
+              onSquareClick={() => {}}
+              isProcessing={false}
+              size="small"
+              difficulty="NEXUS-7"
+            />
+
+            {/* Highlight squares overlay */}
+            {currentStep?.highlightSquares && (
+              <div className="absolute inset-0 pointer-events-none" style={{ top: '6px', left: '6px', right: '6px', bottom: '6px' }}>
+                <div
+                  className="grid gap-1 h-full w-full"
+                  style={{
+                    gridTemplateColumns: `repeat(${boardSize.cols}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${boardSize.rows}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {Array.from({ length: boardSize.rows * boardSize.cols }).map((_, idx) => {
+                    const r = Math.floor(idx / boardSize.cols);
+                    const c = idx % boardSize.cols;
+                    const isHighlighted = currentStep.highlightSquares?.some(
+                      sq => sq.r === r && sq.c === c
+                    );
+
+                    if (!isHighlighted) return <div key={idx} />;
+
+                    return (
+                      <motion.div
+                        key={idx}
+                        className="w-full h-full"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: [0, 0.6, 0] }}
+                        transition={{
+                          duration: 1.5,
+                          repeat: Infinity,
+                          delay: currentStep.highlightSquares!.findIndex(sq => sq.r === r && sq.c === c) * 0.15
+                        }}
+                      >
+                        <div className="w-full h-full border-2 border-primary/70 bg-primary/20 rounded-sm shadow-[0_0_10px_rgba(0,243,255,0.2)]" />
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenStats }: TutorialPreviewProps) {
+  // Use cinematic gameplay previews for games with gameplay sequences
+  if (gameType === "MINI_CHESS") {
+    return (
+      <MiniChessGameplayPreview
+        gameType={gameType}
+        className={className}
+        onOpenTutorial={onOpenTutorial}
+        onOpenStats={onOpenStats}
+      />
+    );
+  }
+
+  if (gameType === "GAME_2") {
+    return (
+      <IsolationGameplayPreview
+        gameType={gameType}
+        className={className}
+        onOpenTutorial={onOpenTutorial}
+        onOpenStats={onOpenStats}
+      />
+    );
+  }
+
+  if (gameType === "GAME_3") {
+    return (
+      <EntropyGameplayPreview
+        gameType={gameType}
+        className={className}
+        onOpenTutorial={onOpenTutorial}
+        onOpenStats={onOpenStats}
+      />
+    );
+  }
+
+  return (
+    <DefaultTutorialPreview
+      gameType={gameType}
+      className={className}
+      onOpenTutorial={onOpenTutorial}
+      onOpenStats={onOpenStats}
+    />
   );
 }

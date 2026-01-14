@@ -6,7 +6,6 @@
  */
 
 import { motion } from "framer-motion";
-import { Crown, Component, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 
@@ -64,21 +63,18 @@ export function MiniChessBoard({
   const sizeConfig = {
     small: {
       boardSize: "w-[240px] h-[240px]",
-      iconSize: 20,
       padding: "p-1",
       paddingOffset: "6px"
     },
     medium: {
       // Progressive sizing: 280px → 320px → 380px for smooth tablet transition
       boardSize: "w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] md:w-[380px] md:h-[380px]",
-      iconSize: 24,
       padding: "p-1",
       paddingOffset: "6px"
     },
     large: {
       // Max 600px for consistency across all game types, responsive to viewport
       boardSize: "w-[min(90vw,75vh,600px)] h-[min(90vw,75vh,600px)]",
-      iconSize: 32,
       padding: "p-2",
       paddingOffset: "10px"
     }
@@ -101,14 +97,12 @@ export function MiniChessBoard({
   
   const getPieceIcon = (char: string) => {
     const type = char.toLowerCase();
-    
-    // Icon props - Responsive icon size using percentages for perfect scaling
-    const strokeWidth = 2.5;
-    
+
     switch(type) {
-      case 'k': return <Crown className="w-[75%] h-[75%]" strokeWidth={strokeWidth} />;
-      case 'n': return <Component className="w-[75%] h-[75%] rotate-45" strokeWidth={strokeWidth} />; 
-      case 'p': return <Circle className="w-[60%] h-[60%]" strokeWidth={strokeWidth} />;
+      case 'k': return '♚';
+      case 'n': return '♞';
+      case 'p': return '♟';
+      case 'q': return '♛';
       default: return null;
     }
   };
@@ -243,9 +237,9 @@ export function MiniChessBoard({
                       opacity: { duration: 0.15 }
                     }}
                     className={cn(
-                      "z-10 flex items-center justify-center w-full h-full",
-                      isPlayerPiece 
-                        ? "text-primary drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" 
+                      "z-10 flex items-center justify-center w-full h-full text-2xl font-bold select-none",
+                      isPlayerPiece
+                        ? "text-primary drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]"
                         : getAiPieceColor()
                     )}
                   >

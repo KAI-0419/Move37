@@ -356,15 +356,15 @@ export default function Lobby() {
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-8 min-h-0">
               
               {/* Bottom Left: Tutorial Preview / Board Simulation (3/5) */}
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
                 className="lg:col-span-3 flex flex-col h-full min-h-0"
               >
-                  <div className="h-full min-h-[300px] sm:min-h-[400px] lg:min-h-0 border-2 border-white/20 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.1)] bg-black/40 backdrop-blur-sm">
-                  <TutorialPreview 
-                    gameType={selectedGameType} 
+                  <div className="h-[450px] sm:h-[500px] md:h-[550px] lg:h-full border-2 border-white/20 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.1)] bg-black/40 backdrop-blur-sm">
+                  <TutorialPreview
+                    gameType={selectedGameType}
                     className="h-full border-0 rounded-none bg-transparent"
                     onOpenTutorial={handleTutorial}
                     onOpenStats={() => setStatsModalOpen(true)}

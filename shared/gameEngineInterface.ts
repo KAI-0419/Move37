@@ -126,7 +126,7 @@ export interface IGameEngine {
    * @param difficulty - AI difficulty level
    * @param turnCount - Current turn count
    * @param boardHistory - History of board states (for repetition detection)
-   * @returns AI move result with reasoning
+   * @returns AI move result with reasoning (Promise for async computation)
    */
   calculateAIMove(
     boardState: string,
@@ -134,7 +134,7 @@ export interface IGameEngine {
     difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7",
     turnCount?: number,
     boardHistory?: string[]
-  ): AIMoveResult;
+  ): Promise<AIMoveResult> | AIMoveResult;
 
   /**
    * Check if a move would cause threefold repetition

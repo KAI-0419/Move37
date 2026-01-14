@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:support.google.com)",
-      "Bash(npm run check:*)"
+      "Bash(npm run check:*)",
+      "Bash(grep:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

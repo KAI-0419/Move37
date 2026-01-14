@@ -6,7 +6,7 @@
  */
 
 import { motion } from "framer-motion";
-import { Crown, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 import { parseBoardState } from "./boardUtils";
@@ -291,11 +291,11 @@ export function IsolationBoard({
                       opacity: { duration: 0.15 },
                     }}
                     className={cn(
-                      "z-20 flex items-center justify-center w-full h-full",
+                      "z-20 flex items-center justify-center w-full h-full text-2xl font-bold select-none",
                       "text-primary drop-shadow-[0_0_12px_rgba(0,243,255,0.9)]"
                     )}
                   >
-                    <Crown className="w-[80%] h-[80%]" strokeWidth={2.5} />
+                    ♚
                   </motion.div>
                 )}
 
@@ -322,11 +322,11 @@ export function IsolationBoard({
                       opacity: { duration: 0.15 },
                     }}
                     className={cn(
-                      "z-20 flex items-center justify-center w-full h-full",
+                      "z-20 flex items-center justify-center w-full h-full text-2xl font-bold select-none",
                       getAiPieceColor()
                     )}
                   >
-                    <Crown className="w-[80%] h-[80%]" strokeWidth={2.5} />
+                    ♚
                   </motion.div>
                 )}
 

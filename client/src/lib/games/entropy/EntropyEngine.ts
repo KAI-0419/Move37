@@ -171,16 +171,16 @@ export class EntropyEngine implements IGameEngine {
     }
   }
 
-  calculateAIMove(
+  async calculateAIMove(
     boardState: string,
     playerLastMove: PlayerMove | null,
     difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7",
     turnCount?: number,
     boardHistory?: string[]
-  ): AIMoveResult {
+  ): Promise<AIMoveResult> {
     try {
       const board = parseBoardState(boardState);
-      const result = getAIMove(board, playerLastMove, difficulty, turnCount, boardHistory);
+      const result = await getAIMove(board, playerLastMove, difficulty, turnCount, boardHistory);
       
       // Validate that result has a valid move structure
       if (result && result.move) {

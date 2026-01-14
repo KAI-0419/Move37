@@ -27,6 +27,7 @@ import { usePreventNavigation } from "@/hooks/use-prevent-navigation";
 import { GameInteractionHandlerFactory, type SelectThenMoveState } from "@/lib/games/GameInteractionHandler";
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
 import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
+import { terminateMCTSWorkerPool } from "@/lib/games/entropy/mctsWorkerPool";
 
 export default function GameRoom() {
   const { t } = useTranslation();
@@ -146,6 +147,17 @@ export default function GameRoom() {
 
   // Track if a difficulty was just unlocked in this victory
   const [justUnlockedDifficulty, setJustUnlockedDifficulty] = useState<"NEXUS-5" | "NEXUS-7" | null>(null);
+
+  // Cleanup MCTS Worker Pool when component unmounts (GAME_3 only)
+  useEffect(() => {
+    return () => {
+      // Only terminate Worker Pool for ENTROPY game (GAME_3)
+      if (validatedGameType === 'GAME_3') {
+        console.log('[GameRoom] Terminating MCTS Worker Pool for ENTROPY');
+        terminateMCTSWorkerPool();
+      }
+    };
+  }, [validatedGameType]);
 
   // Handle victory unlock when player wins
   useEffect(() => {

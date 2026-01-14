@@ -101,7 +101,6 @@ export function DifficultySelector({
       {(["NEXUS-3", "NEXUS-5", "NEXUS-7"] as const).map((difficulty) => {
         const isUnlocked = isDifficultyUnlocked(difficulty, selectedGameType);
         const isSelected = selectedDifficulty === difficulty;
-        const level = difficulty.split('-')[1];
 
         const config = getDifficultyConfig(difficulty);
         const Icon = config.icon;
@@ -164,11 +163,6 @@ export function DifficultySelector({
                 <Check className={cn("w-3.5 h-3.5 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 flex-shrink-0", colors.text)} />
               )}
             </div>
-            {!isUnlocked && (
-              <p className={cn("text-[8px] sm:text-[8.5px] md:text-[9px] mt-1.5 sm:mt-1.5 md:mt-2 line-clamp-2", colors.textLocked)}>
-                {t("lobby.difficulty.completePrevious", { level: level === "5" ? "3" : "5" })}
-              </p>
-            )}
           </motion.button>
         );
       })}

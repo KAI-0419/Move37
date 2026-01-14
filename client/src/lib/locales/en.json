@@ -19,12 +19,11 @@
       "medium": "Medium",
       "hard": "Hard",
       "locked": "LOCKED",
-      "completePrevious": "Complete NEXUS-{{level}} to unlock",
       "lockedTitle": "Difficulty Locked",
       "lockedMessage": "Complete NEXUS-{{level}} first to unlock this difficulty."
     },
     "stats": {
-      "title": "PLAYER STATS",
+      "title": "STATS",
       "verified": "VERIFIED",
       "unverified": "UNTESTED",
       "winRate": "WIN RATE",
