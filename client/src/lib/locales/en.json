@@ -390,7 +390,7 @@
         },
         "victory": {
           "title": "Victory Condition",
-          "description": "Win by trapping your opponent: If the opponent has no valid moves, you win. The AI uses Flood Fill to calculate reachable areas and will try to isolate you. Think ahead!\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
+          "description": "Win by trapping your opponent: If the opponent has no valid moves, you win. The AI calculates reachable areas and will try to isolate you. Think ahead!\n\n⏱️ Time Limit:\n• Initial time: 180 seconds (3 minutes)\n• +5 seconds per move\n• Immediate defeat if time reaches 0\n• Same time limit applies to both sides"
         },
         "start": {
           "title": "Starting the Game",
@@ -400,7 +400,7 @@
       "entropy": {
         "goal": {
           "title": "Game Objective",
-          "description": "ENTROPY: A battle between order and chaos. On an 11x11 hexagonal grid, you must connect the left edge to the right edge with your pieces. The AI calculates topological connections to block your path or connect the top to the bottom."
+          "description": "ENTROPY: A battle between order and chaos. On an 11x11 hexagonal grid, you must connect the left edge to the right edge with your pieces. The AI calculates connection patterns to block your path or connect the top to the bottom."
         },
         "hexGrid": {
           "title": "Hexagonal Grid",
@@ -412,7 +412,7 @@
         },
         "aiGoal": {
           "title": "AI's Goal",
-          "description": "The AI aims to connect the top edge to the bottom edge. The AI calculates topological connections, so what may appear disconnected to you might actually be connected. Beware of the AI's 'invisible wall'."
+          "description": "The AI aims to connect the top edge to the bottom edge. The AI calculates connection patterns, so what may appear disconnected to you might actually be connected. Beware of the AI's 'invisible wall'."
         },
         "makingMoves": {
           "title": "Making Moves",
@@ -423,8 +423,8 @@
           "description": "Connections are made through adjacent hexagonal cells. The path doesn't need to be straight and can wind in multiple directions. What matters is whether the start and end points are connected."
         },
         "topology": {
-          "title": "Topological Connection",
-          "description": "The AI uses Union-Find data structure to check connections in near O(1) time. This is the core of the 'Move 37' moment - the AI creates invisible walls to block your connection. It uses MCTS algorithm to run thousands of simulations to find the optimal move."
+          "title": "The Secret of Connections",
+          "description": "The AI checks connections very quickly. This is the core of the 'Move 37' moment - the AI creates invisible walls to block your connection. It runs thousands of simulations to find the optimal move."
         },
         "start": {
           "title": "Starting the Game",

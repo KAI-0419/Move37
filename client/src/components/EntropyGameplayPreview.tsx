@@ -152,24 +152,26 @@ export function EntropyGameplayPreview({
 
         <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
           <div className="w-[240px] h-[240px] flex items-center justify-center">
-            <BoardComponent
-              boardString={boardString}
-              turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
-              selectedSquare={null}
-              lastMove={
-                lastMove
-                  ? {
-                      from: { r: -1, c: -1 },
-                      to: lastMove,
-                    }
-                  : null
-              }
-              validMoves={[]}
-              onSquareClick={() => {}}
-              isProcessing={false}
-              size="small"
-              difficulty="NEXUS-7"
-            />
+            <div style={{ transform: 'scale(0.8)', transformOrigin: 'center' }}>
+              <BoardComponent
+                boardString={boardString}
+                turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
+                selectedSquare={null}
+                lastMove={
+                  lastMove
+                    ? {
+                        from: { r: -1, c: -1 },
+                        to: lastMove,
+                      }
+                    : null
+                }
+                validMoves={[]}
+                onSquareClick={() => {}}
+                isProcessing={false}
+                size="small"
+                difficulty="NEXUS-7"
+              />
+            </div>
           </div>
         </div>
       </div>
