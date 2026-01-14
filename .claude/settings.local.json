@@ -14,7 +14,8 @@
       "Bash(powershell:*)",
       "Bash(copy:*)",
       "Bash(copy \"C:\\\\Users\\\\rkdgu\\\\Desktop\\\\Move 37\\\\temp_digital\\\\Audio\\\\laser5.ogg\" \"C:\\\\Users\\\\rkdgu\\\\Desktop\\\\Move 37\\\\client\\\\public\\\\sounds\\\\capture.ogg\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\rkdgu\\\\Desktop\\\\Move 37\\\\client\\\\src\\\\lib\\\\games\")"
     ]
   }
 }

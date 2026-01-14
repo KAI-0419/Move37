@@ -115,7 +115,7 @@ export function IsolationBoard({
           border: "rgba(96, 165, 250, 0.8)",
           glow: "rgba(96, 165, 250, 0.6)",
           solid: "#60a5fa",
-          filter: "[filter:drop-shadow(0_0_12px_rgba(96,165,250,0.9))]",
+          filter: "[filter:drop-shadow(0_0_4px_rgba(96,165,250,0.7))]",
         };
       case "NEXUS-5":
         return {
@@ -124,7 +124,7 @@ export function IsolationBoard({
           border: "rgba(255, 170, 0, 0.8)",
           glow: "rgba(255, 170, 0, 0.6)",
           solid: "#ffaa00",
-          filter: "[filter:drop-shadow(0_0_12px_rgba(255,200,0,0.9))]",
+          filter: "[filter:drop-shadow(0_0_4px_rgba(255,200,0,0.7))]",
         };
       case "NEXUS-7":
       default:
@@ -134,7 +134,7 @@ export function IsolationBoard({
           border: "rgba(255, 0, 60, 0.8)",
           glow: "rgba(255, 0, 60, 0.6)",
           solid: "#ff003c",
-          filter: "[filter:drop-shadow(0_0_12px_rgba(255,0,60,0.9))]",
+          filter: "[filter:drop-shadow(0_0_4px_rgba(255,0,60,0.7))]",
         };
     }
   };
@@ -408,7 +408,7 @@ export function IsolationBoard({
                             scale: { duration: 0.15 },
                             opacity: { duration: 0.15 },
                           }}
-                          className="z-20 flex items-center justify-center select-none text-primary [filter:drop-shadow(0_0_12px_rgba(0,243,255,0.9))]"
+                          className="z-20 flex items-center justify-center select-none text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.7))]"
                           style={{ width: "70%", height: "70%" }}
                         >
                           <KingPiece />

@@ -253,3 +253,25 @@
 .isolation-cell-interactive:hover {
   filter: brightness(1.2);
 }
+
+/* Mini Chess Board Animations */
+@keyframes minichess-scan {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 0% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* Mini Chess cell hover enhancement */
+.minichess-cell-interactive {
+  transition: all 0.2s ease-out;
+}
+
+.minichess-cell-interactive:hover {
+  filter: brightness(1.25);
+}
