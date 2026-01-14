@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft, Target, Zap, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GlitchButton } from "@/components/GlitchButton";
+import { KingPiece, KnightPiece, PawnPiece } from "@/components/ChessPieces";
 import { cn } from "@/lib/utils";
 import type { GameType } from "@shared/schema";
 import { GameUIFactory } from "@/lib/games/GameUIFactory";
@@ -261,10 +262,10 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
               <div>
                 <h3 className="text-base font-bold text-primary mb-2 flex items-center gap-2">
                   {currentStep === 0 && <Target className="w-4 h-4" />}
-                  {currentStep === 1 && <span className="text-lg font-bold">♟</span>}
-                  {currentStep === 2 && <span className="text-lg font-bold">♚</span>}
-                  {currentStep === 3 && <span className="text-lg font-bold">♞</span>}
-                  {currentStep === 4 && <span className="text-lg font-bold">♟</span>}
+                  {currentStep === 1 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><PawnPiece /></span>}
+                  {currentStep === 2 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><KingPiece /></span>}
+                  {currentStep === 3 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><KnightPiece /></span>}
+                  {currentStep === 4 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><PawnPiece /></span>}
                   {currentStep === 5 && <Clock className="w-4 h-4" />}
                   {currentStep === 6 && <Target className="w-4 h-4" />}
                   {t(step.titleKey)}
@@ -278,21 +279,21 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
               {currentStep === 1 && gameType === "MINI_CHESS" && (
                 <div className="border border-white/10 p-3 space-y-2 bg-white/5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-primary flex-shrink-0">♚</span>
+                    <span className="w-6 h-6 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))] flex-shrink-0"><KingPiece /></span>
                     <div>
                       <div className="text-xs font-bold text-primary">{t("tutorial.legend.king.name")}</div>
                       <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.king.move")}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-primary flex-shrink-0">♞</span>
+                    <span className="w-6 h-6 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))] flex-shrink-0"><KnightPiece /></span>
                     <div>
                       <div className="text-xs font-bold text-primary">{t("tutorial.legend.knight.name")}</div>
                       <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.knight.move")}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-primary flex-shrink-0">♟</span>
+                    <span className="w-6 h-6 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))] flex-shrink-0"><PawnPiece /></span>
                     <div>
                       <div className="text-xs font-bold text-primary">{t("tutorial.legend.pawn.name")}</div>
                       <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.pawn.move")}</div>

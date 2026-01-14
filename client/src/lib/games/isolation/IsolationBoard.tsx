@@ -8,6 +8,7 @@
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { KingPiece } from "@/components/ChessPieces";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 import { parseBoardState } from "./boardUtils";
 
@@ -64,12 +65,12 @@ export function IsolationBoard({
   const getAiPieceColor = () => {
     switch (difficulty) {
       case "NEXUS-3":
-        return "text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]";
+        return "text-blue-400 [filter:drop-shadow(0_0_8px_rgba(96,165,250,0.8))]";
       case "NEXUS-5":
-        return "text-secondary drop-shadow-[0_0_8px_rgba(255,200,0,0.8)]";
+        return "text-secondary [filter:drop-shadow(0_0_8px_rgba(255,200,0,0.8))]";
       case "NEXUS-7":
       default:
-        return "text-destructive drop-shadow-[0_0_8px_rgba(255,0,60,0.8)]";
+        return "text-destructive [filter:drop-shadow(0_0_8px_rgba(255,0,60,0.8))]";
     }
   };
 
@@ -291,11 +292,11 @@ export function IsolationBoard({
                       opacity: { duration: 0.15 },
                     }}
                     className={cn(
-                      "z-20 flex items-center justify-center w-full h-full text-2xl font-bold select-none",
-                      "text-primary drop-shadow-[0_0_12px_rgba(0,243,255,0.9)]"
+                      "z-20 flex items-center justify-center w-[70%] h-[70%] select-none",
+                      "text-primary [filter:drop-shadow(0_0_12px_rgba(0,243,255,0.9))]"
                     )}
                   >
-                    ♚
+                    <KingPiece />
                   </motion.div>
                 )}
 
@@ -322,11 +323,11 @@ export function IsolationBoard({
                       opacity: { duration: 0.15 },
                     }}
                     className={cn(
-                      "z-20 flex items-center justify-center w-full h-full text-2xl font-bold select-none",
+                      "z-20 flex items-center justify-center w-[70%] h-[70%] select-none",
                       getAiPieceColor()
                     )}
                   >
-                    ♚
+                    <KingPiece />
                   </motion.div>
                 )}
 
