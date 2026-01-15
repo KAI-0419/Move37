@@ -6,13 +6,16 @@ interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl" | number;
   variant?: "icon" | "full" | "vertical";
   glow?: boolean;
+  /** 내부 등장 애니메이션 비활성화 (부모에서 애니메이션 제어 시 사용) */
+  animated?: boolean;
 }
 
-export function Logo({ 
-  className, 
-  size = "md", 
+export function Logo({
+  className,
+  size = "md",
   variant = "full",
-  glow = true 
+  glow = true,
+  animated = true
 }: LogoProps) {
   const sizeMap = {
     sm: 32,
@@ -23,17 +26,34 @@ export function Logo({
 
   const pixelSize = typeof size === "number" ? size : sizeMap[size];
 
-  const iconAnimation = {
-    initial: { rotate: -10, opacity: 0, scale: 0.8 },
-    animate: { rotate: 0, opacity: 1, scale: 1 },
-    transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] }
-  };
+  // animated=false일 때는 initial/animate 없이 최종 상태로 즉시 렌더링
+  const iconAnimation = animated
+    ? {
+        initial: { rotate: -10, opacity: 0, scale: 0.8 },
+        animate: { rotate: 0, opacity: 1, scale: 1 },
+        transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] }
+      }
+    : {};
 
-  const textAnimation = {
-    initial: { x: -10, opacity: 0 },
-    animate: { x: 0, opacity: 1 },
-    transition: { delay: 0.2, duration: 0.8 }
-  };
+  const textAnimation = animated
+    ? {
+        initial: { x: -10, opacity: 0 },
+        animate: { x: 0, opacity: 1 },
+        transition: { delay: 0.2, duration: 0.8 }
+      }
+    : {};
+
+  // pathLength 애니메이션도 animated prop에 따라 제어
+  const pathAnimation = animated
+    ? {
+        initial: { pathLength: 0 },
+        animate: { pathLength: 1 },
+        transition: { duration: 1.5, ease: "easeInOut" as const }
+      }
+    : {
+        initial: { pathLength: 1 },
+        animate: { pathLength: 1 }
+      };
 
   const Icon = () => (
     <motion.div 
@@ -72,9 +92,7 @@ export function Logo({
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.5, ease: "easeInOut" }}
+          {...pathAnimation}
         />
 
         {/* Connection Nodes (Neural Network feel) */}
