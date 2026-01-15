@@ -299,6 +299,266 @@ function getHexDistance(
 }
 
 /**
+ * Advanced AI Insight Generator
+ *
+ * Generates sophisticated, intimidating AI insights based on:
+ * - MCTS simulation results
+ * - Path analysis data
+ * - Game state analysis
+ * - Player behavior patterns
+ *
+ * Performance optimized: Uses only pre-calculated data, no additional computation
+ */
+interface AdvancedInsightData {
+  pathAnalysis: {
+    threatLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    shortestPathDistance: number;
+    criticalPositionsCount: number;
+    predictedMovesCount: number;
+  };
+  gameState: {
+    turnCount: number;
+    emptyCount: number;
+    totalCells: number;
+    gameProgress: number; // 0-1
+    gamePhase: 'early' | 'mid' | 'late' | 'endgame';
+  };
+  playerBehavior: {
+    moveTimeSeconds: number;
+    hoverCount: number;
+    isBlocking: boolean;
+    isExpanding: boolean;
+    isCenterMove: boolean;
+    isEdgeMove: boolean;
+    consecutiveQuickMoves?: number;
+    consecutiveSlowMoves?: number;
+  };
+  aiAnalysis: {
+    playerShortestPath: number;
+    aiShortestPath: number;
+    pathAdvantage: number; // positive = AI advantage
+    winProbabilityEstimate: number; // 0-100
+    simulationsRun: number;
+    branchingFactor: number;
+  };
+  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
+}
+
+/**
+ * Generate advanced AI insights based on comprehensive game analysis
+ * Returns array of insight message keys with optional parameters
+ */
+function generateAdvancedInsights(data: AdvancedInsightData): string[] {
+  const insights: string[] = [];
+  const { pathAnalysis, gameState, playerBehavior, aiAnalysis, difficulty } = data;
+
+  // Only generate advanced insights for NEXUS-5 and NEXUS-7
+  if (difficulty === "NEXUS-3") {
+    return generateBasicInsights(data);
+  }
+
+  // ============================================================================
+  // PHASE 1: Strategic Analysis Insights (Most Important)
+  // ============================================================================
+
+  // Critical threat detection with detailed analysis
+  if (pathAnalysis.threatLevel === 'CRITICAL') {
+    if (pathAnalysis.shortestPathDistance <= 1) {
+      insights.push("gameRoom.log.entropy.advanced.immediateThreat");
+    } else if (pathAnalysis.shortestPathDistance <= 2) {
+      insights.push(`gameRoom.log.entropy.advanced.criticalPath|${pathAnalysis.shortestPathDistance}`);
+    }
+
+    if (pathAnalysis.criticalPositionsCount >= 2) {
+      insights.push(`gameRoom.log.entropy.advanced.multipleWinPaths|${pathAnalysis.criticalPositionsCount}`);
+    }
+  }
+
+  // Path advantage analysis
+  if (aiAnalysis.pathAdvantage > 3) {
+    insights.push(`gameRoom.log.entropy.advanced.dominantPosition|${aiAnalysis.pathAdvantage}`);
+  } else if (aiAnalysis.pathAdvantage < -3) {
+    insights.push(`gameRoom.log.entropy.advanced.defensiveMode|${Math.abs(aiAnalysis.pathAdvantage)}`);
+  }
+
+  // ============================================================================
+  // PHASE 2: Player Behavior Pattern Analysis
+  // ============================================================================
+
+  // Quick move patterns
+  if (playerBehavior.moveTimeSeconds < 2) {
+    if (playerBehavior.isBlocking) {
+      insights.push("gameRoom.log.entropy.advanced.panicBlock");
+    } else if (playerBehavior.isExpanding) {
+      insights.push("gameRoom.log.entropy.advanced.rushExpansion");
+    } else {
+      insights.push("gameRoom.log.entropy.advanced.impulsiveMove");
+    }
+  }
+
+  // Long thinking patterns
+  if (playerBehavior.moveTimeSeconds > 25) {
+    if (playerBehavior.hoverCount > 8) {
+      insights.push("gameRoom.log.entropy.advanced.deepUncertainty");
+    } else if (playerBehavior.isBlocking) {
+      insights.push("gameRoom.log.entropy.advanced.calculatedDefense");
+    } else {
+      insights.push("gameRoom.log.entropy.advanced.prolongedAnalysis");
+    }
+  }
+
+  // Hesitation patterns
+  if (playerBehavior.hoverCount > 5 && playerBehavior.hoverCount <= 10) {
+    insights.push("gameRoom.log.entropy.advanced.visibleHesitation");
+  } else if (playerBehavior.hoverCount > 10) {
+    insights.push(`gameRoom.log.entropy.advanced.extremeHesitation|${playerBehavior.hoverCount}`);
+  }
+
+  // ============================================================================
+  // PHASE 3: Game Phase Specific Insights
+  // ============================================================================
+
+  if (gameState.gamePhase === 'early') {
+    if (playerBehavior.isCenterMove) {
+      insights.push("gameRoom.log.entropy.advanced.earlyCenter");
+    } else if (playerBehavior.isEdgeMove) {
+      insights.push("gameRoom.log.entropy.advanced.earlyEdge");
+    }
+  } else if (gameState.gamePhase === 'late' || gameState.gamePhase === 'endgame') {
+    if (gameState.emptyCount <= 15) {
+      insights.push(`gameRoom.log.entropy.advanced.endgameCalculation|${gameState.emptyCount}`);
+    }
+    if (aiAnalysis.winProbabilityEstimate > 70) {
+      insights.push(`gameRoom.log.entropy.advanced.highWinProbability|${aiAnalysis.winProbabilityEstimate.toFixed(1)}`);
+    } else if (aiAnalysis.winProbabilityEstimate < 30) {
+      insights.push(`gameRoom.log.entropy.advanced.lowWinProbability|${aiAnalysis.winProbabilityEstimate.toFixed(1)}`);
+    }
+  }
+
+  // ============================================================================
+  // PHASE 4: NEXUS-7 Exclusive "Alien" Insights
+  // ============================================================================
+
+  if (difficulty === "NEXUS-7") {
+    insights.push(...generateAlienInsights(data));
+  }
+
+  // Return top 2-3 most relevant insights to avoid message flooding
+  return insights.slice(0, 3);
+}
+
+/**
+ * Generate NEXUS-7 exclusive "Alien" style insights
+ * These are designed to feel uncanny and unsettling
+ */
+function generateAlienInsights(data: AdvancedInsightData): string[] {
+  const insights: string[] = [];
+  const { pathAnalysis, gameState, playerBehavior, aiAnalysis } = data;
+
+  // Probability-based observations
+  if (aiAnalysis.winProbabilityEstimate > 0) {
+    const prob = aiAnalysis.winProbabilityEstimate;
+
+    if (prob > 85) {
+      insights.push(`gameRoom.log.entropy.alien.inevitableVictory|${prob.toFixed(1)}`);
+    } else if (prob > 65) {
+      insights.push(`gameRoom.log.entropy.alien.favorableOutcome|${prob.toFixed(1)}`);
+    } else if (prob < 35) {
+      insights.push(`gameRoom.log.entropy.alien.unexpectedResistance|${prob.toFixed(1)}`);
+    }
+  }
+
+  // Pattern recognition observations
+  if (playerBehavior.moveTimeSeconds < 3 && playerBehavior.hoverCount < 2) {
+    insights.push("gameRoom.log.entropy.alien.instinctivePattern");
+  } else if (playerBehavior.moveTimeSeconds > 20 && playerBehavior.hoverCount > 5) {
+    insights.push("gameRoom.log.entropy.alien.deliberatePattern");
+  }
+
+  // Path analysis observations
+  if (pathAnalysis.shortestPathDistance <= 3) {
+    insights.push(`gameRoom.log.entropy.alien.pathConvergence|${pathAnalysis.shortestPathDistance}`);
+  }
+
+  // Simulation depth observations
+  if (aiAnalysis.simulationsRun > 5000) {
+    insights.push(`gameRoom.log.entropy.alien.deepSimulation|${Math.floor(aiAnalysis.simulationsRun / 1000)}`);
+  }
+
+  // Game progress observations
+  if (gameState.gameProgress > 0.7) {
+    const movesRemaining = gameState.emptyCount;
+    insights.push(`gameRoom.log.entropy.alien.endgameProjection|${movesRemaining}`);
+  }
+
+  // Branching factor observations (complexity awareness)
+  if (aiAnalysis.branchingFactor > 50) {
+    insights.push(`gameRoom.log.entropy.alien.complexityAnalysis|${aiAnalysis.branchingFactor}`);
+  }
+
+  return insights;
+}
+
+/**
+ * Generate basic insights for NEXUS-3 difficulty
+ */
+function generateBasicInsights(data: AdvancedInsightData): string[] {
+  const insights: string[] = [];
+  const { pathAnalysis, playerBehavior } = data;
+
+  if (pathAnalysis.threatLevel === 'CRITICAL' || pathAnalysis.threatLevel === 'HIGH') {
+    insights.push("gameRoom.log.entropy.basic.defensivePlay");
+  }
+
+  if (playerBehavior.moveTimeSeconds < 3) {
+    insights.push("gameRoom.log.entropy.basic.quickDecision");
+  } else if (playerBehavior.moveTimeSeconds > 20) {
+    insights.push("gameRoom.log.entropy.basic.carefulThinking");
+  }
+
+  return insights.slice(0, 1); // Only 1 insight for NEXUS-3
+}
+
+/**
+ * Calculate win probability estimate based on path analysis
+ * This is a heuristic estimate, not actual MCTS win rate
+ * Performance: O(1) - uses pre-calculated path distances
+ */
+function estimateWinProbability(
+  playerShortestPath: number,
+  aiShortestPath: number,
+  gameProgress: number,
+  threatLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+): number {
+  // Base probability from path advantage
+  const pathDiff = playerShortestPath - aiShortestPath;
+  let baseProbability = 50 + (pathDiff * 5);
+
+  // Adjust based on threat level
+  switch (threatLevel) {
+    case 'CRITICAL':
+      baseProbability -= 25;
+      break;
+    case 'HIGH':
+      baseProbability -= 15;
+      break;
+    case 'MEDIUM':
+      baseProbability -= 5;
+      break;
+    case 'LOW':
+      baseProbability += 10;
+      break;
+  }
+
+  // Game progress affects certainty
+  const progressMultiplier = 0.5 + (gameProgress * 0.5);
+  baseProbability = 50 + (baseProbability - 50) * progressMultiplier;
+
+  // Clamp to valid range
+  return Math.max(5, Math.min(95, baseProbability));
+}
+
+/**
  * Analyze player psychology based on their move
  * Enhanced with strategic context, game phase, and board state analysis
  */
@@ -904,45 +1164,95 @@ export async function getAIMove(
     // Generate psychological analysis
     const psychology = analyzePlayerPsychology(board, playerLastMove, turnCount);
 
-    // Generate Alien-style log messages for NEXUS-7 (ALIEN personality)
-    const alienLogs: string[] = [];
-    if (difficulty === "NEXUS-7" && config.personality === 'ALIEN') {
-      // Calculate win probability estimate based on board state
-      const emptyCount = validMoves.length;
-      const totalCells = board.boardSize.rows * board.boardSize.cols;
-      const filledCount = totalCells - emptyCount;
-      const gameProgress = filledCount / totalCells;
-      
-      // Calculate shortest path distances for both players
-      const playerShortestPath = calculateShortestPath(board, 'PLAYER');
-      const aiShortestPath = calculateShortestPath(board, 'AI');
-      const pathAdvantage = playerShortestPath.distance - aiShortestPath.distance;
-      
-      // Generate alien-style messages based on game state
-      if (pathAnalysis.threatLevel === 'CRITICAL') {
-        alienLogs.push("gameRoom.log.entropy.alien.criticalThreat");
-      } else if (selectedMove && wouldWin(board, selectedMove, 'AI')) {
-        alienLogs.push("gameRoom.log.entropy.alien.winningMove");
-      } else if (gameProgress > 0.7) {
-        // Late game: estimate win probability based on path advantage
-        let winProb = 50;
-        if (pathAdvantage > 2) {
-          // AI has path advantage
-          winProb = Math.min(95, 50 + (pathAdvantage * 5) + (gameProgress * 15));
-          alienLogs.push(`gameRoom.log.entropy.alien.winningProbability|${winProb.toFixed(1)}`);
-        } else if (pathAdvantage < -2) {
-          // Player has path advantage
-          winProb = Math.max(5, 50 - (Math.abs(pathAdvantage) * 5) - (gameProgress * 15));
-          alienLogs.push(`gameRoom.log.entropy.alien.playerAdvantage|${winProb.toFixed(1)}`);
-        }
-      } else if (pathAnalysis.threatLevel === 'LOW' && Math.random() < 0.3) {
-        // Random alien observation
-        alienLogs.push("gameRoom.log.entropy.alien.observation");
-      }
-    }
+    // ============================================================================
+    // ADVANCED AI INSIGHT SYSTEM
+    // Generates sophisticated, intimidating insights based on game analysis
+    // Performance optimized: Uses only pre-calculated data
+    // ============================================================================
 
-    // Combine all logs
-    const allLogs = [logMessage, ...alienLogs, psychology].filter(Boolean);
+    // Calculate comprehensive game state data for insight generation
+    const currentEmptyCount = validMoves.length;
+    const currentTotalCells = board.boardSize.rows * board.boardSize.cols;
+    const currentFilledCount = currentTotalCells - currentEmptyCount;
+    const currentGameProgress = currentFilledCount / currentTotalCells;
+
+    // Calculate path distances for win probability estimation
+    const currentPlayerShortestPath = calculateShortestPath(board, 'PLAYER');
+    const currentAiShortestPath = calculateShortestPath(board, 'AI');
+    const currentPathAdvantage = currentPlayerShortestPath.distance - currentAiShortestPath.distance;
+
+    // Determine game phase for insight context
+    const currentGamePhase = currentGameProgress < 0.25 ? 'early' :
+                             currentGameProgress < 0.5 ? 'mid' :
+                             currentGameProgress < 0.75 ? 'late' : 'endgame';
+
+    // Analyze player behavior from their last move
+    const moveTime = playerLastMove?.moveTimeSeconds || 0;
+    const hoverCount = playerLastMove?.hoverCount || 0;
+    const playerMovePos = playerLastMove ? { r: playerLastMove.to.r, c: playerLastMove.to.c } : null;
+
+    // Determine if player is blocking or expanding
+    const isPlayerBlocking = playerMovePos ? wouldBlockOpponent(board, playerMovePos, 'PLAYER') : false;
+    const isPlayerExpanding = playerMovePos ? currentPlayerShortestPath.path.some(
+      pos => pos.r === playerMovePos.r && pos.c === playerMovePos.c
+    ) : false;
+
+    // Check move position type
+    const centerR = Math.floor(rows / 2);
+    const centerC = Math.floor(cols / 2);
+    const isPlayerCenterMove = playerMovePos ?
+      getHexDistance(playerMovePos, { r: centerR, c: centerC }) <= 2 : false;
+    const isPlayerEdgeMove = playerMovePos ?
+      (playerMovePos.c === 0 || playerMovePos.c === cols - 1 ||
+       playerMovePos.r === 0 || playerMovePos.r === rows - 1) : false;
+
+    // Calculate win probability estimate
+    const winProbability = estimateWinProbability(
+      currentPlayerShortestPath.distance,
+      currentAiShortestPath.distance,
+      currentGameProgress,
+      pathAnalysis.threatLevel
+    );
+
+    // Build insight data structure
+    const insightData: AdvancedInsightData = {
+      pathAnalysis: {
+        threatLevel: pathAnalysis.threatLevel,
+        shortestPathDistance: pathAnalysis.shortestPathDistance,
+        criticalPositionsCount: pathAnalysis.criticalPositions.length,
+        predictedMovesCount: pathAnalysis.predictedMoves.length,
+      },
+      gameState: {
+        turnCount: turnCount || 0,
+        emptyCount: currentEmptyCount,
+        totalCells: currentTotalCells,
+        gameProgress: currentGameProgress,
+        gamePhase: currentGamePhase,
+      },
+      playerBehavior: {
+        moveTimeSeconds: moveTime,
+        hoverCount: hoverCount,
+        isBlocking: isPlayerBlocking,
+        isExpanding: isPlayerExpanding,
+        isCenterMove: isPlayerCenterMove,
+        isEdgeMove: isPlayerEdgeMove,
+      },
+      aiAnalysis: {
+        playerShortestPath: currentPlayerShortestPath.distance,
+        aiShortestPath: currentAiShortestPath.distance,
+        pathAdvantage: currentPathAdvantage,
+        winProbabilityEstimate: winProbability,
+        simulationsRun: config.simulations,
+        branchingFactor: currentEmptyCount,
+      },
+      difficulty,
+    };
+
+    // Generate advanced insights
+    const advancedInsights = generateAdvancedInsights(insightData);
+
+    // Combine all logs with priority ordering
+    const allLogs = [logMessage, ...advancedInsights, psychology].filter(Boolean);
 
     return {
       move: gameMove,
