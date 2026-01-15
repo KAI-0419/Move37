@@ -1,11 +1,11 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 
-// ES modules에서 __dirname을 얻기 위한 방법
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// esbuild CJS 빌드 시 __dirname이 자동으로 제공됨
+// 개발 환경에서는 process.cwd() 사용 (ESM에서 __dirname 미정의 시)
+// @ts-ignore - __dirname is provided by esbuild in CJS build
+const currentDir = typeof __dirname !== "undefined" ? __dirname : process.cwd();
 
 export function serveStatic(app: Express) {
   // Vercel 환경에서는 dist/public 경로를 사용
@@ -17,8 +17,8 @@ export function serveStatic(app: Express) {
     distPath = path.resolve(process.cwd(), "dist", "public");
   } else {
     // 로컬에서는 server/public 또는 dist/public 확인
-    const serverPublicPath = path.resolve(__dirname, "public");
-    const distPublicPath = path.resolve(__dirname, "..", "dist", "public");
+    const serverPublicPath = path.resolve(currentDir, "public");
+    const distPublicPath = path.resolve(currentDir, "..", "dist", "public");
     
     if (fs.existsSync(serverPublicPath)) {
       distPath = serverPublicPath;

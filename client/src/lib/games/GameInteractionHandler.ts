@@ -196,7 +196,7 @@ class SelectThenMoveHandler implements GameInteractionHandler {
       return; // Already selected a piece
     }
 
-    const engine = GameEngineFactory.getEngine(this.gameType);
+    const engine = GameEngineFactory.getCachedEngine(this.gameType);
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
     
     if (isMyPiece) {
@@ -247,7 +247,7 @@ class SelectThenMoveHandler implements GameInteractionHandler {
       return;
     }
 
-    const engine = GameEngineFactory.getEngine(this.gameType);
+    const engine = GameEngineFactory.getCachedEngine(this.gameType);
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
 
     // Select own piece
@@ -331,7 +331,7 @@ class DirectMoveHandler implements GameInteractionHandler {
     // For ENTROPY (Hex), update valid moves (all empty cells)
     if (this.gameType === "GAME_3") {
       try {
-        const engine = GameEngineFactory.getEngine(this.gameType);
+        const engine = GameEngineFactory.getCachedEngine(this.gameType);
         this.validMoves = engine.getValidMoves(
           game.board,
           { r: -1, c: -1 }, // Position doesn't matter for Hex
@@ -386,7 +386,7 @@ class DirectMoveHandler implements GameInteractionHandler {
     }
 
     try {
-      const engine = GameEngineFactory.getEngine(this.gameType);
+      const engine = GameEngineFactory.getCachedEngine(this.gameType);
       this.validMoves = engine.getValidMoves(
         this.game.board,
         this.selectedPiece,
@@ -437,7 +437,7 @@ class DirectMoveHandler implements GameInteractionHandler {
       return;
     }
 
-    const engine = GameEngineFactory.getEngine(this.gameType);
+    const engine = GameEngineFactory.getCachedEngine(this.gameType);
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
 
     // If we're waiting for destroy selection
@@ -475,7 +475,7 @@ class DirectMoveHandler implements GameInteractionHandler {
 
     // For ENTROPY (Hex) game, handle empty cell clicks directly
     if (this.gameType === "GAME_3") {
-      const engine = GameEngineFactory.getEngine(this.gameType);
+      const engine = GameEngineFactory.getCachedEngine(this.gameType);
       const isValidMove = engine.isValidMove(game.board, {
         from: { r: -1, c: -1 }, // Hex doesn't use from position
         to: { r, c },
@@ -602,7 +602,7 @@ class DirectMoveHandler implements GameInteractionHandler {
     // For ENTROPY (Hex), return all valid moves (empty cells)
     if (this.gameType === "GAME_3" && this.game) {
       try {
-        const engine = GameEngineFactory.getEngine(this.gameType);
+        const engine = GameEngineFactory.getCachedEngine(this.gameType);
         const validMoves = engine.getValidMoves(
           this.game.board,
           { r: -1, c: -1 }, // Position doesn't matter for Hex

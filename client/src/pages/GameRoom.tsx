@@ -159,6 +159,12 @@ export default function GameRoom() {
   // Track if a difficulty was just unlocked in this victory
   const [justUnlockedDifficulty, setJustUnlockedDifficulty] = useState<"NEXUS-5" | "NEXUS-7" | null>(null);
 
+  // Preload game engine and UI for the current game type
+  useEffect(() => {
+    GameEngineFactory.preload(validatedGameType);
+    GameUIFactory.preload(validatedGameType);
+  }, [validatedGameType]);
+
   // Cleanup MCTS Worker Pool when component unmounts (GAME_3 only)
   useEffect(() => {
     return () => {
@@ -359,7 +365,12 @@ export default function GameRoom() {
       return null;
     }
     try {
-      const engine = GameEngineFactory.getEngine(validatedGameType);
+      // Use cached engine (preloaded in useEffect above)
+      const engine = GameEngineFactory.getCachedEngine(validatedGameType);
+      if (!engine) {
+        // Engine not yet loaded, return null for now
+        return null;
+      }
       const parsed = engine.parseHistory(game.history[game.history.length - 1]);
       return parsed;
     } catch (error) {
@@ -490,9 +501,13 @@ export default function GameRoom() {
             {(() => {
               const gameType = validatedGameType;
               try {
-                const BoardComponent = GameUIFactory.getBoardComponent(gameType);
+                const BoardComponent = GameUIFactory.getCachedBoardComponent(gameType);
+                if (!BoardComponent) {
+                  // Board component not yet loaded, show loading state
+                  return <GameLoadingState />;
+                }
                 // Only pass turn prop if turn system is enabled
-                const turnProp = uiConfig.turnSystemType === 'player-ai' 
+                const turnProp = uiConfig.turnSystemType === 'player-ai'
                   ? (game.turn as 'player' | 'ai')
                   : undefined;
                 return (
@@ -657,9 +672,13 @@ export default function GameRoom() {
           {(() => {
             const gameType = validatedGameType;
             try {
-              const BoardComponent = GameUIFactory.getBoardComponent(gameType);
+              const BoardComponent = GameUIFactory.getCachedBoardComponent(gameType);
+              if (!BoardComponent) {
+                // Board component not yet loaded, show loading state
+                return <GameLoadingState />;
+              }
               // Only pass turn prop if turn system is enabled
-              const turnProp = uiConfig.turnSystemType === 'player-ai' 
+              const turnProp = uiConfig.turnSystemType === 'player-ai'
                 ? (game.turn as 'player' | 'ai')
                 : undefined;
               return (

@@ -39,10 +39,10 @@ export async function createGame(
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7"
 ): Promise<Game> {
   const now = new Date();
-  
+
   // Get game engine for this game type
-  const engine = GameEngineFactory.getEngine(gameType);
-  
+  const engine = await GameEngineFactory.getEngine(gameType);
+
   // Get initial board state from the engine
   const initialBoard = engine.getInitialBoard();
   
@@ -121,7 +121,7 @@ export async function makeGameMove(
   }
 
   // Get game engine for this game type
-  const engine = GameEngineFactory.getEngine(game.gameType);
+  const engine = await GameEngineFactory.getEngine(game.gameType);
 
   // Calculate player's remaining time BEFORE move
   const playerTimeRemaining = calculateRemainingTimeBeforeMove(
@@ -271,13 +271,13 @@ export async function calculateAIMove(
   
   // Check turn only if turn system is player-ai
   // If turn system is none, AI can always move (or this function shouldn't be called)
-  if (game.winner || 
+  if (game.winner ||
       (uiConfig.turnSystemType === 'player-ai' && game.turn !== 'ai')) {
     return { game, aiLogs: [] };
   }
 
   // Get game engine for this game type
-  const engine = GameEngineFactory.getEngine(game.gameType);
+  const engine = await GameEngineFactory.getEngine(game.gameType);
 
   // Calculate AI's remaining time BEFORE move
   const aiTimeRemaining = calculateRemainingTimeBeforeMove(

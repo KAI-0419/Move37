@@ -22,6 +22,8 @@ import { buildGameRoomUrl } from "@/lib/routing";
 import { Capacitor } from "@capacitor/core";
 import { admobService } from "@/lib/admob";
 import { playSelectEffect } from "@/lib/audio";
+import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { GameUIFactory } from "@/lib/games/GameUIFactory";
 
 // LocalStorage key prefix for selected difficulty (game-specific)
 const DIFFICULTY_STORAGE_KEY_PREFIX = "move37_selected_difficulty_";
@@ -149,6 +151,16 @@ export default function Lobby() {
     };
   }, [i18n, selectedGameType]);
 
+  // Preload game engine and UI when selected game type changes
+  useEffect(() => {
+    GameEngineFactory.getEngine(selectedGameType).catch(err =>
+      console.error(`Failed to preload engine for ${selectedGameType}:`, err)
+    );
+    GameUIFactory.getBoardComponent(selectedGameType).catch(err =>
+      console.error(`Failed to preload UI for ${selectedGameType}:`, err)
+    );
+  }, [selectedGameType]);
+
   // Save difficulty whenever it changes (only if unlocked)
   const handleDifficultyChange = (difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
     if (!isDifficultyUnlocked(difficulty, selectedGameType)) {
@@ -191,14 +203,14 @@ export default function Lobby() {
 
     setSelectedGameType(gameType);
     saveGameType(gameType);
-    
+
     // Update unlocked difficulties when game type changes
     // unlockedDifficulties is now computed via useMemo, automatically updates
     const unlocked = getUnlockedDifficulties(gameType);
-    
+
     // Load saved difficulty for the new game type
     const savedDifficulty = loadDifficulty(gameType);
-    
+
     // Update selected difficulty if current one is not unlocked for new game type
     if (unlocked.has(savedDifficulty)) {
       // Use saved difficulty for this game type
@@ -222,7 +234,13 @@ export default function Lobby() {
         });
         return;
       }
-      
+
+      // Preload game engine and UI before creating game to avoid loading spinner
+      await Promise.all([
+        GameEngineFactory.getEngine(selectedGameType),
+        GameUIFactory.getBoardComponent(selectedGameType),
+      ]);
+
       // Create game with selected gameType and difficulty
       const game = await createGame.mutateAsync({
         gameType: selectedGameType,

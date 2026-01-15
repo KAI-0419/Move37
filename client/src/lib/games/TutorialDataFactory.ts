@@ -75,7 +75,12 @@ export function getTutorialStepKeys(gameType: GameType): Array<{ titleKey: strin
  */
 export function getTutorialInitialBoard(gameType: GameType): string {
   try {
-    const engine = GameEngineFactory.getEngine(gameType);
+    const engine = GameEngineFactory.getCachedEngine(gameType);
+    if (!engine) {
+      // Engine not cached yet, preload it for next time
+      GameEngineFactory.preload(gameType);
+      return "5/5/5/5/5"; // Generic fallback for first load
+    }
     return engine.getInitialBoard();
   } catch (error) {
     console.error(`Failed to get initial board for ${gameType}:`, error);

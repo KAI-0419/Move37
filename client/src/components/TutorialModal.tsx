@@ -22,20 +22,45 @@ interface TutorialModalProps {
 export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE }: TutorialModalProps) {
   const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
-  
+  const [engine, setEngine] = useState<any>(null);
+  const [BoardComponent, setBoardComponent] = useState<any>(null);
+
   // Get game-specific tutorial data (re-compute when gameType changes)
   const tutorialSteps = useMemo(() => getTutorialSteps(gameType), [gameType]);
   const tutorialStepKeys = useMemo(() => getTutorialStepKeys(gameType), [gameType]);
   const initialBoard = useMemo(() => getTutorialInitialBoard(gameType), [gameType]);
   const uiConfig = useMemo(() => getGameUIConfig(gameType), [gameType]);
   const boardSize = uiConfig.boardSize || { rows: 5, cols: 5 };
-  
-  // Get game engine and board component
-  const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
-  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
-  
+
   const [animatedBoard, setAnimatedBoard] = useState<string>(initialBoard);
   const [showAnimation, setShowAnimation] = useState(false);
+
+  // Load engine and board component asynchronously
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadGameComponents() {
+      try {
+        const [loadedEngine, loadedBoard] = await Promise.all([
+          GameEngineFactory.getEngine(gameType),
+          GameUIFactory.getBoardComponent(gameType)
+        ]);
+
+        if (isMounted) {
+          setEngine(loadedEngine);
+          setBoardComponent(() => loadedBoard);
+        }
+      } catch (error) {
+        console.error('Failed to load game components:', error);
+      }
+    }
+
+    loadGameComponents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [gameType]);
 
   // Reset to first step when game type changes
   useEffect(() => {
@@ -48,15 +73,15 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
 
   // Handle animation - only when tutorial steps exist
   useEffect(() => {
-    if (tutorialSteps.length === 0) return;
-    
+    if (tutorialSteps.length === 0 || !engine) return;
+
     const currentStepData = tutorialSteps[currentStep];
     if (!currentStepData) return;
-    
+
     if (currentStepData.animation) {
       setShowAnimation(false);
       setAnimatedBoard(currentStepData.boardState || initialBoard);
-      
+
       // Start animation after delay
       const timer = setTimeout(() => {
         setShowAnimation(true);
@@ -68,7 +93,7 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
         });
         setAnimatedBoard(newBoardState);
       }, currentStepData.animation.delay || 1000);
-      
+
       return () => clearTimeout(timer);
     } else {
       setAnimatedBoard(currentStepData.boardState || initialBoard);
@@ -124,6 +149,24 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
   }, [open, tutorialSteps.length, handlePrev, handleNext]);
 
   // Validate tutorial steps exist - move conditional rendering to JSX
+  // Show loading state while components are loading
+  if (!engine || !BoardComponent) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md bg-black/95 border-2 border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display font-black text-primary">
+              {t("tutorial.title")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">{t("common.loading", "Loading...")}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   if (tutorialSteps.length === 0) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>

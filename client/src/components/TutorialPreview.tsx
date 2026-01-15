@@ -33,14 +33,41 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
   const [isPlaying, setIsPlaying] = useState(true);
   const [animatedBoard, setAnimatedBoard] = useState<string>("");
   const [showAnimation, setShowAnimation] = useState(false);
+  const [engine, setEngine] = useState<any>(null);
+  const [BoardComponent, setBoardComponent] = useState<any>(null);
 
   // Get game-specific tutorial data
   const tutorialSteps = useMemo(() => getTutorialSteps(gameType), [gameType]);
   const initialBoard = useMemo(() => getTutorialInitialBoard(gameType), [gameType]);
-  const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
-  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
   const uiConfig = useMemo(() => getGameUIConfig(gameType), [gameType]);
   const boardSize = uiConfig.boardSize || { rows: 5, cols: 5 };
+
+  // Load engine and board component asynchronously
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadGameComponents() {
+      try {
+        const [loadedEngine, loadedBoard] = await Promise.all([
+          GameEngineFactory.getEngine(gameType),
+          GameUIFactory.getBoardComponent(gameType)
+        ]);
+
+        if (isMounted) {
+          setEngine(loadedEngine);
+          setBoardComponent(() => loadedBoard);
+        }
+      } catch (error) {
+        console.error('Failed to load game components:', error);
+      }
+    }
+
+    loadGameComponents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [gameType]);
 
   // Initialize board
   useEffect(() => {
@@ -54,7 +81,7 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
 
   // Auto-cycle through tutorial steps (simplified - just show different board states)
   useEffect(() => {
-    if (!isPlaying || tutorialSteps.length === 0) return;
+    if (!isPlaying || tutorialSteps.length === 0 || !engine) return;
 
     const currentStep = tutorialSteps[currentStepIndex];
     if (!currentStep) return;
@@ -67,7 +94,7 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
     if (currentStep.animation) {
       const animationTimer = setTimeout(() => {
         setShowAnimation(true);
-        
+
         // Apply animation move using game engine
         const currentBoardState = currentStep.boardState || initialBoard;
         const newBoardState = engine.makeMove(currentBoardState, {
@@ -98,6 +125,17 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
 
   const currentStep = tutorialSteps[currentStepIndex] || tutorialSteps[0];
   const displayBoard = showAnimation && currentStep?.animation ? animatedBoard : (currentStep?.boardState || initialBoard);
+
+  // Show loading state while components are loading
+  if (!engine || !BoardComponent) {
+    return (
+      <div className={cn("flex items-center justify-center h-full bg-black/40 border border-white/10 rounded-lg p-8", className)}>
+        <p className="text-sm text-muted-foreground font-mono">
+          {t("common.loading", "Loading...")}
+        </p>
+      </div>
+    );
+  }
 
   if (tutorialSteps.length === 0) {
     return (

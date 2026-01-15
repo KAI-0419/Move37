@@ -19,7 +19,11 @@ export type Piece = string | null;
  * Empty cells are represented as '.' for consistent UI display
  */
 export function parseBoardString(boardString: string, gameType: GameType = DEFAULT_GAME_TYPE): (Piece | '.')[][] {
-  const engine = GameEngineFactory.getEngine(gameType);
+  const engine = GameEngineFactory.getCachedEngine(gameType);
+  if (!engine) {
+    console.error(`Engine not loaded for game type: ${gameType}`);
+    return [];
+  }
   const board = engine.parseBoard(boardString);
   // Convert null to '.' for UI display
   // Board is already a 2D array from parseBoard
@@ -37,7 +41,11 @@ export function isValidMoveClient(
   isPlayer: boolean,
   gameType: GameType = DEFAULT_GAME_TYPE
 ): boolean {
-  const engine = GameEngineFactory.getEngine(gameType);
+  const engine = GameEngineFactory.getCachedEngine(gameType);
+  if (!engine) {
+    console.error(`Engine not loaded for game type: ${gameType}`);
+    return false;
+  }
   const validation = engine.isValidMove(boardString, { from, to }, isPlayer);
   return validation.valid;
 }
@@ -52,6 +60,10 @@ export function getValidMovesClient(
   isPlayer: boolean,
   gameType: GameType = DEFAULT_GAME_TYPE
 ): { r: number; c: number }[] {
-  const engine = GameEngineFactory.getEngine(gameType);
+  const engine = GameEngineFactory.getCachedEngine(gameType);
+  if (!engine) {
+    console.error(`Engine not loaded for game type: ${gameType}`);
+    return [];
+  }
   return engine.getValidMoves(boardString, from, isPlayer);
 }

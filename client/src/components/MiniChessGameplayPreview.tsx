@@ -11,8 +11,8 @@ import { motion } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GameType } from "@shared/schema";
-import { GameUIFactory } from "@/lib/games/GameUIFactory";
-import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { MiniChessBoard } from "@/lib/games/miniChess/MiniChessBoard";
+import { MiniChessEngine } from "@/lib/games/miniChess/MiniChessEngine";
 import { quickGameplaySequence } from "@/lib/games/miniChess/gameplaySequence";
 import type { GameMove } from "@shared/gameEngineInterface";
 
@@ -35,8 +35,7 @@ export function MiniChessGameplayPreview({
   const [boardState, setBoardState] = useState<string>("");
   const [lastMove, setLastMove] = useState<GameMove | null>(null);
 
-  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
-  const engine = useMemo(() => GameEngineFactory.getEngine(gameType), [gameType]);
+  const engine = useMemo(() => new MiniChessEngine(), []);
 
   // Fast-paced move delay (1680ms for cinematic feel)
   const MOVE_DELAY = 1680;
@@ -152,7 +151,7 @@ export function MiniChessGameplayPreview({
 
         <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
           <div className="w-[240px] h-[240px] flex items-center justify-center">
-            <BoardComponent
+            <MiniChessBoard
               boardString={boardState}
               turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
               selectedSquare={null}

@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GameType } from "@shared/schema";
-import { GameUIFactory } from "@/lib/games/GameUIFactory";
+import { EntropyBoard } from "@/lib/games/entropy/EntropyBoard";
 import { getInitialBoard, generateBoardString, setCellState, cloneBoard } from "@/lib/games/entropy/boardUtils";
 import { quickGameplaySequence } from "@/lib/games/entropy/gameplaySequence";
 import type { BoardState, Player, Move } from "@/lib/games/entropy/types";
@@ -34,8 +34,6 @@ export function EntropyGameplayPreview({
   const [isPlaying, setIsPlaying] = useState(true);
   const [boardState, setBoardState] = useState<BoardState>(() => getInitialBoard());
   const [lastMove, setLastMove] = useState<Move | null>(null);
-
-  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
 
   // Fast-paced move delay (1680ms for cinematic feel)
   const MOVE_DELAY = 1680;
@@ -153,7 +151,7 @@ export function EntropyGameplayPreview({
         <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
           <div className="w-[240px] h-[240px] flex items-center justify-center">
             <div style={{ transform: 'scale(0.8)', transformOrigin: 'center' }}>
-              <BoardComponent
+              <EntropyBoard
                 boardString={boardString}
                 turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
                 selectedSquare={null}

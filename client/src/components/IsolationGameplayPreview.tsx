@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GameType } from "@shared/schema";
-import { GameUIFactory } from "@/lib/games/GameUIFactory";
+import { IsolationBoard } from "@/lib/games/isolation/IsolationBoard";
 import { generateBoardString } from "@/lib/games/isolation/boardUtils";
 import {
   PREVIEW_INITIAL_BOARD,
@@ -38,8 +38,6 @@ export function IsolationGameplayPreview({
   const [isPlaying, setIsPlaying] = useState(true);
   const [boardState, setBoardState] = useState<BoardState>(() => ({ ...PREVIEW_INITIAL_BOARD }));
   const [lastMove, setLastMove] = useState<IsolationGameplayMove | null>(null);
-
-  const BoardComponent = useMemo(() => GameUIFactory.getBoardComponent(gameType), [gameType]);
 
   // Fast-paced move delay (1680ms for cinematic feel)
   const MOVE_DELAY = 1680;
@@ -160,7 +158,7 @@ export function IsolationGameplayPreview({
 
         <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
           <div className="w-[240px] h-[240px] flex items-center justify-center">
-            <BoardComponent
+            <IsolationBoard
               boardString={boardString}
               turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
               selectedSquare={null}
