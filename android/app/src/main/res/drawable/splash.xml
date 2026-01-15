@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 배경 레이어 -->
+    <item android:drawable="@drawable/move37_background" />
+
+    <!-- 로고 레이어 (중앙 정렬) -->
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/move37_logo" />
+    </item>
+</layer-list>
