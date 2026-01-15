@@ -21,7 +21,6 @@ export function KingPiece({ className }: ChessPieceProps) {
       viewBox="0 0 45 45"
       fill="currentColor"
       className={cn("w-full h-full", className)}
-      style={{ filter: "inherit" }}
     >
       {/* Cross on top */}
       <path
@@ -70,7 +69,6 @@ export function KnightPiece({ className }: ChessPieceProps) {
       viewBox="0 0 45 45"
       fill="currentColor"
       className={cn("w-full h-full", className)}
-      style={{ filter: "inherit" }}
     >
       {/* Horse head and neck */}
       <path
@@ -113,7 +111,6 @@ export function PawnPiece({ className }: ChessPieceProps) {
       viewBox="0 0 45 45"
       fill="currentColor"
       className={cn("w-full h-full", className)}
-      style={{ filter: "inherit" }}
     >
       {/* Head */}
       <circle cx="22.5" cy="12" r="6" fill="currentColor" stroke="currentColor" strokeWidth="1.5" />
@@ -155,7 +152,6 @@ export function QueenPiece({ className }: ChessPieceProps) {
       viewBox="0 0 45 45"
       fill="currentColor"
       className={cn("w-full h-full", className)}
-      style={{ filter: "inherit" }}
     >
       {/* Crown points with balls */}
       <circle cx="6" cy="12" r="2.5" fill="currentColor" />

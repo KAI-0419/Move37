@@ -38,22 +38,22 @@ export const miniChessTutorialSteps: TutorialStep[] = [
     },
   },
   {
-    titleKey: "tutorial.steps.knight.title",
-    descriptionKey: "tutorial.steps.knight.description",
-    boardState: "NPKPN/5/5/5/npkpn",
-    animation: {
-      from: { r: 4, c: 1 },
-      to: { r: 2, c: 2 },
-      delay: 1000,
-    },
-  },
-  {
     titleKey: "tutorial.steps.pawn.title",
     descriptionKey: "tutorial.steps.pawn.description",
     boardState: "NPKPN/5/5/5/npkpn",
     animation: {
+      from: { r: 4, c: 1 },
+      to: { r: 3, c: 1 },
+      delay: 1000,
+    },
+  },
+  {
+    titleKey: "tutorial.steps.knight.title",
+    descriptionKey: "tutorial.steps.knight.description",
+    boardState: "NPKPN/5/5/5/npkpn",
+    animation: {
       from: { r: 4, c: 0 },
-      to: { r: 3, c: 0 },
+      to: { r: 2, c: 1 },
       delay: 1000,
     },
   },
@@ -73,8 +73,8 @@ export const miniChessTutorialStepKeys = [
   { titleKey: "tutorial.steps.goal.title", descriptionKey: "tutorial.steps.goal.description" },
   { titleKey: "tutorial.steps.pieces.title", descriptionKey: "tutorial.steps.pieces.description" },
   { titleKey: "tutorial.steps.king.title", descriptionKey: "tutorial.steps.king.description" },
-  { titleKey: "tutorial.steps.knight.title", descriptionKey: "tutorial.steps.knight.description" },
   { titleKey: "tutorial.steps.pawn.title", descriptionKey: "tutorial.steps.pawn.description" },
+  { titleKey: "tutorial.steps.knight.title", descriptionKey: "tutorial.steps.knight.description" },
   { titleKey: "tutorial.steps.victory.title", descriptionKey: "tutorial.steps.victory.description" },
   { titleKey: "tutorial.steps.start.title", descriptionKey: "tutorial.steps.start.description" },
 ];

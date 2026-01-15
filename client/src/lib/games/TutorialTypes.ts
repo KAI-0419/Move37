@@ -14,6 +14,8 @@ export type TutorialStep = {
   descriptionKey: string;
   boardState?: string;
   highlightSquares?: { r: number; c: number }[];
+  selectedSquare?: { r: number; c: number };
+  validMoves?: { r: number; c: number }[];
   animation?: {
     from: { r: number; c: number };
     to: { r: number; c: number };

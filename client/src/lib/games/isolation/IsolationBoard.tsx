@@ -33,6 +33,7 @@ export function IsolationBoard({
   size = "large",
   difficulty = "NEXUS-7",
   hasError = false,
+  isTutorialMode = false,
 }: BaseGameBoardProps) {
   // Parse board state
   const boardState = parseBoardState(boardString);
@@ -394,11 +395,13 @@ export function IsolationBoard({
                       {piece === "player" && (
                         <motion.div
                           key={`piece-player-${r}-${c}`}
-                          layout
+                          layout={!isTutorialMode}
                           layoutId={
-                            lastMove && isLastMoveDest
+                            !isTutorialMode && lastMove && isLastMoveDest
                               ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}-player`
-                              : `piece-player-${r}-${c}`
+                              : !isTutorialMode
+                                ? `piece-player-${r}-${c}`
+                                : undefined
                           }
                           initial={false}
                           animate={{ scale: 1, opacity: 1 }}
@@ -419,11 +422,13 @@ export function IsolationBoard({
                       {piece === "ai" && (
                         <motion.div
                           key={`piece-ai-${r}-${c}`}
-                          layout
+                          layout={!isTutorialMode}
                           layoutId={
-                            lastMove && isLastMoveDest
+                            !isTutorialMode && lastMove && isLastMoveDest
                               ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}-ai`
-                              : `piece-ai-${r}-${c}`
+                              : !isTutorialMode
+                                ? `piece-ai-${r}-${c}`
+                                : undefined
                           }
                           initial={false}
                           animate={{ scale: 1, opacity: 1 }}
@@ -445,7 +450,7 @@ export function IsolationBoard({
                       )}
 
                       {/* Selection ring */}
-                      {isSelected && (
+                      {isSelected && !isTutorialMode && (
                         <motion.div
                           layoutId="isolation-selection"
                           className="absolute inset-0 z-30 pointer-events-none"

@@ -193,29 +193,30 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
                   <BoardComponent
                     boardString={displayBoard}
                     turn="player"
-                    selectedSquare={null}
+                    selectedSquare={step.selectedSquare || null}
                     lastMove={step.animation && showAnimation ? {
                       from: step.animation.from,
                       to: step.animation.to
                     } : null}
-                    validMoves={[]}
+                    validMoves={step.validMoves || []}
                     onSquareClick={() => {}}
                     isProcessing={false}
                     size="small"
                     difficulty="NEXUS-7"
+                    isTutorialMode={true}
                   />
                   
                   {/* Highlight squares overlay - using matching grid structure */}
                   {step.highlightSquares && (
-                    <div 
+                    <div
                       className="absolute pointer-events-none"
                       style={{
-                        // Match ChessBoard structure exactly:
-                        // For small size: p-1 (4px) + border-2 (2px on each side) = 6px
-                        top: '6px',
-                        left: '6px',
-                        right: '6px',
-                        bottom: '6px',
+                        // Match board structure exactly:
+                        // p-2 (8px) + frame padding (3px) + p-3 (12px) = 23px
+                        top: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
+                        left: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
+                        right: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
+                        bottom: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
                       }}
                     >
                       <div 
@@ -229,21 +230,21 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
                           const r = Math.floor(idx / boardSize.cols);
                           const c = idx % boardSize.cols;
                           const isHighlighted = step.highlightSquares?.some(
-                            sq => sq.r === r && sq.c === c
+                            (sq: { r: number; c: number }) => sq.r === r && sq.c === c
                           );
-                          
+
                           if (!isHighlighted) return <div key={idx} />;
-                          
+
                           return (
                             <motion.div
                               key={idx}
                               className="w-full h-full"
                               initial={{ opacity: 0 }}
                               animate={{ opacity: [0, 0.6, 0] }}
-                              transition={{ 
-                                duration: 1.5, 
-                                repeat: Infinity, 
-                                delay: step.highlightSquares!.findIndex(sq => sq.r === r && sq.c === c) * 0.15 
+                              transition={{
+                                duration: 1.5,
+                                repeat: Infinity,
+                                delay: step.highlightSquares!.findIndex((sq: { r: number; c: number }) => sq.r === r && sq.c === c) * 0.15
                               }}
                             >
                               <div className="w-full h-full border-2 border-primary/70 bg-primary/20 rounded-sm shadow-[0_0_10px_rgba(0,243,255,0.2)]" />
@@ -262,10 +263,10 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
               <div>
                 <h3 className="text-base font-bold text-primary mb-2 flex items-center gap-2">
                   {currentStep === 0 && <Target className="w-4 h-4" />}
-                  {currentStep === 1 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><PawnPiece /></span>}
-                  {currentStep === 2 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><KingPiece /></span>}
-                  {currentStep === 3 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><KnightPiece /></span>}
-                  {currentStep === 4 && <span className="w-5 h-5 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))]"><PawnPiece /></span>}
+                  {currentStep === 1 && <Target className="w-4 h-4" />}
+                  {currentStep === 2 && <span className="w-5 h-5 text-primary"><KingPiece /></span>}
+                  {currentStep === 3 && <span className="w-5 h-5 text-primary"><PawnPiece /></span>}
+                  {currentStep === 4 && <span className="w-5 h-5 text-primary"><KnightPiece /></span>}
                   {currentStep === 5 && <Clock className="w-4 h-4" />}
                   {currentStep === 6 && <Target className="w-4 h-4" />}
                   {t(step.titleKey)}
@@ -276,31 +277,39 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
               </div>
 
               {/* Piece Legend */}
-              {currentStep === 1 && gameType === "MINI_CHESS" && (
-                <div className="border border-white/10 p-3 space-y-2 bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))] flex-shrink-0"><KingPiece /></span>
-                    <div>
-                      <div className="text-xs font-bold text-primary">{t("tutorial.legend.king.name")}</div>
-                      <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.king.move")}</div>
+              <AnimatePresence>
+                {currentStep === 1 && gameType === "MINI_CHESS" && (
+                  <motion.div
+                    className="border border-white/10 p-3 space-y-2 bg-white/5"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 text-primary flex-shrink-0"><KingPiece /></span>
+                      <div>
+                        <div className="text-xs font-bold text-primary">{t("tutorial.legend.king.name")}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.king.move")}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))] flex-shrink-0"><KnightPiece /></span>
-                    <div>
-                      <div className="text-xs font-bold text-primary">{t("tutorial.legend.knight.name")}</div>
-                      <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.knight.move")}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 text-primary flex-shrink-0"><KnightPiece /></span>
+                      <div>
+                        <div className="text-xs font-bold text-primary">{t("tutorial.legend.knight.name")}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.knight.move")}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 text-primary [filter:drop-shadow(0_0_4px_rgba(0,243,255,0.8))] flex-shrink-0"><PawnPiece /></span>
-                    <div>
-                      <div className="text-xs font-bold text-primary">{t("tutorial.legend.pawn.name")}</div>
-                      <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.pawn.move")}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 text-primary flex-shrink-0"><PawnPiece /></span>
+                      <div>
+                        <div className="text-xs font-bold text-primary">{t("tutorial.legend.pawn.name")}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("tutorial.legend.pawn.move")}</div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 

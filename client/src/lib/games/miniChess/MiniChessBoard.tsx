@@ -32,6 +32,7 @@ export function MiniChessBoard({
   size = "large",
   difficulty = "NEXUS-7",
   hasError = false,
+  isTutorialMode = false,
 }: BaseGameBoardProps) {
   // Parse board string (FEN format: "NPKPN/5/5/5/npkpn")
   const rows: string[][] = useMemo(() => {
@@ -389,11 +390,13 @@ export function MiniChessBoard({
                       {pieceChar !== "." && (
                         <motion.div
                           key={`piece-${pieceChar}-${r}-${c}`}
-                          layout
+                          layout={!isTutorialMode}
                           layoutId={
-                            lastMove && isLastMoveDest
+                            !isTutorialMode && lastMove && isLastMoveDest
                               ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}-${pieceChar.toLowerCase()}`
-                              : `piece-${pieceChar.toLowerCase()}-${r}-${c}`
+                              : !isTutorialMode
+                                ? `piece-${pieceChar.toLowerCase()}-${r}-${c}`
+                                : undefined
                           }
                           initial={false}
                           animate={{ scale: 1, opacity: 1 }}
@@ -421,7 +424,7 @@ export function MiniChessBoard({
                       )}
 
                       {/* Selection ring */}
-                      {isSelected && (
+                      {isSelected && !isTutorialMode && (
                         <motion.div
                           layoutId="minichess-selection"
                           className="absolute inset-0 z-30 pointer-events-none"

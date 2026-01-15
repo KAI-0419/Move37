@@ -30,6 +30,7 @@ export function EntropyBoard({
   size = "large",
   difficulty = "NEXUS-7",
   hasError = false,
+  isTutorialMode = false,
 }: BaseGameBoardProps) {
   // Parse board state
   const boardState = parseBoardState(boardString);

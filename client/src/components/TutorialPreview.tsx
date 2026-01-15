@@ -161,6 +161,7 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
               isProcessing={false}
               size="small"
               difficulty="NEXUS-7"
+              isTutorialMode={true}
             />
 
             {/* Highlight squares overlay */}

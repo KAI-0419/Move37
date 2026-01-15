@@ -378,7 +378,7 @@
     "continueGame": "Continue Game"
   },
   "tutorial": {
-    "title": "TUTORIAL // SYSTEM TRAINING",
+    "title": "TUTORIAL",
     "step": "STEP {{current}} / {{total}}",
     "next": "Next",
     "prev": "Previous",

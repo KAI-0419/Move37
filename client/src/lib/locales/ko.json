@@ -381,7 +381,7 @@
     "continueGame": "게임 계속하기"
   },
   "tutorial": {
-    "title": "TUTORIAL // SYSTEM TRAINING",
+    "title": "튜토리얼",
     "step": "STEP {{current}} / {{total}}",
     "next": "다음",
     "prev": "이전",
