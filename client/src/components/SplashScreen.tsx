@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState, useCallback } from "react";
 import { Scanlines } from "./Scanlines";
+import { useAdaptiveScale, clampSize, clampSpacing } from "../hooks/use-adaptive-scale";
 
 interface SplashScreenProps {
   onFinish: () => void;
@@ -280,6 +281,7 @@ const NeuralNetwork = (() => {
 // 부팅 메시지 컴포넌트 - 타이밍 체계화 및 접근성 향상
 function BootSequence({ stage }: { stage: number }) {
   const [visibleMessages, setVisibleMessages] = useState<readonly number[]>([]);
+  const { fontSize, vhToPx, device } = useAdaptiveScale();
 
   useEffect(() => {
     if (stage >= 1) {
@@ -295,9 +297,18 @@ function BootSequence({ stage }: { stage: number }) {
     }
   }, [stage]);
 
+  // 반응형 위치 계산 (화면 하단에서 적절한 간격)
+  const bottomPosition = device.isSmallScreen ? vhToPx(18) : vhToPx(16);
+
   return (
     <div
-      className="absolute bottom-28 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 font-mono text-[9px]"
+      className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 font-mono"
+      style={{
+        bottom: `${bottomPosition}px`,
+        fontSize: clampSize(8, 10, 1.2),
+        willChange: "transform",
+        transform: "translate3d(-50%, 0, 0)",
+      }}
       role="status"
       aria-live="polite"
       aria-label="System boot sequence"
@@ -476,6 +487,7 @@ const AnimatedCorners = (() => {
 // 향상된 로딩 바 - 시간 기반 자연스러운 퍼센트 계산 및 최적화
 function EnhancedLoadingBar({ stage }: { stage: number }) {
   const [elapsedTime, setElapsedTime] = useState(0);
+  const { fontSize, vhToPx, vwToPx, device, responsive } = useAdaptiveScale();
 
   // 시간 기반 로딩 퍼센트 계산 - 전체 1.6초 동안 자연스럽게 증가
   const getProgressPercentage = useCallback((currentStage: number, timeElapsed: number): number => {
@@ -518,9 +530,24 @@ function EnhancedLoadingBar({ stage }: { stage: number }) {
   const percentage = getProgressPercentage(stage, elapsedTime);
   const progressWidth = `${percentage}%`;
 
+  // 반응형 위치 및 크기 계산
+  const bottomPosition = device.isSmallScreen ? vhToPx(14) : vhToPx(12);
+  const barWidth = responsive({
+    mobile: vwToPx(70),   // 70% of viewport width on mobile
+    tablet: vwToPx(50),   // 50% on tablet
+    desktop: 280,         // Fixed 280px on desktop
+    default: vwToPx(60),
+  });
+
   return (
     <div
-      className="absolute bottom-20 left-1/2 -translate-x-1/2 w-56"
+      className="absolute left-1/2 -translate-x-1/2"
+      style={{
+        bottom: `${bottomPosition}px`,
+        width: `${barWidth}px`,
+        willChange: "transform",
+        transform: "translate3d(-50%, 0, 0)",
+      }}
       role="progressbar"
       aria-valuenow={percentage}
       aria-valuemin={0}
@@ -565,10 +592,12 @@ function EnhancedLoadingBar({ stage }: { stage: number }) {
 
       {/* 로딩 퍼센트 */}
       <motion.div
-        className="mt-2 text-center text-[12px] font-mono tracking-widest font-bold"
+        className="mt-2 text-center font-mono tracking-widest font-bold"
         style={{
-          color: DESIGN_TOKENS.colors.primary.blue[400], // 더 선명한 색상
-          textShadow: `0 0 8px ${DESIGN_TOKENS.colors.primary.blue[500]}80`, // 글로우 효과 추가
+          fontSize: clampSize(10, 14, 1.5),
+          color: DESIGN_TOKENS.colors.primary.blue[400],
+          textShadow: `0 0 8px ${DESIGN_TOKENS.colors.primary.blue[500]}80`,
+          willChange: "opacity",
         }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -602,40 +631,40 @@ const GlitchWrapper = (() => {
       repeatDelay: DESIGN_TOKENS.timing.animations.glitchRepeatDelay,
       // keyframes를 사용한 단계적 애니메이션
       keyframes: {
-        x: [0, -1.5, 0, 1.5, 0],
+        x: [0, -1.5, 0, 1.5, 0] as number[],
         filter: [
           'hue-rotate(0deg)',
           'hue-rotate(8deg)',
           'hue-rotate(0deg)',
           'hue-rotate(-8deg)',
           'hue-rotate(0deg)'
-        ],
+        ] as string[],
       },
     },
     red: {
       duration: 0.08,
-      x: [0, 3, 0],
+      x: [0, 3, 0] as number[],
       clipPath: "inset(25% 0 50% 0)",
       color: DESIGN_TOKENS.colors.accent.red,
       // keyframes를 사용한 단계적 애니메이션
       keyframes: {
-        opacity: [0, 0, 0.4, 0.4, 0],
-        x: [0, 0, 3, 3, 0],
+        opacity: [0, 0, 0.4, 0.4, 0] as number[],
+        x: [0, 0, 3, 3, 0] as number[],
       },
     },
     cyan: {
       duration: 0.08,
-      x: [0, -3, 0],
+      x: [0, -3, 0] as number[],
       clipPath: "inset(50% 0 25% 0)",
       color: DESIGN_TOKENS.colors.accent.cyan,
       delay: 0.03,
       // keyframes를 사용한 단계적 애니메이션
       keyframes: {
-        opacity: [0, 0, 0.4, 0.4, 0],
-        x: [0, 0, -3, -3, 0],
+        opacity: [0, 0, 0.4, 0.4, 0] as number[],
+        x: [0, 0, -3, -3, 0] as number[],
       },
     },
-  } as const;
+  };
 
   return function GlitchWrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -708,6 +737,7 @@ const GlitchWrapper = (() => {
 
 export function SplashScreen({ onFinish }: SplashScreenProps) {
   const [stage, setStage] = useState(0);
+  const { fontSize, safeArea, device } = useAdaptiveScale();
 
   useEffect(() => {
     // 스테이지별 애니메이션 타이밍 제어 - 디자인 토큰 적용
@@ -725,6 +755,13 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
   return (
     <div
       className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center overflow-hidden font-display"
+      style={{
+        paddingTop: `${safeArea.top}px`,
+        paddingBottom: `${safeArea.bottom}px`,
+        paddingLeft: `${safeArea.left}px`,
+        paddingRight: `${safeArea.right}px`,
+        willChange: "contents",
+      }}
       role="status"
       aria-live="polite"
       aria-label="System initialization in progress"
@@ -739,6 +776,8 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
         className="absolute inset-0"
         style={{
           background: `radial-gradient(ellipse at center, ${DESIGN_TOKENS.colors.primary.blue[600]}4D, ${DESIGN_TOKENS.colors.primary.blue[500]}1A, transparent)`,
+          willChange: "opacity",
+          transform: "translate3d(0, 0, 0)",
         }}
         animate={{
           opacity: [
@@ -789,12 +828,26 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
                 initial={{ x: -10, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.2, duration: 0.8 }}
+                style={{
+                  willChange: "transform, opacity",
+                  transform: "translate3d(0, 0, 0)",
+                }}
               >
-                <span className="font-black tracking-tighter text-white uppercase text-6xl">
+                <span
+                  className="font-black tracking-tighter text-white uppercase"
+                  style={{
+                    fontSize: clampSize(40, 72, 7),
+                  }}
+                >
                   MOVE
                   <span className="text-blue-500 ml-1">37</span>
                 </span>
-                <span className="text-[10px] text-blue-300/60 uppercase tracking-[0.3em] mt-1 font-mono">
+                <span
+                  className="text-blue-300/60 uppercase tracking-[0.3em] mt-1 font-mono"
+                  style={{
+                    fontSize: clampSize(8, 12, 1.2),
+                  }}
+                >
                   Pure Logic Engine
                 </span>
               </motion.div>
@@ -819,9 +872,13 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
           duration: 0.5,
           ease: [0.25, 0.46, 0.45, 0.94],
         }}
-        className="absolute bottom-6 text-[8px] tracking-[0.2em] font-mono flex items-center gap-2"
+        className="absolute tracking-[0.2em] font-mono flex items-center gap-2"
         style={{
+          bottom: `${safeArea.bottom + 24}px`,
+          fontSize: clampSize(7, 9, 1),
           color: `${DESIGN_TOKENS.colors.primary.blue[400]}${Math.round(DESIGN_TOKENS.opacity.text.secondary * 255).toString(16).padStart(2, '0')}`,
+          willChange: "transform, opacity",
+          transform: "translate3d(0, 0, 0)",
         }}
         role="contentinfo"
         aria-label="System version information"

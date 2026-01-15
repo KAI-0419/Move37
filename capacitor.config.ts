@@ -17,13 +17,27 @@ const config: CapacitorConfig = {
       overlaysWebView: false
     },
     SplashScreen: {
+      // Native splash screen duration (3 seconds)
       launchShowDuration: 3000,
       launchAutoHide: true,
+
+      // Background color (consistent with React splash)
       backgroundColor: "#000000",
+
+      // Android: CENTER_CROP works well with vector drawables
+      // iOS: scaleAspectFit set in LaunchScreen.storyboard
       androidScaleType: "CENTER_CROP",
+
+      // No spinner - custom loading bar in React component
       showSpinner: false,
+
+      // Fullscreen splash (hides status/navigation bars)
       splashFullScreen: true,
       splashImmersive: true,
+
+      // Android resource name (default: splash)
+      // iOS: uses Splash image from Assets.xcassets
+      androidSplashResourceName: "splash",
     },
     Haptics: {},
     NativeAudio: {}
