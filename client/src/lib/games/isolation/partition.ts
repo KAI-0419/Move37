@@ -4,13 +4,25 @@
  * Detects when the board is partitioned (players cannot reach each other)
  * and calculates the size of each player's region.
  *
- * In a partitioned game, the player with more cells in their region
- * will typically win with optimal play (longest path).
+ * FIXED: Now uses queen-movement based reachability instead of adjacency.
+ * This correctly identifies when pieces are truly isolated.
  */
 
 import type { BoardState } from "./types";
+import {
+  detectPartitionBitboard,
+  queenFloodFill,
+  createBlockedBitboard,
+  posToIndex,
+  indexToPos,
+  bitboardToIndices,
+  popCount,
+  CELL_MASKS,
+  getQueenMoves,
+  BOARD_SIZE
+} from "./bitboard";
 
-// 8 directions for queen movement (adjacent cells only for flood fill)
+// 8 directions for queen movement
 const DIRECTIONS = [
   { dr: -1, dc: -1 }, { dr: -1, dc: 0 }, { dr: -1, dc: 1 },
   { dr: 0, dc: -1 },                      { dr: 0, dc: 1 },
@@ -29,18 +41,15 @@ export interface PartitionResult {
 
 /**
  * Detect if the board is partitioned and calculate region sizes
+ * Uses queen-movement based reachability for accuracy
  */
 export function detectPartition(board: BoardState): PartitionResult {
   const { boardSize, playerPos, aiPos, destroyed } = board;
 
-  // Flood fill from player position
-  const playerReachable = floodFill(playerPos, aiPos, boardSize, destroyed);
+  // Use bitboard-based partition detection
+  const result = detectPartitionBitboard(playerPos, aiPos, destroyed);
 
-  // Check if AI is reachable from player
-  const aiKey = `${aiPos.r},${aiPos.c}`;
-  const isPartitioned = !playerReachable.has(aiKey);
-
-  if (!isPartitioned) {
+  if (!result.isPartitioned) {
     return {
       isPartitioned: false,
       playerRegionSize: 0,
@@ -51,79 +60,77 @@ export function detectPartition(board: BoardState): PartitionResult {
     };
   }
 
-  // Flood fill from AI position
-  const aiReachable = floodFill(aiPos, playerPos, boardSize, destroyed);
+  // Convert bitboard regions to sets for compatibility
+  const playerReachableCells = new Set<string>();
+  const aiReachableCells = new Set<string>();
 
-  // Calculate region sizes (excluding the piece positions themselves)
-  const playerRegionSize = playerReachable.size;
-  const aiRegionSize = aiReachable.size;
+  const playerIndices = bitboardToIndices(result.playerRegion);
+  const aiIndices = bitboardToIndices(result.aiRegion);
 
-  // In a partitioned game, the player with more cells typically wins
-  // This is because they can make more moves before running out
+  for (const idx of playerIndices) {
+    const pos = indexToPos(idx);
+    playerReachableCells.add(`${pos.r},${pos.c}`);
+  }
+
+  for (const idx of aiIndices) {
+    const pos = indexToPos(idx);
+    aiReachableCells.add(`${pos.r},${pos.c}`);
+  }
+
+  // Calculate predicted winner based on region sizes
   let predictedWinner: 'player' | 'ai' | 'tie' | 'unknown';
 
-  if (playerRegionSize > aiRegionSize) {
+  if (result.playerRegionSize > result.aiRegionSize) {
     predictedWinner = 'player';
-  } else if (aiRegionSize > playerRegionSize) {
+  } else if (result.aiRegionSize > result.playerRegionSize) {
     predictedWinner = 'ai';
   } else {
-    // Equal region sizes - outcome depends on who moves first
-    // Since player moves first, AI will run out first if regions are equal
-    // But this is complex - mark as tie for now
+    // Equal region sizes - more complex analysis needed
+    // Generally, equal regions favor the player who moves second
+    // But it depends on exact board shape
     predictedWinner = 'tie';
   }
 
   return {
-    isPartitioned,
-    playerRegionSize,
-    aiRegionSize,
+    isPartitioned: true,
+    playerRegionSize: result.playerRegionSize,
+    aiRegionSize: result.aiRegionSize,
     predictedWinner,
-    playerReachableCells: playerReachable,
-    aiReachableCells: aiReachable
+    playerReachableCells,
+    aiReachableCells
   };
 }
 
 /**
- * Flood fill to find all reachable cells from a position
- * Uses adjacency (8 directions) not queen movement for accurate region calculation
+ * Legacy flood fill for compatibility (now uses queen movement)
  */
-function floodFill(
+function floodFillQueen(
   startPos: { r: number; c: number },
   blockedPiecePos: { r: number; c: number },
   boardSize: { rows: number; cols: number },
   destroyed: { r: number; c: number }[]
 ): Set<string> {
-  const visited = new Set<string>();
-  const queue: Array<{ r: number; c: number }> = [startPos];
-  const startKey = `${startPos.r},${startPos.c}`;
-  visited.add(startKey);
+  // Create blocked bitboard
+  let blocked = 0n;
+  for (const d of destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
+  blocked |= CELL_MASKS[posToIndex(blockedPiecePos.r, blockedPiecePos.c)];
 
-  const isBlocked = (r: number, c: number): boolean => {
-    if (r < 0 || r >= boardSize.rows || c < 0 || c >= boardSize.cols) return true;
-    if (r === blockedPiecePos.r && c === blockedPiecePos.c) return true;
-    return destroyed.some(d => d.r === r && d.c === c);
-  };
+  // Use queen flood fill
+  const reachable = queenFloodFill(startPos, blocked);
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-
-    for (const dir of DIRECTIONS) {
-      const nr = current.r + dir.dr;
-      const nc = current.c + dir.dc;
-      const key = `${nr},${nc}`;
-
-      if (visited.has(key)) continue;
-      if (isBlocked(nr, nc)) continue;
-
-      visited.add(key);
-      queue.push({ r: nr, c: nc });
+  // Convert to set
+  const result = new Set<string>();
+  const indices = bitboardToIndices(reachable);
+  for (const idx of indices) {
+    const pos = indexToPos(idx);
+    if (pos.r !== startPos.r || pos.c !== startPos.c) {
+      result.add(`${pos.r},${pos.c}`);
     }
   }
 
-  // Remove the starting position from the count (we want cells the piece can move to)
-  visited.delete(startKey);
-
-  return visited;
+  return result;
 }
 
 /**
@@ -140,12 +147,7 @@ export function wouldCausePartition(
   const tempDestroyed = [...destroyed, destroyPos];
 
   // Check if partition would occur
-  const testBoard: BoardState = {
-    ...board,
-    destroyed: tempDestroyed
-  };
-
-  const result = detectPartition(testBoard);
+  const result = detectPartitionBitboard(playerPos, aiPos, tempDestroyed);
   return result.isPartitioned;
 }
 
@@ -156,34 +158,45 @@ export function wouldCausePartition(
 export function evaluatePartitionPotential(board: BoardState): number {
   const { boardSize, playerPos, aiPos, destroyed } = board;
 
-  // Count cells on the "path" between players
-  // If this number is small, partition is more likely
-  const minR = Math.min(playerPos.r, aiPos.r);
-  const maxR = Math.max(playerPos.r, aiPos.r);
-  const minC = Math.min(playerPos.c, aiPos.c);
-  const maxC = Math.max(playerPos.c, aiPos.c);
+  // Create blocked bitboard
+  let blocked = 0n;
+  for (const d of destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
 
-  let pathCells = 0;
-  let blockedPathCells = 0;
+  // Calculate the "choke points" between players
+  // These are cells that, if destroyed, would isolate one player
 
-  for (let r = minR; r <= maxR; r++) {
-    for (let c = minC; c <= maxC; c++) {
-      // Skip if it's a player position
-      if ((r === playerPos.r && c === playerPos.c) ||
-          (r === aiPos.r && c === aiPos.c)) continue;
+  const playerIdx = posToIndex(playerPos.r, playerPos.c);
+  const aiIdx = posToIndex(aiPos.r, aiPos.c);
 
-      pathCells++;
+  // Count potential partition-causing cells
+  let partitionCells = 0;
+  let totalChecked = 0;
 
-      if (destroyed.some(d => d.r === r && d.c === c)) {
-        blockedPathCells++;
+  for (let r = 0; r < boardSize.rows; r++) {
+    for (let c = 0; c < boardSize.cols; c++) {
+      const idx = posToIndex(r, c);
+
+      // Skip destroyed and occupied cells
+      if (blocked & CELL_MASKS[idx]) continue;
+      if (idx === playerIdx || idx === aiIdx) continue;
+
+      totalChecked++;
+
+      // Check if destroying this cell would partition
+      const tempDestroyed = [...destroyed, { r, c }];
+      const result = detectPartitionBitboard(playerPos, aiPos, tempDestroyed);
+      if (result.isPartitioned) {
+        partitionCells++;
       }
     }
   }
 
-  if (pathCells === 0) return 1.0; // Already adjacent
+  if (totalChecked === 0) return 1.0;
 
-  // Return ratio of blocked cells in the path
-  return blockedPathCells / pathCells;
+  // Return ratio of partition-causing cells
+  return partitionCells / totalChecked;
 }
 
 /**
@@ -199,27 +212,32 @@ export function findBestPartitionDestroy(
   let bestDestroy: { r: number; c: number } | null = null;
   let bestAdvantage = -Infinity;
 
+  const playerIdx = posToIndex(playerPos.r, playerPos.c);
+  const aiIdx = posToIndex(aiPos.r, aiPos.c);
+
+  // Create base blocked bitboard
+  let blocked = 0n;
+  for (const d of destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
+
   // Try destroying each empty cell
   for (let r = 0; r < boardSize.rows; r++) {
     for (let c = 0; c < boardSize.cols; c++) {
+      const idx = posToIndex(r, c);
+
       // Skip if already destroyed or occupied
-      if (destroyed.some(d => d.r === r && d.c === c)) continue;
-      if ((r === playerPos.r && c === playerPos.c) ||
-          (r === aiPos.r && c === aiPos.c)) continue;
+      if (blocked & CELL_MASKS[idx]) continue;
+      if (idx === playerIdx || idx === aiIdx) continue;
 
       const destroyPos = { r, c };
 
       // Check if this would cause partition
-      if (wouldCausePartition(board, destroyPos)) {
-        // Calculate the advantage
-        const tempBoard: BoardState = {
-          ...board,
-          destroyed: [...destroyed, destroyPos]
-        };
+      const tempDestroyed = [...destroyed, destroyPos];
+      const result = detectPartitionBitboard(playerPos, aiPos, tempDestroyed);
 
-        const result = detectPartition(tempBoard);
-
-        // Calculate advantage (positive = good for AI)
+      if (result.isPartitioned) {
+        // Calculate the advantage (positive = good for AI)
         const advantage = result.aiRegionSize - result.playerRegionSize;
 
         // If we're AI, we want positive advantage
@@ -240,4 +258,39 @@ export function findBestPartitionDestroy(
   }
 
   return null;
+}
+
+/**
+ * Calculate the critical cells - cells that would severely impact territory
+ * These are the "choke points" of the board
+ */
+export function findCriticalCells(board: BoardState): { r: number; c: number }[] {
+  const { boardSize, playerPos, aiPos, destroyed } = board;
+  const critical: { r: number; c: number }[] = [];
+
+  const playerIdx = posToIndex(playerPos.r, playerPos.c);
+  const aiIdx = posToIndex(aiPos.r, aiPos.c);
+
+  let blocked = 0n;
+  for (const d of destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
+
+  for (let r = 0; r < boardSize.rows; r++) {
+    for (let c = 0; c < boardSize.cols; c++) {
+      const idx = posToIndex(r, c);
+      if (blocked & CELL_MASKS[idx]) continue;
+      if (idx === playerIdx || idx === aiIdx) continue;
+
+      // Check if destroying this would cause partition or significantly reduce territory
+      const tempDestroyed = [...destroyed, { r, c }];
+      const result = detectPartitionBitboard(playerPos, aiPos, tempDestroyed);
+
+      if (result.isPartitioned) {
+        critical.push({ r, c });
+      }
+    }
+  }
+
+  return critical;
 }

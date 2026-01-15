@@ -1,10 +1,22 @@
 /**
- * Difficulty Configuration for ISOLATION AI
+ * Difficulty Configuration for ISOLATION AI - Enhanced Version
  *
- * Defines AI behavior parameters for each difficulty level:
- * - NEXUS-3: Average person level - beatable but not trivial
- * - NEXUS-5: Expert level - challenging for experienced players
- * - NEXUS-7: Near-unbeatable - only the best can win
+ * Three distinct difficulty levels with well-calibrated parameters:
+ *
+ * NEXUS-3: Average adult intelligence
+ * - Basic evaluation, shallow search
+ * - Makes occasional suboptimal moves
+ * - Beatable with good strategy
+ *
+ * NEXUS-5: Isolation expert
+ * - Advanced evaluation with territory analysis
+ * - Deep search with move ordering
+ * - Challenging for experienced players
+ *
+ * NEXUS-7: Near-unbeatable
+ * - MCTS + Alpha-Beta hybrid search
+ * - Perfect opening book + endgame solving
+ * - Only the best human players can win
  */
 
 export type Difficulty = "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
@@ -20,23 +32,32 @@ export interface DifficultyConfig {
   usePartitionDetection: boolean; // Detect board partitions
   useEndgameSolver: boolean;     // Use endgame solver when partitioned
   useTranspositionTable: boolean; // Cache evaluated positions
+  useOpeningBook: boolean;       // Use pre-computed opening moves
+  useMCTS: boolean;              // Use Monte Carlo Tree Search
 
-  // Move selection
+  // Move selection (for adding "human-like" weakness)
   moveSelectionRange: number;    // 0.0 = best only, 0.5 = top 50%
   mistakeRate: number;           // Probability of making a suboptimal move
+  blunderThreshold: number;      // Score difference to consider as blunder
 
   // Move ordering
   useKillerMoves: boolean;       // Use killer move heuristic
   useHistoryHeuristic: boolean;  // Use history heuristic for ordering
 
-  // Evaluation weights (for configurable evaluation)
+  // Evaluation weights
   weights: {
-    voronoiTerritory: number;    // Voronoi territory difference
-    immediateMobility: number;   // Number of immediate moves
+    territory: number;           // Voronoi territory difference
+    mobility: number;            // Immediate move count
+    mobilityPotential: number;   // 2-move lookahead mobility
     centerControl: number;       // Distance to center
-    wallPenalty: number;         // Penalty for being near walls
-    partitionBonus: number;      // Bonus for advantageous partition
-    isolationPenalty: number;    // Penalty when area < threshold
+    cornerAvoidance: number;     // Avoid corner positions
+    partitionAdvantage: number;  // Partition region difference
+    criticalCells: number;       // Control of critical cells
+    openness: number;            // Access to open areas
+    wallPenalty: number;         // Legacy - wall proximity
+    voronoiTerritory: number;    // Legacy compatibility
+    immediateMobility: number;   // Legacy compatibility
+    isolationPenalty: number;    // Penalty for small areas
   };
 
   // Performance tuning
@@ -45,35 +66,46 @@ export interface DifficultyConfig {
 }
 
 /**
- * NEXUS-3: Average Person Level
- * - Shallow search (depth 4)
- * - Basic evaluation (flood-fill based)
- * - Makes occasional mistakes (15%)
- * - Selects from top 55% of moves
+ * NEXUS-3: Average Adult Intelligence Level
+ *
+ * Design goals:
+ * - Winnable by casual players with some effort
+ * - Makes believable human-like mistakes
+ * - Focuses on basic mobility and center control
+ * - Does not use advanced features
  */
 const NEXUS_3_CONFIG: DifficultyConfig = {
-  maxDepth: 4,
+  maxDepth: 5,
   timeLimit: 3000,
-  minDepth: 2,
+  minDepth: 3,
 
-  useVoronoi: false,
-  usePartitionDetection: false,
-  useEndgameSolver: false,
-  useTranspositionTable: false,
+  useVoronoi: false,             // Use simple flood fill instead
+  usePartitionDetection: false,  // No partition awareness
+  useEndgameSolver: false,       // No endgame solving
+  useTranspositionTable: false,  // Simple search
+  useOpeningBook: false,         // Calculate from scratch
+  useMCTS: false,                // Pure minimax
 
-  moveSelectionRange: 0.55,
-  mistakeRate: 0.15,
+  moveSelectionRange: 0.4,       // Pick from top 40% of moves
+  mistakeRate: 0.12,             // 12% chance of suboptimal move
+  blunderThreshold: 5.0,         // Avoid obvious blunders
 
-  useKillerMoves: true,
+  useKillerMoves: true,          // Basic move ordering
   useHistoryHeuristic: false,
 
   weights: {
-    voronoiTerritory: 0,         // Not used
-    immediateMobility: 1.0,      // Basic mobility
-    centerControl: 0.3,
-    wallPenalty: 0.2,
-    partitionBonus: 0,           // Not used
-    isolationPenalty: 3.0,       // Reduced penalty
+    territory: 0,                // Not used
+    mobility: 2.0,               // Focus on immediate moves
+    mobilityPotential: 0,        // No lookahead
+    centerControl: 0.8,          // Some center awareness
+    cornerAvoidance: 0.5,        // Slight corner avoidance
+    partitionAdvantage: 0,       // No partition awareness
+    criticalCells: 0,            // No critical cell analysis
+    openness: 0.3,               // Basic openness
+    wallPenalty: 0.3,
+    voronoiTerritory: 1.5,       // Simple area counting
+    immediateMobility: 2.0,
+    isolationPenalty: 4.0,
   },
 
   destroyCandidateCount: 4,
@@ -81,74 +113,97 @@ const NEXUS_3_CONFIG: DifficultyConfig = {
 };
 
 /**
- * NEXUS-5: Expert Level
- * - Medium search (depth 6)
- * - Advanced evaluation with Voronoi
- * - Rare mistakes (5%)
- * - Selects from top 25% of moves
+ * NEXUS-5: Isolation Expert Level
+ *
+ * Design goals:
+ * - Challenging for experienced players
+ * - Uses advanced territory analysis
+ * - Deep search with good move ordering
+ * - Occasionally misses optimal moves (5%)
  */
 const NEXUS_5_CONFIG: DifficultyConfig = {
-  maxDepth: 6,
-  timeLimit: 5000,
-  minDepth: 3,
+  maxDepth: 7,
+  timeLimit: 6000,
+  minDepth: 4,
 
-  useVoronoi: true,
-  usePartitionDetection: true,
-  useEndgameSolver: true,        // Only when partitioned
-  useTranspositionTable: true,
+  useVoronoi: true,              // Advanced territory analysis
+  usePartitionDetection: true,   // Full partition awareness
+  useEndgameSolver: true,        // Solve endgames exactly
+  useTranspositionTable: true,   // Cache positions
+  useOpeningBook: true,          // Use opening book
+  useMCTS: false,                // Pure alpha-beta
 
-  moveSelectionRange: 0.25,
-  mistakeRate: 0.05,
+  moveSelectionRange: 0.15,      // Pick from top 15%
+  mistakeRate: 0.05,             // 5% mistake rate
+  blunderThreshold: 10.0,        // Avoid major blunders
 
   useKillerMoves: true,
   useHistoryHeuristic: true,
 
   weights: {
+    territory: 8.0,              // Strong territory focus
+    mobility: 3.0,               // Good mobility awareness
+    mobilityPotential: 2.0,      // 2-move lookahead
+    centerControl: 1.0,          // Center control
+    cornerAvoidance: 0.8,        // Avoid corners
+    partitionAdvantage: 300,     // Partition detection
+    criticalCells: 2.0,          // Critical cell control
+    openness: 0.5,               // Openness bonus
+    wallPenalty: 0.4,
     voronoiTerritory: 8.0,
-    immediateMobility: 2.0,
-    centerControl: 0.5,
-    wallPenalty: 0.3,
-    partitionBonus: 300,
-    isolationPenalty: 5.0,
+    immediateMobility: 3.0,
+    isolationPenalty: 6.0,
   },
 
-  destroyCandidateCount: 5,
+  destroyCandidateCount: 6,
   earlyTerminationThreshold: 5000,
 };
 
 /**
  * NEXUS-7: Near-Unbeatable Level
- * - Deep search (depth 10)
- * - Full evaluation with all features
- * - No mistakes
- * - Always selects best move
+ *
+ * Design goals:
+ * - Only the best human players can win
+ * - Uses MCTS for strategic exploration
+ * - Perfect opening book and endgame solving
+ * - No intentional mistakes
+ * - Deep, thorough analysis
  */
 const NEXUS_7_CONFIG: DifficultyConfig = {
-  maxDepth: 10,
+  maxDepth: 12,
   timeLimit: 10000,
-  minDepth: 4,
+  minDepth: 5,
 
-  useVoronoi: true,
-  usePartitionDetection: true,
-  useEndgameSolver: true,
-  useTranspositionTable: true,
+  useVoronoi: true,              // Full Voronoi analysis
+  usePartitionDetection: true,   // Full partition detection
+  useEndgameSolver: true,        // Perfect endgame play
+  useTranspositionTable: true,   // Full caching
+  useOpeningBook: true,          // Perfect opening play
+  useMCTS: true,                 // MCTS + Alpha-Beta hybrid
 
   moveSelectionRange: 0.0,       // Always best move
   mistakeRate: 0.0,              // No mistakes
+  blunderThreshold: Infinity,    // N/A
 
   useKillerMoves: true,
   useHistoryHeuristic: true,
 
   weights: {
+    territory: 10.0,             // Maximum territory focus
+    mobility: 4.0,               // Strong mobility
+    mobilityPotential: 3.0,      // Deep lookahead
+    centerControl: 1.2,          // Strong center control
+    cornerAvoidance: 1.0,        // Strong corner avoidance
+    partitionAdvantage: 500,     // Critical partition detection
+    criticalCells: 3.0,          // Critical cell control
+    openness: 0.7,               // Openness awareness
+    wallPenalty: 0.5,
     voronoiTerritory: 10.0,
-    immediateMobility: 3.0,
-    centerControl: 0.5,
-    wallPenalty: 0.4,
-    partitionBonus: 500,
+    immediateMobility: 4.0,
     isolationPenalty: 8.0,
   },
 
-  destroyCandidateCount: 7,
+  destroyCandidateCount: 8,
   earlyTerminationThreshold: 8000,
 };
 
@@ -164,43 +219,70 @@ export function getDifficultyConfig(difficulty: Difficulty): DifficultyConfig {
     case "NEXUS-7":
       return { ...NEXUS_7_CONFIG };
     default:
-      return { ...NEXUS_5_CONFIG }; // Default to medium
+      return { ...NEXUS_5_CONFIG };
   }
 }
 
 /**
  * Apply mistake rate to move selection
- * Returns true if AI should make a "mistake" (pick suboptimal move)
+ * Now with blunder prevention
  */
-export function shouldMakeMistake(difficulty: Difficulty): boolean {
+export function shouldMakeMistake(
+  difficulty: Difficulty,
+  bestScore: number,
+  moveScore: number
+): boolean {
   const config = getDifficultyConfig(difficulty);
+
+  // Never make a blunder (score difference too large)
+  if (bestScore - moveScore > config.blunderThreshold) {
+    return false;
+  }
+
   return Math.random() < config.mistakeRate;
 }
 
 /**
  * Select move index based on difficulty configuration
- * @param moveCount Total number of available moves (sorted by score)
- * @param difficulty Current difficulty level
- * @returns Index of the move to select
+ * Improved algorithm with blunder prevention
  */
-export function selectMoveIndex(moveCount: number, difficulty: Difficulty): number {
+export function selectMoveIndex(
+  moveCount: number,
+  difficulty: Difficulty,
+  scores?: number[]
+): number {
   if (moveCount === 0) return 0;
 
   const config = getDifficultyConfig(difficulty);
 
-  // Check for intentional mistake
-  if (shouldMakeMistake(difficulty)) {
-    // Pick from bottom half of moves
-    const bottomStart = Math.floor(moveCount * 0.5);
-    const randomOffset = Math.floor(Math.random() * (moveCount - bottomStart));
-    return Math.min(bottomStart + randomOffset, moveCount - 1);
+  // NEXUS-7: Always best move
+  if (config.moveSelectionRange === 0) {
+    return 0;
+  }
+
+  // Check for intentional suboptimal play
+  if (Math.random() < config.mistakeRate) {
+    // Pick from lower-ranked moves, but not terrible ones
+    const lowerStart = Math.floor(moveCount * 0.3);
+    const lowerEnd = Math.floor(moveCount * 0.7);
+
+    if (lowerStart < lowerEnd) {
+      // Verify we're not picking a blunder if scores are provided
+      if (scores && scores.length > 0) {
+        const bestScore = scores[0];
+        for (let i = lowerStart; i < lowerEnd; i++) {
+          if (bestScore - scores[i] <= config.blunderThreshold) {
+            return i;
+          }
+        }
+        // All lower moves are blunders, pick from top range instead
+      } else {
+        return lowerStart + Math.floor(Math.random() * (lowerEnd - lowerStart));
+      }
+    }
   }
 
   // Normal selection from top moves
-  if (config.moveSelectionRange === 0) {
-    return 0; // Always best move
-  }
-
   const topCount = Math.max(1, Math.floor(moveCount * config.moveSelectionRange));
   return Math.floor(Math.random() * topCount);
 }
@@ -213,28 +295,48 @@ export function getDifficultyDescription(difficulty: Difficulty): {
   description: string;
   searchDepth: number;
   strength: string;
+  features: string[];
 } {
   switch (difficulty) {
     case "NEXUS-3":
       return {
         name: "NEXUS-3",
-        description: "Average person level - good challenge for casual players",
-        searchDepth: 4,
-        strength: "Beginner"
+        description: "Average adult intelligence - beatable with strategy",
+        searchDepth: 5,
+        strength: "Beginner",
+        features: [
+          "Basic mobility analysis",
+          "Simple center control",
+          "Occasional mistakes (~12%)"
+        ]
       };
     case "NEXUS-5":
       return {
         name: "NEXUS-5",
-        description: "Expert level - challenging for experienced players",
-        searchDepth: 6,
-        strength: "Expert"
+        description: "Isolation expert - challenging for experienced players",
+        searchDepth: 7,
+        strength: "Expert",
+        features: [
+          "Advanced territory analysis",
+          "Partition detection",
+          "Endgame solving",
+          "Opening book",
+          "Rare mistakes (~5%)"
+        ]
       };
     case "NEXUS-7":
       return {
         name: "NEXUS-7",
-        description: "Near-unbeatable - only the best can win",
-        searchDepth: 10,
-        strength: "Master"
+        description: "Near-unbeatable - only masters can win",
+        searchDepth: 12,
+        strength: "Master",
+        features: [
+          "MCTS + Alpha-Beta hybrid",
+          "Perfect opening play",
+          "Perfect endgame solving",
+          "Full territory control",
+          "No mistakes"
+        ]
       };
   }
 }

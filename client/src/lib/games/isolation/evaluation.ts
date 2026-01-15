@@ -1,47 +1,30 @@
 /**
- * ISOLATION AI Evaluation Functions - Enhanced Version
+ * ISOLATION AI Evaluation Functions - Ultra-Enhanced Version
  *
- * Implements a powerful AI using:
+ * Implements a powerful multi-level AI using:
+ * - Opening book for first 8 moves
+ * - Advanced bitboard-based evaluation
  * - Voronoi territory analysis
- * - Partition detection
+ * - Partition detection with queen-movement
  * - Transposition table with Zobrist hashing
  * - Enhanced move ordering (killer moves, history heuristic)
- * - Endgame solver for partitioned positions
+ * - Endgame solver with bitboards
+ * - MCTS for NEXUS-7
  * - Difficulty-based configuration
  */
 
 import type { BoardState } from "./types";
 import type { GameMove, PlayerMove } from "@shared/gameEngineInterface";
-import {
-  getValidMoves,
-  getValidDestroyPositions,
-} from "./moveValidation";
-import {
-  parseBoardState,
-  generateBoardString,
-  floodFill,
-  isValidPosition,
-  isDestroyed,
-  isOccupied,
-  getAdjacentPositions,
-} from "./boardUtils";
-
-// Import new modules
-import { calculateVoronoi, calculateImmediateMobility } from "./voronoi";
-import { detectPartition, wouldCausePartition } from "./partition";
-import {
-  TranspositionTable,
-  getTranspositionTable,
-  updateHashAfterMove,
-  type TTFlag
-} from "./transposition";
-import {
-  getDifficultyConfig,
-  selectMoveIndex,
-  type Difficulty,
-  type DifficultyConfig
-} from "./difficultyConfig";
+import { getValidMoves, getValidDestroyPositions } from "./moveValidation";
+import { parseBoardState, generateBoardString, isValidPosition, isDestroyed, isOccupied } from "./boardUtils";
+import { posToIndex, CELL_MASKS, popCount, getQueenMoves, queenFloodFill, calculateBitboardVoronoi } from "./bitboard";
+import { detectPartition } from "./partition";
+import { TranspositionTable, getTranspositionTable, updateHashAfterMove, type TTFlag } from "./transposition";
+import { getDifficultyConfig, selectMoveIndex, type Difficulty, type DifficultyConfig } from "./difficultyConfig";
 import { solveEndgame, calculateEndgameAdvantage, shouldSolveExactly } from "./endgameSolver";
+import { evaluateAdvanced, evaluateBasic, evaluateOpening, evaluateTerminal } from "./advancedEvaluation";
+import { getOpeningMove, isOpeningPhase, getOpeningBonus } from "./openingBook";
+import { runMCTS, runHybridSearch } from "./mcts";
 
 // History heuristic table: from -> to -> score
 const historyTable: number[][] = Array(49).fill(null).map(() => Array(49).fill(0));
@@ -57,150 +40,38 @@ const killerMoves: KillerMoves[] = Array(20).fill(null).map(() => ({
 }));
 
 /**
- * Basic evaluation function (used for NEXUS-3)
- * Simple flood-fill based evaluation
+ * Main evaluation function - routes to appropriate evaluation based on difficulty
  */
-function evaluateBoardBasic(board: BoardState): number {
-  const playerArea = floodFill(board.playerPos, board);
-  const aiArea = floodFill(board.aiPos, board);
-  let score = (aiArea - playerArea) * 1.0;
+function evaluateBoard(board: BoardState, config: DifficultyConfig, turnCount?: number): number {
+  // Check for terminal state
+  const terminal = evaluateTerminal(board, 0, config.maxDepth);
+  if (terminal !== null) return terminal;
 
-  // Center control
-  const centerR = board.boardSize.rows / 2;
-  const centerC = board.boardSize.cols / 2;
-  const aiDistToCenter = Math.abs(board.aiPos.r - centerR) + Math.abs(board.aiPos.c - centerC);
-  const playerDistToCenter = Math.abs(board.playerPos.r - centerR) + Math.abs(board.playerPos.c - centerC);
-  score += (playerDistToCenter - aiDistToCenter) * 0.3;
+  // Use opening bonus in early game
+  if (turnCount !== undefined && turnCount <= 12) {
+    const openingBonus = getOpeningBonus(board, turnCount);
 
-  // Isolation penalty
-  if (playerArea < 10) {
-    score += (10 - playerArea) * 3.0;
-  }
-  if (aiArea < 10) {
-    score -= (10 - aiArea) * 3.0;
-  }
-
-  return score;
-}
-
-/**
- * Enhanced evaluation function (used for NEXUS-5 and NEXUS-7)
- * Uses Voronoi territory analysis and partition detection
- */
-function evaluateBoardEnhanced(board: BoardState, config: DifficultyConfig): number {
-  // 1. Check for partition first (most important in endgame)
-  if (config.usePartitionDetection) {
-    const partition = detectPartition(board);
-
-    if (partition.isPartitioned) {
-      // Partitioned game: region size determines winner
-      const diff = partition.aiRegionSize - partition.playerRegionSize;
-
-      // If endgame solver is enabled and regions are small, solve exactly
-      if (config.useEndgameSolver &&
-          shouldSolveExactly(partition.playerReachableCells) &&
-          shouldSolveExactly(partition.aiReachableCells)) {
-
-        const advantage = calculateEndgameAdvantage(
-          board,
-          partition.playerReachableCells,
-          partition.aiReachableCells,
-          1000 // 1 second for endgame calculation
-        );
-        return advantage * config.weights.partitionBonus;
-      }
-
-      return diff * config.weights.partitionBonus;
+    if (config.useVoronoi) {
+      const result = evaluateAdvanced(board, config.weights);
+      return result.score + openingBonus;
+    } else {
+      return evaluateBasic(board) + openingBonus;
     }
   }
 
-  let score = 0;
-
-  // 2. Voronoi territory analysis
+  // Standard evaluation
   if (config.useVoronoi) {
-    const voronoi = calculateVoronoi(board);
-    const territoryDiff = voronoi.aiTerritory - voronoi.playerTerritory;
-    score += territoryDiff * config.weights.voronoiTerritory;
-
-    // Contested cells slightly favor the player who moves second (AI)
-    score += voronoi.contested * 0.3;
-  } else {
-    // Fallback to basic flood-fill
-    const playerArea = floodFill(board.playerPos, board);
-    const aiArea = floodFill(board.aiPos, board);
-    score += (aiArea - playerArea) * config.weights.voronoiTerritory;
+    const result = evaluateAdvanced(board, config.weights);
+    return result.score;
   }
 
-  // 3. Immediate mobility (number of legal moves)
-  const playerMoves = calculateImmediateMobility(
-    board.playerPos, board.aiPos, board.boardSize, board.destroyed
-  );
-  const aiMoves = calculateImmediateMobility(
-    board.aiPos, board.playerPos, board.boardSize, board.destroyed
-  );
-  score += (aiMoves - playerMoves) * config.weights.immediateMobility;
-
-  // 4. Center control
-  const centerR = board.boardSize.rows / 2;
-  const centerC = board.boardSize.cols / 2;
-  const playerCenterDist = Math.abs(board.playerPos.r - centerR) + Math.abs(board.playerPos.c - centerC);
-  const aiCenterDist = Math.abs(board.aiPos.r - centerR) + Math.abs(board.aiPos.c - centerC);
-  score += (playerCenterDist - aiCenterDist) * config.weights.centerControl;
-
-  // 5. Wall proximity penalty
-  const playerWallPenalty = calculateWallProximity(board.playerPos, board.boardSize);
-  const aiWallPenalty = calculateWallProximity(board.aiPos, board.boardSize);
-  score += (playerWallPenalty - aiWallPenalty) * config.weights.wallPenalty;
-
-  // 6. Isolation penalty when area is very small
-  const playerArea = floodFill(board.playerPos, board);
-  const aiArea = floodFill(board.aiPos, board);
-
-  if (playerArea < 8) {
-    score += (8 - playerArea) * config.weights.isolationPenalty;
-  }
-  if (aiArea < 8) {
-    score -= (8 - aiArea) * config.weights.isolationPenalty;
-  }
-
-  return score;
+  return evaluateBasic(board);
 }
 
 /**
- * Calculate wall proximity penalty
+ * Apply a move to the board state
  */
-function calculateWallProximity(
-  pos: { r: number; c: number },
-  boardSize: { rows: number; cols: number }
-): number {
-  const distToWall = Math.min(
-    pos.r,
-    pos.c,
-    boardSize.rows - 1 - pos.r,
-    boardSize.cols - 1 - pos.c
-  );
-  // Penalty for being within 2 cells of wall
-  return Math.max(0, 2 - distToWall);
-}
-
-/**
- * Choose evaluation function based on difficulty
- */
-function evaluateBoard(board: BoardState, config: DifficultyConfig): number {
-  if (config.useVoronoi || config.usePartitionDetection) {
-    return evaluateBoardEnhanced(board, config);
-  }
-  return evaluateBoardBasic(board);
-}
-
-/**
- * Apply a move to the board state (returns new board state)
- */
-function applyMove(
-  board: BoardState,
-  move: GameMove,
-  isPlayer: boolean
-): BoardState {
+function applyMove(board: BoardState, move: GameMove, isPlayer: boolean): BoardState {
   const newBoard: BoardState = {
     ...board,
     playerPos: { ...board.playerPos },
@@ -239,83 +110,45 @@ function getAllMoves(
   const position = isPlayer ? board.playerPos : board.aiPos;
   const opponentPos = isPlayer ? board.aiPos : board.playerPos;
   const validMoves = getValidMoves(board, position, isPlayer);
-
   const allMoves: Array<{ move: GameMove; destroy: { r: number; c: number } }> = [];
 
   for (const to of validMoves) {
     const move: GameMove = { from: position, to };
     const destroyPositions = getValidDestroyPositions(board, to, isPlayer);
 
-    if (destroyPositions.length === 0) {
-      continue;
-    }
+    if (destroyPositions.length === 0) continue;
 
-    // Evaluate and rank destroy positions
-    const tempBoardAfterMove: BoardState = {
-      ...board,
-      [isPlayer ? 'playerPos' : 'aiPos']: to,
-    };
-
-    const opponentNextMoves = getValidMoves(tempBoardAfterMove, opponentPos, !isPlayer);
-    const opponentCurrentArea = floodFill(opponentPos, board);
-
-    const destroyCandidates = destroyPositions.map(pos => {
+    // Score and rank destroy positions
+    const scoredDestroys = destroyPositions.map(pos => {
       let score = 0;
 
-      // Priority 1: Adjacent to opponent
+      // Adjacent to opponent
       const distToOpponent = Math.abs(pos.r - opponentPos.r) + Math.abs(pos.c - opponentPos.c);
-      if (distToOpponent === 1) {
+      if (distToOpponent === 1) score += 30;
+      else if (distToOpponent === 2) score += 15;
+
+      // Blocks opponent's moves
+      const tempBoard = { ...board, [isPlayer ? 'playerPos' : 'aiPos']: to };
+      const opponentMoves = getValidMoves(tempBoard, opponentPos, !isPlayer);
+      if (opponentMoves.some(m => m.r === pos.r && m.c === pos.c)) {
         score += 25;
-      } else if (distToOpponent === 2) {
-        score += 10;
       }
 
-      // Priority 2: Blocks opponent's next moves
-      if (opponentNextMoves.some(m => m.r === pos.r && m.c === pos.c)) {
-        score += 20;
+      // Don't block our own path
+      const ourMoves = getValidMoves(tempBoard, to, isPlayer);
+      if (ourMoves.some(m => m.r === pos.r && m.c === pos.c)) {
+        score -= 20;
       }
 
-      // Priority 3: Center control
-      const centerR = board.boardSize.rows / 2;
-      const centerC = board.boardSize.cols / 2;
-      const distToCenter = Math.abs(pos.r - centerR) + Math.abs(pos.c - centerC);
-      score += (5 - distToCenter) * 0.5;
-
-      // Priority 4: Area reduction
-      const tempBoardWithDestroy: BoardState = {
-        ...tempBoardAfterMove,
-        destroyed: [...tempBoardAfterMove.destroyed, pos],
-      };
-      const opponentAreaAfterDestroy = floodFill(opponentPos, tempBoardWithDestroy);
-      const areaReduction = opponentCurrentArea - opponentAreaAfterDestroy;
-      score += areaReduction * 4;
-
-      // Priority 5: Don't block our own path
-      const ourNextMoves = getValidMoves(tempBoardAfterMove, to, isPlayer);
-      if (ourNextMoves.some(m => m.r === pos.r && m.c === pos.c)) {
-        score -= 15;
-      }
-
-      // Bonus: Would cause advantageous partition (for higher difficulties)
-      if (config.usePartitionDetection) {
-        if (wouldCausePartition(tempBoardAfterMove, pos)) {
-          const tempPartition = detectPartition({
-            ...tempBoardAfterMove,
-            destroyed: [...tempBoardAfterMove.destroyed, pos]
-          });
-          if (!isPlayer && tempPartition.aiRegionSize > tempPartition.playerRegionSize) {
-            score += 50; // AI wants advantageous partition
-          } else if (isPlayer && tempPartition.playerRegionSize > tempPartition.aiRegionSize) {
-            score += 50; // Player wants advantageous partition
-          }
-        }
-      }
+      // Center control
+      const centerDist = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
+      score += (6 - centerDist) * 0.5;
 
       return { pos, score };
     });
 
-    destroyCandidates.sort((a, b) => b.score - a.score);
-    const topDestroys = destroyCandidates.slice(0, config.destroyCandidateCount);
+    scoredDestroys.sort((a, b) => b.score - a.score);
+    const topDestroys = scoredDestroys.slice(0, config.destroyCandidateCount);
 
     for (const { pos } of topDestroys) {
       allMoves.push({
@@ -329,18 +162,12 @@ function getAllMoves(
 }
 
 /**
- * Update killer moves at a given depth
+ * Update killer moves
  */
-function updateKillerMove(
-  depth: number,
-  move: { to: { r: number; c: number }; destroy: { r: number; c: number } }
-): void {
+function updateKillerMove(depth: number, move: { to: { r: number; c: number }; destroy: { r: number; c: number } }): void {
   if (depth >= killerMoves.length) return;
-
   const km = killerMoves[depth];
-  if (!km.primary ||
-      km.primary.to.r !== move.to.r ||
-      km.primary.to.c !== move.to.c) {
+  if (!km.primary || km.primary.to.r !== move.to.r || km.primary.to.c !== move.to.c) {
     km.secondary = km.primary;
     km.primary = { to: { ...move.to }, destroy: { ...move.destroy } };
   }
@@ -349,14 +176,9 @@ function updateKillerMove(
 /**
  * Update history heuristic
  */
-function updateHistoryHeuristic(
-  from: { r: number; c: number },
-  to: { r: number; c: number },
-  depth: number,
-  boardSize: { rows: number; cols: number }
-): void {
-  const fromIdx = from.r * boardSize.cols + from.c;
-  const toIdx = to.r * boardSize.cols + to.c;
+function updateHistoryHeuristic(from: { r: number; c: number }, to: { r: number; c: number }, depth: number): void {
+  const fromIdx = posToIndex(from.r, from.c);
+  const toIdx = posToIndex(to.r, to.c);
   if (fromIdx < 49 && toIdx < 49) {
     historyTable[fromIdx][toIdx] += depth * depth;
   }
@@ -365,7 +187,7 @@ function updateHistoryHeuristic(
 /**
  * Enhanced move ordering
  */
-function orderMovesEnhanced(
+function orderMoves(
   moves: Array<{ move: GameMove; destroy: { r: number; c: number } }>,
   board: BoardState,
   isPlayer: boolean,
@@ -373,31 +195,24 @@ function orderMovesEnhanced(
   config: DifficultyConfig,
   pvMove?: { to: { r: number; c: number }; destroy: { r: number; c: number } } | null
 ): Array<{ move: GameMove; destroy: { r: number; c: number }; score: number }> {
-
   const position = isPlayer ? board.playerPos : board.aiPos;
-  const fromIdx = position.r * board.boardSize.cols + position.c;
+  const fromIdx = posToIndex(position.r, position.c);
 
   return moves.map(moveData => {
     let score = 0;
-    const toIdx = moveData.move.to.r * board.boardSize.cols + moveData.move.to.c;
+    const toIdx = posToIndex(moveData.move.to.r, moveData.move.to.c);
 
-    // PV move gets highest priority
-    if (pvMove &&
-        moveData.move.to.r === pvMove.to.r &&
-        moveData.move.to.c === pvMove.to.c) {
+    // PV move highest priority
+    if (pvMove && moveData.move.to.r === pvMove.to.r && moveData.move.to.c === pvMove.to.c) {
       score += 100000;
     }
 
     // Killer move bonus
     if (config.useKillerMoves && depth < killerMoves.length) {
       const km = killerMoves[depth];
-      if (km.primary &&
-          moveData.move.to.r === km.primary.to.r &&
-          moveData.move.to.c === km.primary.to.c) {
+      if (km.primary && moveData.move.to.r === km.primary.to.r && moveData.move.to.c === km.primary.to.c) {
         score += 9000;
-      } else if (km.secondary &&
-                 moveData.move.to.r === km.secondary.to.r &&
-                 moveData.move.to.c === km.secondary.to.c) {
+      } else if (km.secondary && moveData.move.to.r === km.secondary.to.r && moveData.move.to.c === km.secondary.to.c) {
         score += 8000;
       }
     }
@@ -409,16 +224,12 @@ function orderMovesEnhanced(
 
     // Winning move detection
     const newBoard = applyMove(board, moveData.move, isPlayer);
-    const opponentMoves = getValidMoves(
-      newBoard,
-      isPlayer ? newBoard.aiPos : newBoard.playerPos,
-      !isPlayer
-    );
+    const opponentMoves = getValidMoves(newBoard, isPlayer ? newBoard.aiPos : newBoard.playerPos, !isPlayer);
     if (opponentMoves.length === 0) {
-      score += 50000; // Winning move
+      score += 50000;
     }
 
-    // Basic evaluation score
+    // Evaluation score
     const evalScore = evaluateBoard(newBoard, config);
     score += isPlayer ? -evalScore * 0.1 : evalScore * 0.1;
 
@@ -427,7 +238,7 @@ function orderMovesEnhanced(
 }
 
 /**
- * Minimax with alpha-beta pruning and transposition table
+ * Minimax with alpha-beta pruning
  */
 function minimax(
   board: BoardState,
@@ -438,44 +249,31 @@ function minimax(
   startTime: number,
   config: DifficultyConfig,
   tt: TranspositionTable | null,
-  currentHash: number
+  currentHash: number,
+  turnCount?: number
 ): number {
   // Time check
   if (Date.now() - startTime > config.timeLimit * 0.85) {
-    return evaluateBoard(board, config);
+    return evaluateBoard(board, config, turnCount);
   }
 
   // Terminal conditions
-  const playerMoves = getValidMoves(board, board.playerPos, true);
-  const aiMoves = getValidMoves(board, board.aiPos, false);
-
-  if (playerMoves.length === 0) {
-    return 10000 - (config.maxDepth - depth); // AI wins (depth bonus for faster win)
-  }
-  if (aiMoves.length === 0) {
-    return -10000 + (config.maxDepth - depth); // Player wins
-  }
+  const terminal = evaluateTerminal(board, depth, config.maxDepth);
+  if (terminal !== null) return terminal;
 
   if (depth === 0) {
-    return evaluateBoard(board, config);
+    return evaluateBoard(board, config, turnCount);
   }
 
   // Transposition table lookup
   let pvMove: { to: { r: number; c: number }; destroy: { r: number; c: number } } | null = null;
-
   if (tt && config.useTranspositionTable) {
     const ttEntry = tt.probe(currentHash, depth, alpha, beta);
     if (ttEntry) {
       pvMove = ttEntry.bestMove;
-
-      // Use cached score if depth is sufficient and bounds allow
-      if (ttEntry.flag === 'EXACT') {
-        return ttEntry.score;
-      } else if (ttEntry.flag === 'LOWER' && ttEntry.score >= beta) {
-        return ttEntry.score;
-      } else if (ttEntry.flag === 'UPPER' && ttEntry.score <= alpha) {
-        return ttEntry.score;
-      }
+      if (ttEntry.flag === 'EXACT') return ttEntry.score;
+      if (ttEntry.flag === 'LOWER' && ttEntry.score >= beta) return ttEntry.score;
+      if (ttEntry.flag === 'UPPER' && ttEntry.score <= alpha) return ttEntry.score;
     }
   }
 
@@ -485,7 +283,7 @@ function minimax(
   }
 
   // Move ordering
-  const orderedMoves = orderMovesEnhanced(moves, board, !isMaximizing, depth, config, pvMove);
+  const orderedMoves = orderMoves(moves, board, !isMaximizing, depth, config, pvMove);
   moves = orderedMoves.map(m => ({ move: m.move, destroy: m.destroy }));
 
   let bestScore = isMaximizing ? -Infinity : Infinity;
@@ -496,17 +294,7 @@ function minimax(
     const newBoard = applyMove(board, move, !isMaximizing);
     const newHash = tt ? updateHashAfterMove(currentHash, board, move, !isMaximizing) : 0;
 
-    const score = minimax(
-      newBoard,
-      depth - 1,
-      alpha,
-      beta,
-      !isMaximizing,
-      startTime,
-      config,
-      tt,
-      newHash
-    );
+    const score = minimax(newBoard, depth - 1, alpha, beta, !isMaximizing, startTime, config, tt, newHash, turnCount);
 
     if (isMaximizing) {
       if (score > bestScore) {
@@ -529,12 +317,11 @@ function minimax(
     }
 
     if (beta <= alpha) {
-      // Update killer moves and history on cutoff
       if (config.useKillerMoves) {
         updateKillerMove(depth, { to: move.to, destroy });
       }
       if (config.useHistoryHeuristic) {
-        updateHistoryHeuristic(move.from, move.to, depth, board.boardSize);
+        updateHistoryHeuristic(move.from, move.to, depth);
       }
       flag = isMaximizing ? 'LOWER' : 'UPPER';
       break;
@@ -550,64 +337,37 @@ function minimax(
 }
 
 /**
- * Analyze player psychology based on their move
+ * Analyze player psychology
  */
-function analyzePlayerPsychology(
-  board: BoardState,
-  playerMove: PlayerMove | null,
-  turnCount?: number
-): string {
-  if (!playerMove) {
-    return "gameRoom.log.isolation.initializing";
-  }
+function analyzePlayerPsychology(board: BoardState, playerMove: PlayerMove | null, turnCount?: number): string {
+  if (!playerMove) return "gameRoom.log.isolation.initializing";
 
   const moveTimeSeconds = playerMove.moveTimeSeconds;
   const hoverCount = playerMove.hoverCount ?? 0;
-  const destroyPos = playerMove.destroy as { r: number; c: number } | undefined;
 
-  // Movement metrics
   const dr = playerMove.to.r - playerMove.from.r;
   const dc = playerMove.to.c - playerMove.from.c;
   const moveDistance = Math.max(Math.abs(dr), Math.abs(dc));
 
-  // Direction towards AI
   const aiDirR = board.aiPos.r - playerMove.from.r;
   const aiDirC = board.aiPos.c - playerMove.from.c;
   const dotProduct = dr * aiDirR + dc * aiDirC;
   const isMovingTowardsAI = dotProduct > 0;
   const isMovingAwayFromAI = dotProduct < 0;
 
-  // Center control
-  const centerR = board.boardSize.rows / 2;
-  const centerC = board.boardSize.cols / 2;
-  const distToCenterBefore = Math.abs(playerMove.from.r - centerR) + Math.abs(playerMove.from.c - centerC);
-  const distToCenterAfter = Math.abs(playerMove.to.r - centerR) + Math.abs(playerMove.to.c - centerC);
-  const isMovingToCenter = distToCenterAfter < distToCenterBefore;
-
-  // Area control
-  const playerArea = floodFill(board.playerPos, board);
-  const aiArea = floodFill(board.aiPos, board);
-  const areaDifference = playerArea - aiArea;
-
-  // Time thresholds
   const hasTimeData = moveTimeSeconds !== undefined;
   const isQuickMove = hasTimeData && moveTimeSeconds <= 3.0;
   const isLongThink = hasTimeData && moveTimeSeconds >= 10.0;
   const hasHesitation = hoverCount >= 3;
 
-  // Movement patterns
-  const isShortMove = moveDistance <= 2;
-  const isLongMove = moveDistance >= 4;
   const isAggressiveMove = isMovingTowardsAI && moveDistance >= 3;
-  const isDefensiveMove = isMovingAwayFromAI || (isShortMove && !isMovingTowardsAI);
+  const isDefensiveMove = isMovingAwayFromAI || moveDistance <= 2;
 
-  // Game phase
   const currentTurn = turnCount || 0;
   const isEarlyGame = currentTurn <= 5;
   const isMidGame = currentTurn > 5 && currentTurn <= 15;
   const isLateGame = currentTurn > 15;
 
-  // Build psychology messages
   const messages: string[] = [];
 
   if (isLongThink && hasHesitation) {
@@ -640,12 +400,6 @@ function analyzePlayerPsychology(
       "gameRoom.log.isolation.psychology.quickMove2",
       "gameRoom.log.isolation.psychology.quickMove3"
     );
-  } else if (isAggressiveMove && isMovingToCenter) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.aggressiveCenter1",
-      "gameRoom.log.isolation.psychology.aggressiveCenter2",
-      "gameRoom.log.isolation.psychology.aggressiveCenter3"
-    );
   } else if (isAggressiveMove) {
     messages.push(
       "gameRoom.log.isolation.psychology.aggressive1",
@@ -657,12 +411,6 @@ function analyzePlayerPsychology(
       "gameRoom.log.isolation.psychology.defensive1",
       "gameRoom.log.isolation.psychology.defensive2",
       "gameRoom.log.isolation.psychology.defensive3"
-    );
-  } else if (isLongMove) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.longMove1",
-      "gameRoom.log.isolation.psychology.longMove2",
-      "gameRoom.log.isolation.psychology.longMove3"
     );
   } else if (isEarlyGame) {
     messages.push(
@@ -676,12 +424,6 @@ function analyzePlayerPsychology(
       "gameRoom.log.isolation.psychology.midBalanced2",
       "gameRoom.log.isolation.psychology.midBalanced3"
     );
-  } else if (isLateGame) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.lateBalanced1",
-      "gameRoom.log.isolation.psychology.lateBalanced2",
-      "gameRoom.log.isolation.psychology.lateBalanced3"
-    );
   } else {
     messages.push("gameRoom.log.isolation.playerBalanced");
   }
@@ -691,7 +433,7 @@ function analyzePlayerPsychology(
 }
 
 /**
- * Synchronous minimax search (for Web Worker)
+ * Synchronous minimax search
  */
 export function runMinimaxSearch(
   board: BoardState,
@@ -699,44 +441,37 @@ export function runMinimaxSearch(
   difficulty: Difficulty = "NEXUS-7",
   turnCount?: number,
   boardHistory?: string[]
-): {
-  move: GameMove | null;
-  logs: string[];
-  depth?: number;
-  nodesEvaluated?: number;
-} {
+): { move: GameMove | null; logs: string[]; depth?: number; nodesEvaluated?: number } {
   try {
     if (!board || !board.boardSize || !board.playerPos || !board.aiPos) {
-      return { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
-    }
-
-    if (!isValidPosition(board.aiPos, board.boardSize)) {
       return { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
     }
 
     const config = getDifficultyConfig(difficulty);
     const startTime = Date.now();
 
-    // Initialize transposition table
-    const tt = config.useTranspositionTable ? getTranspositionTable(100000) : null;
-    if (tt) {
-      tt.newSearch();
+    // 1. Check for opening book move (NEXUS-5 and NEXUS-7)
+    if (config.useOpeningBook && turnCount !== undefined && isOpeningPhase(turnCount, board.destroyed.length)) {
+      const openingMove = getOpeningMove(board, turnCount);
+      if (openingMove) {
+        const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
+        return {
+          move: {
+            from: board.aiPos,
+            to: openingMove.move,
+            destroy: openingMove.destroy
+          },
+          logs: [psychologicalInsight, "gameRoom.log.isolation.strategy.openingBook"],
+          depth: 0
+        };
+      }
     }
 
-    // Check for partitioned endgame (NEXUS-5 and NEXUS-7)
+    // 2. Check for endgame (partitioned board)
     if (config.useEndgameSolver && config.usePartitionDetection) {
       const partition = detectPartition(board);
-
       if (partition.isPartitioned && shouldSolveExactly(partition.aiReachableCells)) {
-        console.log(`runMinimaxSearch: Partition detected, solving endgame (AI region: ${partition.aiRegionSize})`);
-
-        const endgameResult = solveEndgame(
-          board,
-          partition.aiReachableCells,
-          true,
-          Math.min(config.timeLimit * 0.5, 3000)
-        );
-
+        const endgameResult = solveEndgame(board, partition.aiReachableCells, true, Math.min(config.timeLimit * 0.5, 4000));
         if (endgameResult.move && endgameResult.solved) {
           const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
           return {
@@ -748,7 +483,20 @@ export function runMinimaxSearch(
       }
     }
 
-    // Get all possible moves
+    // 3. Use MCTS for NEXUS-7
+    if (config.useMCTS) {
+      const mctsResult = runHybridSearch(board, config.timeLimit * 0.8);
+      if (mctsResult.move) {
+        const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
+        return {
+          move: mctsResult.move,
+          logs: [psychologicalInsight, `gameRoom.log.isolation.strategy.${mctsResult.method}`],
+          depth: config.maxDepth
+        };
+      }
+    }
+
+    // 4. Standard minimax search
     const aiMoves = getValidMoves(board, board.aiPos, false);
     if (aiMoves.length === 0) {
       return { move: null, logs: ["gameRoom.log.isolation.noMoves"] };
@@ -759,28 +507,19 @@ export function runMinimaxSearch(
       return { move: null, logs: ["gameRoom.log.isolation.noMoves"] };
     }
 
-    // Iterative deepening
-    let movesWithScores: Array<{
-      move: GameMove;
-      destroy: { r: number; c: number };
-      score: number;
-    }> = [];
+    // Initialize transposition table
+    const tt = config.useTranspositionTable ? getTranspositionTable(100000) : null;
+    if (tt) tt.newSearch();
 
+    // Iterative deepening
+    let movesWithScores: Array<{ move: GameMove; destroy: { r: number; c: number }; score: number }> = [];
     let bestDepth = 1;
     const initialHash = tt ? tt.computeHash(board, true) : 0;
 
     for (let currentDepth = config.minDepth; currentDepth <= config.maxDepth; currentDepth++) {
-      if (Date.now() - startTime > config.timeLimit * 0.75) {
-        break;
-      }
+      if (Date.now() - startTime > config.timeLimit * 0.75) break;
 
-      const currentMovesWithScores: Array<{
-        move: GameMove;
-        destroy: { r: number; c: number };
-        score: number;
-      }> = [];
-
-      // Use previous iteration's order if available
+      const currentMovesWithScores: Array<{ move: GameMove; destroy: { r: number; c: number }; score: number }> = [];
       const orderedMoves = movesWithScores.length > 0
         ? movesWithScores.map(m => ({ move: m.move, destroy: m.destroy }))
         : allMoves;
@@ -789,56 +528,30 @@ export function runMinimaxSearch(
         const newBoard = applyMove(board, move, false);
         const newHash = tt ? updateHashAfterMove(initialHash, board, move, false) : 0;
 
-        const score = minimax(
-          newBoard,
-          currentDepth - 1,
-          -Infinity,
-          Infinity,
-          false, // AI just moved, now player's turn (minimizing)
-          startTime,
-          config,
-          tt,
-          newHash
-        );
-
+        const score = minimax(newBoard, currentDepth - 1, -Infinity, Infinity, false, startTime, config, tt, newHash, turnCount);
         currentMovesWithScores.push({ move, destroy, score });
 
-        if (Date.now() - startTime > config.timeLimit * 0.8) {
-          break;
-        }
+        if (Date.now() - startTime > config.timeLimit * 0.8) break;
       }
 
       currentMovesWithScores.sort((a, b) => b.score - a.score);
-
       const validMoves = currentMovesWithScores.filter(m => m.score > -Infinity);
+
       if (validMoves.length > 0) {
         movesWithScores = validMoves;
         bestDepth = currentDepth;
       }
 
-      // Early termination if winning move found
-      if (movesWithScores[0]?.score > config.earlyTerminationThreshold) {
-        console.log(`runMinimaxSearch: Winning move found at depth ${currentDepth}`);
-        break;
-      }
-
-      if (Date.now() - startTime > config.timeLimit * 0.85) {
-        break;
-      }
+      if (movesWithScores[0]?.score > config.earlyTerminationThreshold) break;
+      if (Date.now() - startTime > config.timeLimit * 0.85) break;
     }
 
-    console.log(`runMinimaxSearch: Depth ${bestDepth}, time ${Date.now() - startTime}ms, difficulty ${difficulty}`);
-
-    // Filter valid moves
+    // Filter and select move
     const validMovesWithScores = movesWithScores.filter(m =>
-      m.score > -Infinity &&
-      m.destroy &&
-      m.destroy.r >= 0 &&
-      m.destroy.c >= 0
+      m.score > -Infinity && m.destroy && m.destroy.r >= 0 && m.destroy.c >= 0
     );
 
     if (validMovesWithScores.length === 0) {
-      // Fallback
       const fallbackMoves = getAllMoves(board, false, config);
       if (fallbackMoves.length > 0 && fallbackMoves[0].destroy.r >= 0) {
         return { move: fallbackMoves[0].move, logs: ["gameRoom.log.moveExecuted"] };
@@ -848,16 +561,15 @@ export function runMinimaxSearch(
 
     validMovesWithScores.sort((a, b) => b.score - a.score);
 
-    // Select move based on difficulty
-    const selectedIndex = selectMoveIndex(validMovesWithScores.length, difficulty);
+    // Select move based on difficulty (with blunder prevention)
+    const scores = validMovesWithScores.map(m => m.score);
+    const selectedIndex = selectMoveIndex(validMovesWithScores.length, difficulty, scores);
     const selectedMove = validMovesWithScores[selectedIndex];
 
     // Generate logs
     const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
-
-    const playerArea = floodFill(board.playerPos, board);
-    const aiArea = floodFill(board.aiPos, board);
-    const areaDiff = aiArea - playerArea;
+    const voronoi = calculateBitboardVoronoi(board.playerPos, board.aiPos, board.destroyed);
+    const areaDiff = voronoi.aiCount - voronoi.playerCount;
 
     let strategicLog: string;
     if (selectedMove.score > 5000) {
@@ -874,10 +586,7 @@ export function runMinimaxSearch(
       strategicLog = "gameRoom.log.isolation.balanced";
     }
 
-    const finalMove: GameMove = {
-      ...selectedMove.move,
-      destroy: selectedMove.destroy,
-    };
+    const finalMove: GameMove = { ...selectedMove.move, destroy: selectedMove.destroy };
 
     // Validate destroy
     if (!finalMove.destroy || finalMove.destroy.r < 0 || finalMove.destroy.c < 0) {
@@ -925,22 +634,12 @@ export async function getAIMove(
   difficulty: Difficulty = "NEXUS-7",
   turnCount?: number,
   boardHistory?: string[]
-): Promise<{
-  move: GameMove | null;
-  logs: string[];
-}> {
+): Promise<{ move: GameMove | null; logs: string[] }> {
   const { getMinimaxWorkerPool } = await import("./minimaxWorkerPool");
 
   try {
     const workerPool = getMinimaxWorkerPool();
-    const result = await workerPool.calculateMove(
-      board,
-      playerLastMove,
-      difficulty,
-      turnCount,
-      boardHistory
-    );
-
+    const result = await workerPool.calculateMove(board, playerLastMove, difficulty, turnCount, boardHistory);
     return result;
   } catch (error) {
     console.warn('[getAIMove] Worker failed, falling back to synchronous:', error);

@@ -1,23 +1,26 @@
 /**
- * Endgame Solver for ISOLATION
+ * Endgame Solver for ISOLATION - Optimized Version
  *
  * When the board is partitioned, the game becomes a "longest path" problem.
  * This module calculates the optimal moves to maximize the number of moves
  * before running out of space.
  *
- * Uses DFS with memoization for efficiency.
+ * Uses bitboard-based DFS with alpha-beta pruning for efficiency.
  */
 
 import type { BoardState } from "./types";
 import type { GameMove } from "@shared/gameEngineInterface";
 import { getValidMoves, getValidDestroyPositions } from "./moveValidation";
-
-// 8 directions for queen movement
-const DIRECTIONS = [
-  { dr: -1, dc: -1 }, { dr: -1, dc: 0 }, { dr: -1, dc: 1 },
-  { dr: 0, dc: -1 },                      { dr: 0, dc: 1 },
-  { dr: 1, dc: -1 },  { dr: 1, dc: 0 },  { dr: 1, dc: 1 }
-];
+import {
+  posToIndex,
+  indexToPos,
+  CELL_MASKS,
+  getQueenMoves,
+  bitboardToIndices,
+  popCount,
+  longestPathBitboard,
+  getValidMovesFromBitboard
+} from "./bitboard";
 
 export interface EndgameResult {
   move: GameMove | null;
@@ -28,12 +31,7 @@ export interface EndgameResult {
 
 /**
  * Solve the endgame for an isolated position
- * Calculates the longest path (maximum moves) from current position
- *
- * @param board Current board state
- * @param reachableCells Set of cells that are reachable by the piece
- * @param isAI Whether solving for AI
- * @param timeLimit Maximum time in milliseconds
+ * Uses bitboard-based DFS with iterative deepening
  */
 export function solveEndgame(
   board: BoardState,
@@ -43,104 +41,65 @@ export function solveEndgame(
 ): EndgameResult {
   const startTime = Date.now();
   const position = isAI ? board.aiPos : board.playerPos;
+  const otherPos = isAI ? board.playerPos : board.aiPos;
 
-  // Convert reachable cells to a more efficient representation
-  const reachableSet = new Set(reachableCells);
-
-  // Add current position to reachable
-  const posKey = `${position.r},${position.c}`;
-  reachableSet.add(posKey);
-
-  // Memoization cache: visited state -> longest path from that state
-  const memo = new Map<string, number>();
-
-  // Track if we timed out
-  let timedOut = false;
-
-  /**
-   * DFS to find longest path from current position
-   * @param r Current row
-   * @param c Current column
-   * @param visited Set of visited cell keys
-   */
-  function longestPath(r: number, c: number, visited: Set<string>): number {
-    // Check timeout
-    if (Date.now() - startTime > timeLimit) {
-      timedOut = true;
-      return 0;
-    }
-
-    // Create state key for memoization
-    const stateKey = `${r},${c}|${Array.from(visited).sort().join(',')}`;
-    if (memo.has(stateKey)) {
-      return memo.get(stateKey)!;
-    }
-
-    let maxLength = 0;
-
-    // Try all queen moves
-    for (const dir of DIRECTIONS) {
-      let nr = r + dir.dr;
-      let nc = c + dir.dc;
-
-      // Slide along direction
-      while (nr >= 0 && nr < board.boardSize.rows &&
-             nc >= 0 && nc < board.boardSize.cols) {
-
-        const cellKey = `${nr},${nc}`;
-
-        // Check if cell is reachable and not visited
-        if (reachableSet.has(cellKey) && !visited.has(cellKey)) {
-          // Visit this cell
-          const newVisited = new Set(visited);
-          newVisited.add(cellKey);
-
-          const pathLength = 1 + longestPath(nr, nc, newVisited);
-          maxLength = Math.max(maxLength, pathLength);
-        } else if (!reachableSet.has(cellKey)) {
-          // Blocked - can't continue in this direction
-          break;
-        }
-
-        nr += dir.dr;
-        nc += dir.dc;
-      }
-    }
-
-    // Only cache if we didn't time out
-    if (!timedOut) {
-      memo.set(stateKey, maxLength);
-    }
-
-    return maxLength;
+  // Convert reachable cells to bitboard
+  let reachableBB = 0n;
+  for (const cellKey of reachableCells) {
+    const [r, c] = cellKey.split(',').map(Number);
+    reachableBB |= CELL_MASKS[posToIndex(r, c)];
   }
 
-  // Find the best first move
-  const initialVisited = new Set<string>([posKey]);
+  // Add current position to reachable
+  reachableBB |= CELL_MASKS[posToIndex(position.r, position.c)];
+
+  // Create blocked bitboard (destroyed cells + other piece)
+  let blocked = 0n;
+  for (const d of board.destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
+  blocked |= CELL_MASKS[posToIndex(otherPos.r, otherPos.c)];
+
+  // Find the best first move using longest path calculation
+  const validMoves = getValidMoves(board, position, !isAI);
   let bestMove: GameMove | null = null;
   let bestPath = -1;
-
-  const validMoves = getValidMoves(board, position, !isAI);
+  let solved = true;
 
   for (const to of validMoves) {
-    if (timedOut) break;
+    // Check timeout
+    if (Date.now() - startTime > timeLimit * 0.8) {
+      solved = false;
+      break;
+    }
 
     const cellKey = `${to.r},${to.c}`;
+    const toIdx = posToIndex(to.r, to.c);
 
     // Only consider moves within our region
-    if (!reachableSet.has(cellKey)) continue;
+    if (!(reachableBB & CELL_MASKS[toIdx])) continue;
 
-    const newVisited = new Set(initialVisited);
-    newVisited.add(cellKey);
+    // Calculate longest path from this move
+    const visitedBB = CELL_MASKS[posToIndex(position.r, position.c)] | CELL_MASKS[toIdx];
+    const result = longestPathFromPosition(
+      to,
+      reachableBB,
+      blocked,
+      visitedBB,
+      timeLimit - (Date.now() - startTime)
+    );
 
-    const pathLength = 1 + longestPath(to.r, to.c, newVisited);
+    const pathLength = 1 + result.length;
+
+    if (result.timedOut) {
+      solved = false;
+    }
 
     if (pathLength > bestPath) {
       bestPath = pathLength;
 
       // Find best destroy position
-      // In endgame, destroy should not affect our own path
-      const destroyPos = findBestEndgameDestroy(board, to, reachableSet, isAI);
+      const destroyPos = findBestEndgameDestroy(board, to, reachableBB, isAI);
 
       bestMove = {
         from: position,
@@ -153,22 +112,124 @@ export function solveEndgame(
   return {
     move: bestMove,
     longestPath: bestPath,
-    solved: !timedOut,
-    confidence: timedOut ? 'heuristic' : 'exact'
+    solved,
+    confidence: solved ? 'exact' : 'heuristic'
   };
 }
 
 /**
+ * Calculate longest path from a position using iterative DFS
+ */
+function longestPathFromPosition(
+  startPos: { r: number; c: number },
+  reachable: bigint,
+  blocked: bigint,
+  initialVisited: bigint,
+  timeLimit: number
+): { length: number; timedOut: boolean } {
+  const startTime = Date.now();
+
+  // Use iterative approach with explicit stack
+  interface StackFrame {
+    idx: number;
+    visited: bigint;
+    moveIndex: number;
+    moves: number[];
+    pathLength: number;
+    maxSoFar: number;
+  }
+
+  const startIdx = posToIndex(startPos.r, startPos.c);
+  const validCells = reachable;
+  const moveBlocked = blocked | ~validCells;
+
+  // Get initial moves from start position
+  const initialMoves = getValidMovesFromBitboard(startPos, moveBlocked | initialVisited)
+    .map(p => posToIndex(p.r, p.c))
+    .filter(idx => (validCells & CELL_MASKS[idx]) !== 0n);
+
+  if (initialMoves.length === 0) {
+    return { length: 0, timedOut: false };
+  }
+
+  const stack: StackFrame[] = [{
+    idx: startIdx,
+    visited: initialVisited,
+    moveIndex: 0,
+    moves: initialMoves,
+    pathLength: 0,
+    maxSoFar: 0
+  }];
+
+  let maxLength = 0;
+  let timedOut = false;
+
+  while (stack.length > 0) {
+    // Check timeout
+    if (Date.now() - startTime > timeLimit) {
+      timedOut = true;
+      break;
+    }
+
+    const frame = stack[stack.length - 1];
+
+    if (frame.moveIndex >= frame.moves.length) {
+      // Backtrack
+      maxLength = Math.max(maxLength, frame.pathLength);
+      stack.pop();
+      continue;
+    }
+
+    const nextIdx = frame.moves[frame.moveIndex];
+    frame.moveIndex++;
+
+    // Skip if already visited or not in valid cells
+    if ((frame.visited & CELL_MASKS[nextIdx]) !== 0n) {
+      continue;
+    }
+    if ((validCells & CELL_MASKS[nextIdx]) === 0n) {
+      continue;
+    }
+
+    // Make move
+    const nextPos = indexToPos(nextIdx);
+    const newVisited = frame.visited | CELL_MASKS[nextIdx];
+
+    // Get next moves
+    const nextMoves = getValidMovesFromBitboard(nextPos, moveBlocked | newVisited)
+      .map(p => posToIndex(p.r, p.c))
+      .filter(idx => (validCells & CELL_MASKS[idx]) !== 0n && (newVisited & CELL_MASKS[idx]) === 0n);
+
+    const newPathLength = frame.pathLength + 1;
+
+    if (nextMoves.length === 0) {
+      // Dead end - update max
+      maxLength = Math.max(maxLength, newPathLength);
+    } else {
+      stack.push({
+        idx: nextIdx,
+        visited: newVisited,
+        moveIndex: 0,
+        moves: nextMoves,
+        pathLength: newPathLength,
+        maxSoFar: maxLength
+      });
+    }
+  }
+
+  return { length: maxLength, timedOut };
+}
+
+/**
  * Find the best destroy position in endgame
- * Should not reduce our own path
+ * Prioritizes destroying cells outside our reachable region
  */
 function findBestEndgameDestroy(
   board: BoardState,
   newPos: { r: number; c: number },
-  reachableCells: Set<string>,
+  reachableBB: bigint,
   isAI: boolean
 ): { r: number; c: number } {
-  const position = isAI ? board.aiPos : board.playerPos;
   const otherPos = isAI ? board.playerPos : board.aiPos;
 
   // Get valid destroy positions
@@ -185,7 +246,6 @@ function findBestEndgameDestroy(
     // Fallback: find any destroyable cell
     for (let r = 0; r < board.boardSize.rows; r++) {
       for (let c = 0; c < board.boardSize.cols; c++) {
-        const cellKey = `${r},${c}`;
         if (!board.destroyed.some(d => d.r === r && d.c === c) &&
             !(r === newPos.r && c === newPos.c) &&
             !(r === otherPos.r && c === otherPos.c)) {
@@ -193,31 +253,28 @@ function findBestEndgameDestroy(
         }
       }
     }
-    return { r: 0, c: 0 }; // Should not happen
+    return { r: 0, c: 0 };
   }
 
-  // Best destroy: one that's NOT in our reachable cells
-  // This preserves our maximum path length
   let bestDestroy = destroyPositions[0];
   let bestScore = -Infinity;
 
   for (const pos of destroyPositions) {
-    const cellKey = `${pos.r},${pos.c}`;
+    const idx = posToIndex(pos.r, pos.c);
     let score = 0;
 
-    // Prefer destroying cells outside our region
-    if (!reachableCells.has(cellKey)) {
-      score += 100;
+    // Strongly prefer destroying cells outside our region
+    if ((reachableBB & CELL_MASKS[idx]) === 0n) {
+      score += 200;
     }
 
-    // Prefer destroying cells far from our new position
+    // Prefer cells far from our new position
     const dist = Math.abs(pos.r - newPos.r) + Math.abs(pos.c - newPos.c);
-    score += dist * 2;
+    score += dist * 5;
 
-    // Prefer destroying cells in opponent's potential region
-    // (cells closer to opponent)
+    // Prefer cells closer to opponent
     const opponentDist = Math.abs(pos.r - otherPos.r) + Math.abs(pos.c - otherPos.c);
-    score += (10 - opponentDist);
+    score += (10 - opponentDist) * 3;
 
     if (score > bestScore) {
       bestScore = score;
@@ -229,27 +286,49 @@ function findBestEndgameDestroy(
 }
 
 /**
- * Quick estimate of longest path using greedy heuristic
- * Used when exact calculation would take too long
+ * Quick estimate of longest path using cell count and shape analysis
  */
 export function estimateLongestPath(
   board: BoardState,
   reachableCells: Set<string>,
   isAI: boolean
 ): number {
-  // Simple heuristic: count reachable cells
-  // More accurate heuristic could consider board shape
-  return reachableCells.size;
+  const cellCount = reachableCells.size;
+
+  // Basic heuristic: cells * efficiency factor
+  // More linear regions allow longer paths, more compact regions are worse
+  const position = isAI ? board.aiPos : board.playerPos;
+
+  // Calculate region "linearity" - longer regions allow more efficient paths
+  let minR = 7, maxR = 0, minC = 7, maxC = 0;
+  for (const cellKey of reachableCells) {
+    const [r, c] = cellKey.split(',').map(Number);
+    minR = Math.min(minR, r);
+    maxR = Math.max(maxR, r);
+    minC = Math.min(minC, c);
+    maxC = Math.max(maxC, c);
+  }
+
+  const width = maxC - minC + 1;
+  const height = maxR - minR + 1;
+  const area = width * height;
+  const density = cellCount / area;
+
+  // Higher density means more compact region, generally allows longer path
+  // But very high density can mean trapped in corner
+  const efficiencyFactor = 0.7 + (density * 0.3);
+
+  return Math.floor(cellCount * efficiencyFactor);
 }
 
 /**
  * Determine if position is worth solving exactly
- * Small regions can be solved exactly, large ones need heuristics
+ * Based on region size and time available
  */
 export function shouldSolveExactly(reachableCells: Set<string>): boolean {
-  // For regions up to ~15 cells, we can solve exactly within time limit
-  // This threshold is based on empirical testing
-  return reachableCells.size <= 15;
+  // For regions up to 18 cells, we can usually solve exactly
+  // This is more aggressive than before due to bitboard optimization
+  return reachableCells.size <= 18;
 }
 
 /**
@@ -265,23 +344,35 @@ export function calculateEndgameAdvantage(
   const playerCells = playerRegion.size;
   const aiCells = aiRegion.size;
 
-  // Quick estimate based on region sizes
-  if (!shouldSolveExactly(playerRegion) || !shouldSolveExactly(aiRegion)) {
-    // Use cell count as proxy for moves remaining
-    return aiCells - playerCells;
+  // Quick check based on cell count difference
+  const cellDiff = aiCells - playerCells;
+
+  // If one side has significantly more cells, that's likely decisive
+  if (Math.abs(cellDiff) >= 5) {
+    return cellDiff * 1.5; // Weight the advantage
   }
 
-  // Solve exactly for both
+  // For closer games, try exact calculation if regions are small enough
+  if (!shouldSolveExactly(playerRegion) || !shouldSolveExactly(aiRegion)) {
+    return cellDiff;
+  }
+
   const halfTime = Math.floor(timeLimit / 2);
 
   const playerResult = solveEndgame(board, playerRegion, false, halfTime);
   const aiResult = solveEndgame(board, aiRegion, true, halfTime);
 
   if (playerResult.confidence === 'exact' && aiResult.confidence === 'exact') {
-    // Exact calculation
     return aiResult.longestPath - playerResult.longestPath;
   }
 
-  // Fallback to cell count
-  return aiCells - playerCells;
+  // Weighted estimate if not fully solved
+  const playerEstimate = playerResult.confidence === 'exact'
+    ? playerResult.longestPath
+    : estimateLongestPath(board, playerRegion, false);
+  const aiEstimate = aiResult.confidence === 'exact'
+    ? aiResult.longestPath
+    : estimateLongestPath(board, aiRegion, true);
+
+  return aiEstimate - playerEstimate;
 }

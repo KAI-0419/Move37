@@ -2,11 +2,19 @@
  * Voronoi Territory Analysis for ISOLATION
  *
  * Calculates which cells each player can reach first using BFS.
- * This is more accurate than simple flood-fill as it considers
- * the actual distance (in moves) to each cell.
+ * Now uses bitboard operations for improved performance.
  */
 
 import type { BoardState } from "./types";
+import {
+  calculateBitboardVoronoi,
+  posToIndex,
+  indexToPos,
+  CELL_MASKS,
+  getQueenMoves,
+  bitboardToIndices,
+  popCount
+} from "./bitboard";
 
 // 8 directions for queen movement
 const DIRECTIONS = [
@@ -26,78 +34,37 @@ export interface VoronoiResult {
 
 /**
  * Calculate Voronoi territories for both players
- * Uses BFS to find shortest distance from each position to all cells
+ * Uses bitboard-based BFS for performance
  */
 export function calculateVoronoi(board: BoardState): VoronoiResult {
   const { boardSize, playerPos, aiPos, destroyed } = board;
   const BOARD_SIZE = boardSize.rows * boardSize.cols;
   const INF = 999;
 
+  // Use bitboard implementation for territory calculation
+  const bbVoronoi = calculateBitboardVoronoi(playerPos, aiPos, destroyed);
+
+  // Calculate distances using BFS for compatibility
   const playerDist = new Array(BOARD_SIZE).fill(INF);
   const aiDist = new Array(BOARD_SIZE).fill(INF);
 
-  // Convert position to index
-  const posToIndex = (r: number, c: number) => r * boardSize.cols + c;
-  const indexToPos = (idx: number) => ({
-    r: Math.floor(idx / boardSize.cols),
-    c: idx % boardSize.cols
-  });
-
-  // Check if position is blocked
-  const isBlocked = (r: number, c: number): boolean => {
-    if (r < 0 || r >= boardSize.rows || c < 0 || c >= boardSize.cols) return true;
-    return destroyed.some(d => d.r === r && d.c === c);
-  };
-
-  // BFS from player position
-  const playerStartIdx = posToIndex(playerPos.r, playerPos.c);
-  const aiStartIdx = posToIndex(aiPos.r, aiPos.c);
-
+  // BFS from both positions
   bfsDistance(playerPos, playerDist, aiPos, boardSize, destroyed);
   bfsDistance(aiPos, aiDist, playerPos, boardSize, destroyed);
 
-  // Calculate territories
-  let playerTerritory = 0;
-  let aiTerritory = 0;
-  let contested = 0;
-  let totalReachable = 0;
-
-  for (let i = 0; i < BOARD_SIZE; i++) {
-    const { r, c } = indexToPos(i);
-
-    // Skip destroyed cells
-    if (isBlocked(r, c)) continue;
-
-    // Skip player and AI positions
-    if (i === playerStartIdx || i === aiStartIdx) continue;
-
-    // Skip unreachable cells
-    if (playerDist[i] === INF && aiDist[i] === INF) continue;
-
-    totalReachable++;
-
-    if (playerDist[i] < aiDist[i]) {
-      playerTerritory++;
-    } else if (aiDist[i] < playerDist[i]) {
-      aiTerritory++;
-    } else {
-      contested++; // Equal distance - contested cell
-    }
-  }
-
   return {
-    playerTerritory,
-    aiTerritory,
-    contested,
+    playerTerritory: bbVoronoi.playerCount,
+    aiTerritory: bbVoronoi.aiCount,
+    contested: bbVoronoi.contestedCount,
     playerDistance: playerDist,
     aiDistance: aiDist,
-    totalReachable
+    totalReachable: bbVoronoi.playerCount + bbVoronoi.aiCount + bbVoronoi.contestedCount
   };
 }
 
 /**
  * BFS to calculate shortest distance from start position to all cells
- * In Isolation, each move counts as distance 1 regardless of how far the queen slides
+ * Each queen move counts as distance 1 regardless of distance traveled
  */
 function bfsDistance(
   startPos: { r: number; c: number },
@@ -107,7 +74,6 @@ function bfsDistance(
   destroyed: { r: number; c: number }[]
 ): void {
   const INF = 999;
-  const posToIndex = (r: number, c: number) => r * boardSize.cols + c;
 
   const isBlocked = (r: number, c: number): boolean => {
     if (r < 0 || r >= boardSize.rows || c < 0 || c >= boardSize.cols) return true;
@@ -115,12 +81,10 @@ function bfsDistance(
     return destroyed.some(d => d.r === r && d.c === c);
   };
 
-  // Initialize
   distances.fill(INF);
   const startIdx = posToIndex(startPos.r, startPos.c);
   distances[startIdx] = 0;
 
-  // BFS queue: [row, col, distance]
   const queue: Array<{ r: number; c: number; dist: number }> = [
     { r: startPos.r, c: startPos.c, dist: 0 }
   ];
@@ -128,16 +92,13 @@ function bfsDistance(
   while (queue.length > 0) {
     const { r, c, dist } = queue.shift()!;
 
-    // Try all 8 directions (queen movement)
     for (const dir of DIRECTIONS) {
       let nr = r + dir.dr;
       let nc = c + dir.dc;
 
-      // Slide along direction until blocked
       while (!isBlocked(nr, nc)) {
         const nextIdx = posToIndex(nr, nc);
 
-        // Only update if we found a shorter path
         if (distances[nextIdx] > dist + 1) {
           distances[nextIdx] = dist + 1;
           queue.push({ r: nr, c: nc, dist: dist + 1 });
@@ -152,7 +113,6 @@ function bfsDistance(
 
 /**
  * Quick mobility calculation - number of immediate valid moves
- * This is faster than full Voronoi for simple evaluations
  */
 export function calculateImmediateMobility(
   pos: { r: number; c: number },
@@ -160,44 +120,26 @@ export function calculateImmediateMobility(
   boardSize: { rows: number; cols: number },
   destroyed: { r: number; c: number }[]
 ): number {
-  const isBlocked = (r: number, c: number): boolean => {
-    if (r < 0 || r >= boardSize.rows || c < 0 || c >= boardSize.cols) return true;
-    if (r === otherPos.r && c === otherPos.c) return true;
-    return destroyed.some(d => d.r === r && d.c === c);
-  };
-
-  let moveCount = 0;
-
-  for (const dir of DIRECTIONS) {
-    let nr = pos.r + dir.dr;
-    let nc = pos.c + dir.dc;
-
-    while (!isBlocked(nr, nc)) {
-      moveCount++;
-      nr += dir.dr;
-      nc += dir.dc;
-    }
+  // Create blocked bitboard
+  let blocked = 0n;
+  for (const d of destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
   }
+  blocked |= CELL_MASKS[posToIndex(otherPos.r, otherPos.c)];
 
-  return moveCount;
+  const moves = getQueenMoves(pos, blocked);
+  return popCount(moves);
 }
 
 /**
  * Calculate the "critical cells" - cells that divide the board
- * These are cells where control significantly impacts both players
  */
 export function identifyCriticalCells(board: BoardState): number[] {
   const { boardSize, playerPos, aiPos, destroyed } = board;
   const critical: number[] = [];
 
-  const posToIndex = (r: number, c: number) => r * boardSize.cols + c;
-
-  // Get Voronoi distances
   const voronoi = calculateVoronoi(board);
 
-  // Cells are critical if:
-  // 1. They are contested (equal distance)
-  // 2. They are on the "frontier" between territories
   for (let r = 0; r < boardSize.rows; r++) {
     for (let c = 0; c < boardSize.cols; c++) {
       const idx = posToIndex(r, c);
@@ -210,10 +152,9 @@ export function identifyCriticalCells(board: BoardState): number[] {
       const pDist = voronoi.playerDistance[idx];
       const aDist = voronoi.aiDistance[idx];
 
-      // Skip unreachable cells
       if (pDist === 999 && aDist === 999) continue;
 
-      // Critical if contested or on the frontier (distance difference <= 1)
+      // Critical if contested or on the frontier
       if (Math.abs(pDist - aDist) <= 1) {
         critical.push(idx);
       }
