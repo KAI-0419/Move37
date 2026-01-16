@@ -131,4 +131,15 @@ export class GameUIFactory {
   static getCachedBoardComponent(gameType: GameType): GameBoardComponent | null {
     return this.boardComponents.get(gameType) || null;
   }
+
+  /**
+   * Wait for board component to be loaded (blocks until ready)
+   * Useful for ensuring component is available before rendering
+   *
+   * @param gameType - Type of game
+   * @returns Promise resolving to board component
+   */
+  static async waitForComponent(gameType: GameType): Promise<GameBoardComponent> {
+    return this.getBoardComponent(gameType);
+  }
 }

@@ -131,4 +131,15 @@ export class GameEngineFactory {
   static getCachedEngine(gameType: GameType): IGameEngine | null {
     return this.engines.get(gameType) || null;
   }
+
+  /**
+   * Wait for engine to be loaded (blocks until ready)
+   * Useful for ensuring engine is available before rendering
+   *
+   * @param gameType - Type of game
+   * @returns Promise resolving to game engine instance
+   */
+  static async waitForEngine(gameType: GameType): Promise<IGameEngine> {
+    return this.getEngine(gameType);
+  }
 }

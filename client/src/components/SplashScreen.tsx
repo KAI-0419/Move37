@@ -56,7 +56,7 @@ const DESIGN_TOKENS = {
     stages: {
       init: 200,    // 메인 요소 등장
       fade: 1200,   // 페이드 아웃 준비
-      finish: 1600, // 종료
+      minDuration: 1600, // 최소 스플래시 시간 (사용자 경험 최적화)
     },
     animations: {
       gridDelay: 0.05,
@@ -489,12 +489,17 @@ function EnhancedLoadingBar({ stage }: { stage: number }) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const { fontSize, vhToPx, vwToPx, device, responsive } = useAdaptiveScale();
 
-  // 시간 기반 로딩 퍼센트 계산 - 전체 1.6초 동안 자연스럽게 증가
+  // 시간 기반 로딩 퍼센트 계산 - 800ms 동안 자연스럽게 증가
   const getProgressPercentage = useCallback((currentStage: number, timeElapsed: number): number => {
-    const totalDuration = DESIGN_TOKENS.timing.stages.finish; // 1600ms
+    const totalDuration = 800; // 로딩 바 전용 타이밍 (800ms)
 
     if (currentStage === 0) return 0;
     if (currentStage === 2) return 100;
+
+    // 유효성 검사: timeElapsed가 유효한 숫자인지 확인
+    if (!Number.isFinite(timeElapsed) || timeElapsed < 0) {
+      return 0;
+    }
 
     // 스테이지 1에서는 시간에 따라 자연스럽게 증가 (0% ~ 95%)
     // easing 함수를 적용하여 더 자연스러운 진행
@@ -503,7 +508,9 @@ function EnhancedLoadingBar({ stage }: { stage: number }) {
       ? 2 * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-    return Math.round(easedProgress * 95); // 95%까지 증가 (완전 종료는 100%)
+    // NaN 방지를 위한 추가 검사
+    const result = Math.round(easedProgress * 95);
+    return Number.isFinite(result) ? result : 0;
   }, []);
 
   // 타이머로 경과 시간 추적
@@ -518,8 +525,8 @@ function EnhancedLoadingBar({ stage }: { stage: number }) {
       const currentElapsed = Date.now() - startTime;
       setElapsedTime(currentElapsed);
 
-      // 1.6초가 지나면 타이머 정지
-      if (currentElapsed >= DESIGN_TOKENS.timing.stages.finish) {
+      // 로딩 바 타이밍(1300ms)이 지나면 타이머 정지 (동적 종료는 상위 컴포넌트에서 처리)
+      if (currentElapsed >= 1300) {
         clearInterval(timer);
       }
     }, 16); // 60fps
@@ -527,7 +534,7 @@ function EnhancedLoadingBar({ stage }: { stage: number }) {
     return () => clearInterval(timer);
   }, [stage]);
 
-  const percentage = getProgressPercentage(stage, elapsedTime);
+  const percentage = Math.max(0, Math.min(100, getProgressPercentage(stage, elapsedTime) || 0));
   const progressWidth = `${percentage}%`;
 
   // 반응형 위치 및 크기 계산
@@ -740,15 +747,35 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
   const { fontSize, safeArea, device } = useAdaptiveScale();
 
   useEffect(() => {
-    // 스테이지별 애니메이션 타이밍 제어 - 디자인 토큰 적용
-    const timers = [
-      setTimeout(() => setStage(1), DESIGN_TOKENS.timing.stages.init),     // 메인 요소 등장
-      setTimeout(() => setStage(2), DESIGN_TOKENS.timing.stages.fade),     // 페이드 아웃 준비
-      setTimeout(() => onFinish(), DESIGN_TOKENS.timing.stages.finish),    // 종료
-    ];
+    const startTime = Date.now();
+
+    // 스테이지별 애니메이션 타이밍 제어
+    const timer1 = setTimeout(() => setStage(1), DESIGN_TOKENS.timing.stages.init); // 메인 요소 등장
+
+    // 페이드 아웃 준비는 최소 시간 이후에만 시작
+    const minFadeTime = DESIGN_TOKENS.timing.stages.minDuration * 0.75; // 600ms
+    const timer2 = setTimeout(() => setStage(2), Math.max(DESIGN_TOKENS.timing.stages.init, minFadeTime));
+
+    // 종료 타이밍은 동적으로 계산: 최소 시간 보장하되 로딩 완료 즉시 종료
+    const calculateFinishTime = () => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, DESIGN_TOKENS.timing.stages.minDuration - elapsed);
+      return remaining;
+    };
+
+    // finish 콜백을 동적으로 실행할 수 있도록 함수로 래핑
+    const finishSplash = () => {
+      const finishTime = calculateFinishTime();
+      setTimeout(() => onFinish(), finishTime);
+    };
+
+    // 타이머3는 finish 콜백을 위한 것
+    const timer3 = setTimeout(finishSplash, 0);
 
     return () => {
-      timers.forEach(clearTimeout);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
     };
   }, [onFinish]);
 

@@ -10,10 +10,26 @@ import { SplashScreen as NativeSplashScreen } from "@capacitor/splash-screen";
 import { Capacitor } from "@capacitor/core";
 import NotFound from "@/pages/not-found";
 import { SplashScreen } from "@/components/SplashScreen";
-import { LoadingScreen } from "@/components/LoadingScreen";
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
 import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import type { GameType } from "@shared/schema";
+
+// requestIdleCallback 폴백 - 모바일 브라우저 호환성
+const requestIdleCallback = (typeof window !== 'undefined' && window.requestIdleCallback) ||
+  function(callback: (deadline: { timeRemaining: () => number; didTimeout: boolean }) => void, options?: { timeout?: number }) {
+    const start = Date.now();
+    return setTimeout(() => {
+      callback({
+        timeRemaining: () => Math.max(0, 50 - (Date.now() - start)), // 50ms 남은 시간 시뮬레이션
+        didTimeout: false
+      });
+    }, options?.timeout || 1);
+  };
+
+const cancelIdleCallback = (typeof window !== 'undefined' && window.cancelIdleCallback) ||
+  function(id: number) {
+    clearTimeout(id);
+  };
 
 // Route-based code splitting: 각 페이지를 별도 청크로 분리
 const Lobby = lazy(() => import("@/pages/Lobby"));
@@ -21,7 +37,7 @@ const GameRoom = lazy(() => import("@/pages/GameRoom"));
 
 function Router() {
   return (
-    <Suspense fallback={<LoadingScreen />}>
+    <Suspense fallback={null}>
       <Switch>
         <Route path="/" component={Lobby} />
         <Route path="/game" component={GameRoom} />
@@ -71,38 +87,74 @@ function App() {
     initNativeFeatures();
   }, []);
 
-  // Preload all game engines, UI components, and page components on app start
+  // Smart 3-stage preloading system for optimal UX
   useEffect(() => {
-    const preloadGames = async () => {
-      const gameTypes: GameType[] = ["MINI_CHESS", "GAME_2", "GAME_3"];
+    const loadCriticalResources = async () => {
+      // Stage 1: Critical resources (during splash screen)
+      // Only load the Lobby page that's immediately visible to the user
+      await import("@/pages/Lobby").catch(err =>
+        console.error('Failed to preload Lobby:', err)
+      );
+      console.log('Critical resources loaded');
+      setIsGamesReady(true);
+    };
 
-      // Preload everything in parallel:
-      // 1. Game engines and UI components
-      // 2. Page components (Lobby and GameRoom)
+    const loadHighPriorityResources = async () => {
+      // Stage 2: High priority resources (right after splash screen)
+      // Load the most commonly played game (MINI_CHESS) and GameRoom page
       await Promise.all([
-        // Preload game engines and UI
-        ...gameTypes.flatMap(gameType => [
+        GameEngineFactory.getEngine("MINI_CHESS").catch(err =>
+          console.error(`Failed to preload MINI_CHESS engine:`, err)
+        ),
+        GameUIFactory.getBoardComponent("MINI_CHESS").catch(err =>
+          console.error(`Failed to preload MINI_CHESS UI:`, err)
+        ),
+        import("@/pages/GameRoom").catch(err =>
+          console.error('Failed to preload GameRoom:', err)
+        ),
+      ]);
+      console.log('High priority resources loaded');
+    };
+
+    const loadLowPriorityResources = async () => {
+      // Stage 3: Low priority resources (during idle time)
+      // Load remaining games in background
+      const remainingGames: GameType[] = ["GAME_2", "GAME_3"];
+      await Promise.all(
+        remainingGames.flatMap(gameType => [
           GameEngineFactory.getEngine(gameType).catch(err =>
             console.error(`Failed to preload engine for ${gameType}:`, err)
           ),
           GameUIFactory.getBoardComponent(gameType).catch(err =>
             console.error(`Failed to preload UI for ${gameType}:`, err)
           ),
-        ]),
-        // Preload page components to avoid showing LoadingScreen
-        import("@/pages/Lobby").catch(err =>
-          console.error('Failed to preload Lobby:', err)
-        ),
-        import("@/pages/GameRoom").catch(err =>
-          console.error('Failed to preload GameRoom:', err)
-        ),
-      ]);
-
-      console.log('All game engines, UI components, and pages preloaded');
-      setIsGamesReady(true);
+        ])
+      );
+      console.log('Low priority resources loaded');
     };
 
-    preloadGames();
+    // Start with critical resources
+    loadCriticalResources();
+
+    // Load high priority resources right after splash screen ends
+    // Use requestIdleCallback for better performance
+    const highPriorityTimer = setTimeout(() => {
+      requestIdleCallback(() => {
+        loadHighPriorityResources();
+      });
+    }, 100); // Small delay to ensure splash screen transition completes
+
+    // Load low priority resources during idle time
+    const lowPriorityTimer = setTimeout(() => {
+      requestIdleCallback(() => {
+        loadLowPriorityResources();
+      }, { timeout: 5000 }); // Don't wait too long, max 5 seconds
+    }, 500); // Wait a bit longer to prioritize user interactions
+
+    return () => {
+      clearTimeout(highPriorityTimer);
+      clearTimeout(lowPriorityTimer);
+    };
   }, []);
 
   return (

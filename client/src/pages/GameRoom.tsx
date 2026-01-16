@@ -26,6 +26,7 @@ import { useGameLogs } from "@/hooks/use-game-logs";
 import { usePreventNavigation } from "@/hooks/use-prevent-navigation";
 import { GameInteractionHandlerFactory, type SelectThenMoveState } from "@/lib/games/GameInteractionHandler";
 import { GameEngineFactory } from "@/lib/games/GameEngineFactory";
+import { GameBoardSkeleton } from "@/components/GameBoardSkeleton";
 import { DEFAULT_GAME_TYPE, DEFAULT_DIFFICULTY } from "@shared/gameConfig";
 import { terminateMCTSWorkerPool } from "@/lib/games/entropy/mctsWorkerPool";
 import { playErrorEffect, playTimeWarningEffect } from "@/lib/audio";
@@ -36,6 +37,7 @@ export default function GameRoom() {
   const queryClient = useQueryClient();
   const [gameId, setGameId] = useState<number | null>(() => gameStorage.getCurrentGameId());
   const { data: game, isLoading, error } = useGame(gameId);
+  const [isEngineReady, setIsEngineReady] = useState(false);
   // Only create makeMove hook if gameId is valid
   const makeMove = useMakeMove(gameId ?? 0);
   const createGame = useCreateGame();
@@ -159,10 +161,34 @@ export default function GameRoom() {
   // Track if a difficulty was just unlocked in this victory
   const [justUnlockedDifficulty, setJustUnlockedDifficulty] = useState<"NEXUS-5" | "NEXUS-7" | null>(null);
 
-  // Preload game engine and UI for the current game type
+  // Load game engine and UI for the current game type (blocking until ready)
   useEffect(() => {
-    GameEngineFactory.preload(validatedGameType);
-    GameUIFactory.preload(validatedGameType);
+    let mounted = true;
+
+    const loadResources = async () => {
+      try {
+        await Promise.all([
+          GameEngineFactory.waitForEngine(validatedGameType),
+          GameUIFactory.waitForComponent(validatedGameType)
+        ]);
+
+        if (mounted) {
+          setIsEngineReady(true);
+        }
+      } catch (error) {
+        console.error(`Failed to load resources for ${validatedGameType}:`, error);
+        // 에러 발생 시에도 UI는 표시 (graceful degradation)
+        if (mounted) {
+          setIsEngineReady(true);
+        }
+      }
+    };
+
+    loadResources();
+
+    return () => {
+      mounted = false;
+    };
   }, [validatedGameType]);
 
   // Cleanup MCTS Worker Pool when component unmounts (GAME_3 only)
@@ -384,8 +410,14 @@ export default function GameRoom() {
   const isGameNotFound = gameId !== null && !isLoading && !error && !game;
   const hasErrorState = error || isGameNotFound || (isInvalidGameId && !isLoading);
 
+  // Show loading state only for game data loading, not for engine loading
   if (isLoading) {
     return <GameLoadingState />;
+  }
+
+  // Wait for engine to be ready before rendering game board
+  if (!isEngineReady) {
+    return <GameBoardSkeleton gameType={validatedGameType} />;
   }
 
   if (hasErrorState) {
@@ -503,8 +535,8 @@ export default function GameRoom() {
               try {
                 const BoardComponent = GameUIFactory.getCachedBoardComponent(gameType);
                 if (!BoardComponent) {
-                  // Board component not yet loaded, show loading state
-                  return <GameLoadingState />;
+                  // Board component should be loaded by now, but fallback to null
+                  return null;
                 }
                 // Only pass turn prop if turn system is enabled
                 const turnProp = uiConfig.turnSystemType === 'player-ai'
@@ -674,8 +706,8 @@ export default function GameRoom() {
             try {
               const BoardComponent = GameUIFactory.getCachedBoardComponent(gameType);
               if (!BoardComponent) {
-                // Board component not yet loaded, show loading state
-                return <GameLoadingState />;
+                // Board component should be loaded by now, but fallback to null
+                return null;
               }
               // Only pass turn prop if turn system is enabled
               const turnProp = uiConfig.turnSystemType === 'player-ai'
