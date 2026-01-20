@@ -1,9 +1,5 @@
-import init, { EntropyWasmEngine } from './wasm/pkg/entropy_engine.js';
 import type { AIMoveResult } from "@shared/gameEngineInterface";
 import type { BoardState } from "./types";
-
-let wasmModule: EntropyWasmEngine | null = null;
-let isInitializing = false;
 
 // Interface matching Rust's AnalysisResult struct
 interface WasmMoveInfo {
@@ -22,26 +18,47 @@ interface WasmAnalysisResult {
   nps: number;
 }
 
-async function initWasm() {
-  if (wasmModule) return wasmModule;
-  if (isInitializing) {
-    while (isInitializing) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      if (wasmModule) return wasmModule;
-    }
-  }
+// Worker management
+let worker: Worker | null = null;
+let activeRequest: { resolve: (val: any) => void; reject: (err: any) => void } | null = null;
 
-  try {
-    isInitializing = true;
-    await init();
-    wasmModule = new EntropyWasmEngine();
-    console.log("Entropy WASM Engine initialized");
-    return wasmModule;
-  } catch (error) {
-    console.error("Failed to initialize WASM engine:", error);
-    return null;
-  } finally {
-    isInitializing = false;
+function getWorker(): Worker {
+  if (!worker) {
+    // Create new worker
+    // Note: The path must be recognized by Vite's worker import
+    worker = new Worker(new URL('./wasm/wasm.worker.ts', import.meta.url), {
+      type: 'module'
+    });
+
+    worker.onmessage = (e) => {
+      const { type, payload, error } = e.data;
+
+      if (activeRequest) {
+        if (type === 'CALCULATION_COMPLETE') {
+          activeRequest.resolve(payload);
+        } else if (type === 'CALCULATION_ERROR') {
+          activeRequest.reject(error);
+        }
+        activeRequest = null;
+      }
+    };
+
+    worker.onerror = (err) => {
+      console.error("WASM Worker Error:", err);
+      if (activeRequest) {
+        activeRequest.reject(err);
+        activeRequest = null;
+      }
+    };
+  }
+  return worker;
+}
+
+export function terminateWasmWorker() {
+  if (worker) {
+    worker.terminate();
+    worker = null;
+    activeRequest = null;
   }
 }
 
@@ -64,12 +81,12 @@ function printAnalysisLog(result: WasmAnalysisResult, difficulty: string) {
 
   console.groupCollapsed("📊 Candidate Details");
   
-  // Best move details
-  console.log(
-    `1. (${best.r}, ${best.c}) - Rate: ${winRatePercent}% [Visits: ${best.visits}, Wins: ${best.wins}]`
-  );
+  if (best) {
+    console.log(
+        `1. (${best.r}, ${best.c}) - Rate: ${winRatePercent}% [Visits: ${best.visits}, Wins: ${best.wins}]`
+    );
+  }
 
-  // Alternatives
   result.alternatives.forEach((alt, idx) => {
     const altRate = (alt.win_rate * 100).toFixed(1);
     console.log(
@@ -77,7 +94,6 @@ function printAnalysisLog(result: WasmAnalysisResult, difficulty: string) {
     );
   });
   console.groupEnd();
-
   console.groupEnd();
 }
 
@@ -85,9 +101,6 @@ export async function getWasmAIMove(
   board: BoardState,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"
 ): Promise<AIMoveResult | null> {
-  const engine = await initWasm();
-  if (!engine) return null;
-
   const rows = board.boardSize.rows;
   const cols = board.boardSize.cols;
   const flatBoard = new Uint8Array(rows * cols);
@@ -107,18 +120,37 @@ export async function getWasmAIMove(
   if (difficulty === 'NEXUS-7') timeLimit = 4000;
 
   try {
-    // WASM call now returns AnalysisResult object
-    const resultObj: any = engine.get_best_move(flatBoard, true, timeLimit);
+    const workerInstance = getWorker();
     
-    // Type assertion and validation
+    // Wrap worker communication in a Promise
+    const resultObj = await new Promise<any>((resolve, reject) => {
+      // If there's an active request, reject it (or queue it, but single threaded AI implies one move at a time)
+      if (activeRequest) {
+          // Ideally we should cancel the previous one
+          activeRequest.reject("Cancelled by new request");
+      }
+      
+      activeRequest = { resolve, reject };
+      
+      workerInstance.postMessage({
+        type: 'CALCULATE_MOVE',
+        payload: {
+          boardArray: flatBoard,
+          isAiTurn: true,
+          timeLimit
+        }
+      });
+    });
+
+    // Validate result
     if (!resultObj || !resultObj.best_move) {
-        throw new Error("Invalid result from WASM engine");
+        throw new Error("Invalid result from WASM worker");
     }
 
     const result = resultObj as WasmAnalysisResult;
     const best = result.best_move!;
 
-    // Print detailed developer logs
+    // Print logs
     printAnalysisLog(result, difficulty);
 
     return {
@@ -133,7 +165,9 @@ export async function getWasmAIMove(
     };
 
   } catch (e) {
-    console.error("WASM Engine Error:", e);
+    console.error("WASM Worker Error:", e);
+    // Restart worker if it crashed
+    terminateWasmWorker();
     return null;
   }
 }
