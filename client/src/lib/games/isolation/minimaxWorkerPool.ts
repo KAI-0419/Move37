@@ -2,9 +2,9 @@
  * Minimax Worker Pool for Isolation AI
  *
  * Manages a Web Worker to run minimax calculations in a background thread.
- * Unlike Entropy's MCTS which benefits from parallelization, minimax with
- * alpha-beta pruning is inherently sequential, so we use a single worker
- * to avoid blocking the main thread while maintaining algorithm efficiency.
+ * Minimax with alpha-beta pruning is inherently sequential, so we use a
+ * single worker to avoid blocking the main thread while maintaining
+ * algorithm efficiency.
  *
  * Architecture:
  * - Creates a single Worker for minimax calculation

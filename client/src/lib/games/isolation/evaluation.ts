@@ -9,7 +9,6 @@
  * - Transposition table with Zobrist hashing
  * - Enhanced move ordering (killer moves, history heuristic)
  * - Endgame solver with bitboards
- * - MCTS for NEXUS-7
  * - Difficulty-based configuration
  */
 
@@ -24,7 +23,6 @@ import { getDifficultyConfig, selectMoveIndex, type Difficulty, type DifficultyC
 import { solveEndgame, calculateEndgameAdvantage, shouldSolveExactly } from "./endgameSolver";
 import { evaluateAdvanced, evaluateBasic, evaluateOpening, evaluateTerminal } from "./advancedEvaluation";
 import { getOpeningMove, isOpeningPhase, getOpeningBonus } from "./openingBook";
-import { runMCTS, runHybridSearch } from "./mcts";
 
 // History heuristic table: from -> to -> score
 const historyTable: number[][] = Array(49).fill(null).map(() => Array(49).fill(0));
@@ -515,20 +513,7 @@ export function runMinimaxSearch(
       }
     }
 
-    // 3. Use MCTS for NEXUS-7
-    if (config.useMCTS) {
-      const mctsResult = runHybridSearch(board, config.timeLimit * 0.8);
-      if (mctsResult.move) {
-        const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
-        return {
-          move: mctsResult.move,
-          logs: [psychologicalInsight, `gameRoom.log.isolation.strategy.${mctsResult.method}`],
-          depth: config.maxDepth
-        };
-      }
-    }
-
-    // 4. Standard minimax search
+    // 3. Standard minimax search
     const aiMoves = getValidMoves(board, board.aiPos, false);
     if (aiMoves.length === 0) {
       return { move: null, logs: ["gameRoom.log.isolation.noMoves"] };

@@ -33,7 +33,6 @@ export interface DifficultyConfig {
   useEndgameSolver: boolean;     // Use endgame solver when partitioned
   useTranspositionTable: boolean; // Cache evaluated positions
   useOpeningBook: boolean;       // Use pre-computed opening moves
-  useMCTS: boolean;              // Use Monte Carlo Tree Search
 
   // Move selection (for adding "human-like" weakness)
   moveSelectionRange: number;    // 0.0 = best only, 0.5 = top 50%
@@ -84,7 +83,6 @@ const NEXUS_3_CONFIG: DifficultyConfig = {
   useEndgameSolver: false,       // No endgame solving
   useTranspositionTable: false,  // Simple search
   useOpeningBook: false,         // Calculate from scratch
-  useMCTS: false,                // Pure minimax
 
   moveSelectionRange: 0.4,       // Pick from top 40% of moves
   mistakeRate: 0.12,             // 12% chance of suboptimal move
@@ -131,7 +129,6 @@ const NEXUS_5_CONFIG: DifficultyConfig = {
   useEndgameSolver: true,        // Solve endgames exactly
   useTranspositionTable: true,   // Cache positions
   useOpeningBook: true,          // Use opening book
-  useMCTS: false,                // Pure alpha-beta
 
   moveSelectionRange: 0.0,       // Always pick the best move (Expert shouldn't play randomly)
   mistakeRate: 0.0,              // No intentional mistakes
@@ -164,7 +161,7 @@ const NEXUS_5_CONFIG: DifficultyConfig = {
  *
  * Design goals:
  * - Only the best human players can win
- * - Uses MCTS for strategic exploration
+ * - Uses Deep Minimax (Depth 10+)
  * - Perfect opening book and endgame solving
  * - No intentional mistakes
  * - Deep, thorough analysis
@@ -179,7 +176,6 @@ const NEXUS_7_CONFIG: DifficultyConfig = {
   useEndgameSolver: true,        // Perfect endgame play
   useTranspositionTable: true,   // Full caching
   useOpeningBook: true,          // Perfect opening play
-  useMCTS: false,                // DISABLED: MCTS is too slow for web workers. Switched to Deep Minimax.
 
   moveSelectionRange: 0.0,       // Always best move
   mistakeRate: 0.0,              // No mistakes
@@ -331,7 +327,7 @@ export function getDifficultyDescription(difficulty: Difficulty): {
         searchDepth: 12,
         strength: "Master",
         features: [
-          "MCTS + Alpha-Beta hybrid",
+          "Deep Minimax Engine (Depth 10+)",
           "Perfect opening play",
           "Perfect endgame solving",
           "Full territory control",
