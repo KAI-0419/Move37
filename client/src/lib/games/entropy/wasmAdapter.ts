@@ -115,15 +115,25 @@ export async function getWasmAIMove(
     }
   }
 
+  // Detect mobile device to prevent overheating
+  const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
   let timeLimit = 1000;
   let numericDifficulty = 3;
   if (difficulty === 'NEXUS-5') {
-    timeLimit = 2000;
+    // Reduce time on mobile to prevent heat
+    timeLimit = isMobile ? 1000 : 2000;
     numericDifficulty = 5;
   }
   if (difficulty === 'NEXUS-7') {
-    timeLimit = 4000;
+    // Significant reduction on mobile for heat management
+    // 4000ms at 100% CPU is too much for passive cooling on phones
+    timeLimit = isMobile ? 2500 : 4000;
     numericDifficulty = 7;
+  }
+
+  if (isMobile) {
+    console.log(`[EntropyWasm] Mobile device detected. Adjusting time limit to ${timeLimit}ms for ${difficulty}`);
   }
 
   try {

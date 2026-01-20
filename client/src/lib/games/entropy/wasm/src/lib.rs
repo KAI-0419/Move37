@@ -432,8 +432,10 @@ impl MCTSEngine {
         let rave_const = 300.0;
 
         while iterations < self.config.max_simulations {
-            let elapsed = js_sys::Date::now() - start;
-            if elapsed >= time_limit_ms as f64 { break; }
+            if iterations % 1000 == 0 {
+                let elapsed = js_sys::Date::now() - start;
+                if elapsed >= time_limit_ms as f64 { break; }
+            }
 
             let mut state = self.root_state.clone();
             

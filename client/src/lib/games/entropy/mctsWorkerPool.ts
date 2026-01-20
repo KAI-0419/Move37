@@ -85,16 +85,23 @@ export class MCTSWorkerPool {
       ? navigator.hardwareConcurrency
       : 4; // Fallback to 4 if not available
 
-    // Use min(maxWorkers, max(minWorkers, cores - 1))
+    // Detect mobile device for thermal management
+    const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // On mobile, cap workers to 4 to prevent overheating
+    // On desktop, allow up to 8 (or maxWorkers config)
+    const effectiveMaxWorkers = isMobile ? Math.min(maxWorkers, 4) : maxWorkers;
+
+    // Use min(effectiveMaxWorkers, max(minWorkers, cores - 1))
     // Reserve 1 core for main thread and UI
     this.workerCount = Math.min(
-      maxWorkers,
+      effectiveMaxWorkers,
       Math.max(minWorkers, availableCores - 1)
     );
 
     this.workerTimeout = workerTimeout;
 
-    console.log(`[MCTSWorkerPool] Initializing with ${this.workerCount} workers (${availableCores} cores available)`);
+    console.log(`[MCTSWorkerPool] Initializing with ${this.workerCount} workers (${availableCores} cores, mobile=${isMobile})`);
   }
 
   /**
