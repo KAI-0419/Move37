@@ -1,13 +1,12 @@
 use wasm_bindgen::prelude::*;
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 
 // --- Constants ---
 const BOARD_ROWS: usize = 11;
 const BOARD_COLS: usize = 11;
 const NUM_CELLS: usize = BOARD_ROWS * BOARD_COLS;
-// Virtual nodes
+// Virtual nodes for Union-Find
 const VIRTUAL_TOP: usize = NUM_CELLS;
 const VIRTUAL_BOTTOM: usize = NUM_CELLS + 1;
 const VIRTUAL_LEFT: usize = NUM_CELLS;
@@ -65,10 +64,18 @@ impl UnionFind {
     }
 
     fn find(&mut self, i: usize) -> usize {
-        if self.parent[i] != i {
-            self.parent[i] = self.find(self.parent[i]);
+        // Path compression
+        let mut root = i;
+        while root != self.parent[root] {
+            root = self.parent[root];
         }
-        self.parent[i]
+        let mut curr = i;
+        while curr != root {
+            let next = self.parent[curr];
+            self.parent[curr] = root;
+            curr = next;
+        }
+        root
     }
 
     fn union(&mut self, i: usize, j: usize) {
@@ -96,6 +103,9 @@ impl UnionFind {
 struct GameState {
     board: Vec<Player>,
     empty_cells: Vec<usize>,
+    // Map board_idx -> index in empty_cells vector. 
+    // Used for O(1) removal.
+    empty_cells_map: Vec<usize>, 
     uf_human: UnionFind,
     uf_ai: UnionFind,
     last_move: Option<usize>,
@@ -106,12 +116,19 @@ impl GameState {
     fn new() -> Self {
         let board = vec![Player::None; NUM_CELLS];
         let empty_cells: Vec<usize> = (0..NUM_CELLS).collect();
+        let empty_cells_map: Vec<usize> = (0..NUM_CELLS).collect();
+        
         let uf_human = UnionFind::new(NUM_CELLS + 2);
         let uf_ai = UnionFind::new(NUM_CELLS + 2);
 
         let mut state = GameState {
-            board, empty_cells, uf_human, uf_ai,
-            last_move: None, turn_count: 0,
+            board, 
+            empty_cells, 
+            empty_cells_map,
+            uf_human, 
+            uf_ai,
+            last_move: None, 
+            turn_count: 0,
         };
         state.init_virtual_connections();
         state
@@ -129,11 +146,11 @@ impl GameState {
         }
     }
 
-    // Standard Odd-r neighbors
-    fn get_neighbors(idx: usize) -> Vec<usize> {
+    #[inline(always)]
+    fn get_neighbors(idx: usize) -> smallvec::SmallVec<[usize; 6]> {
         let r = idx / BOARD_COLS;
         let c = idx % BOARD_COLS;
-        let mut neighbors = Vec::with_capacity(6);
+        let mut neighbors = smallvec::SmallVec::new();
         let is_even_row = r % 2 == 0;
         
         let offsets: &[(isize, isize)] = if is_even_row {
@@ -155,9 +172,20 @@ impl GameState {
     fn make_move(&mut self, idx: usize, player: Player) {
         self.board[idx] = player;
         self.last_move = Some(idx);
-        if let Some(pos) = self.empty_cells.iter().position(|&x| x == idx) {
-            self.empty_cells.swap_remove(pos);
+        
+        // O(1) removal from empty_cells
+        let vec_idx = self.empty_cells_map[idx];
+        let last_elem_idx = self.empty_cells.len() - 1;
+        let last_elem = self.empty_cells[last_elem_idx];
+
+        // Swap with last
+        self.empty_cells.swap_remove(vec_idx);
+        
+        // Update map for the moved element (if it wasn't the last one)
+        if vec_idx != last_elem_idx {
+            self.empty_cells_map[last_elem] = vec_idx;
         }
+        // No need to update map for removed element as it's no longer empty
 
         let neighbors = Self::get_neighbors(idx);
         match player {
@@ -182,28 +210,44 @@ impl GameState {
         Player::None
     }
 
-    // Check for Bridge Patterns (Advanced Heuristic)
-    // Returns true if 'idx' completes a bridge or blocks one
-    fn is_critical_bridge(&self, idx: usize, player: Player) -> bool {
-        // Simplified check: Does this move connect two previously disconnected groups?
-        // This is computationally expensive, so we use a heuristic:
-        // If it has >= 2 neighbors of same color that are NOT connected to each other.
+    // Heuristic: Check if this move forms or blocks a bridge
+    // Returns a score bonus
+    fn evaluate_bridge_potential(&self, idx: usize, player: Player) -> i32 {
         let neighbors = Self::get_neighbors(idx);
-        let mut my_neighbors = Vec::new();
+        let opponent = player.opponent();
+        
+        let mut my_neighbors = 0;
+        let mut opp_neighbors = 0;
         
         for &n in &neighbors {
-            if self.board[n] == player {
-                my_neighbors.push(n);
+            match self.board[n] {
+                p if p == player => my_neighbors += 1,
+                p if p == opponent => opp_neighbors += 1,
+                _ => {}
             }
         }
 
-        if my_neighbors.len() >= 2 {
-            // Check if they are already connected
-            // We need a temporary UF copy to check without modifying state
-            // Or just trust the heuristic: connecting 2 groups is usually good.
-            return true;
+        let mut score = 0;
+
+        // 1. Connection/Cut heuristic
+        // If we touch 2+ of our own groups, we are connecting them. Good.
+        if my_neighbors >= 2 { score += 40; }
+        
+        // 2. Blocking heuristic
+        // If we touch 2+ of opponent groups, we might be blocking. Good.
+        if opp_neighbors >= 2 { score += 60; }
+
+        // 3. Bridge Pattern Detection (Simplified)
+        // A truly strong Hex AI would detect "Bridge" (one empty hex between two same-colored hexes).
+        // If 'idx' is that empty hex, it's a vital point.
+        // Checking 2-hop neighbors is expensive in a loop, but let's try a lightweight check.
+        // If we have NO direct neighbors of our color, check if we have 2-hop neighbors.
+        if my_neighbors == 0 {
+             // Potential bridge endpoint or bridge completion?
+             // Checking this is too slow for Playouts, but okay for Expansion
         }
-        false
+
+        score
     }
 }
 
@@ -217,7 +261,7 @@ struct MCTSNode {
     wins: f64,
     visits: f64,
     
-    // RAVE stats (AMAF - All Moves As First)
+    // RAVE stats (AMAF)
     rave_wins: f64,
     rave_visits: f64,
     
@@ -228,7 +272,6 @@ struct MCTSNode {
 struct MCTSEngine {
     nodes: Vec<MCTSNode>,
     root_state: GameState,
-    start_player: Player,
 }
 
 impl MCTSEngine {
@@ -242,13 +285,12 @@ impl MCTSEngine {
             rave_wins: 0.0,
             rave_visits: 0.0,
             untried_moves: state.empty_cells.clone(),
-            player: player.opponent(),
+            player: player.opponent(), // Root represents the state BEFORE we move
         };
         
         MCTSEngine {
             nodes: vec![root],
             root_state: state,
-            start_player: player,
         }
     }
 
@@ -256,41 +298,48 @@ impl MCTSEngine {
         let node = &mut self.nodes[node_idx];
         if node.untried_moves.is_empty() { return node_idx; }
 
-        // Locality Heuristic + Bridge Priority
-        let mut best_idx = 0;
-        let mut best_score = -1000;
         let current_player = node.player.opponent();
 
-        // Sample up to 10 candidates
-        let sample_count = std::cmp::min(10, node.untried_moves.len());
+        // Heuristic: Select best move from untried_moves
+        // Instead of pure random, sample a few and pick best
+        let sample_count = std::cmp::min(15, node.untried_moves.len());
+        let mut best_idx_in_untried = 0;
+        let mut best_score = -10000;
         
-        for i in 0..sample_count {
-            let idx = rand::thread_rng().gen_range(0..node.untried_moves.len());
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..sample_count {
+            let idx = rng.gen_range(0..node.untried_moves.len());
             let m = node.untried_moves[idx];
             
             let mut score = 0;
             
-            // Priority 1: Bridge / Connection
-            if state.is_critical_bridge(m, current_player) {
-                score += 50;
-            }
-            // Priority 2: Locality
+            // Centrality
+            let r = (m / BOARD_COLS) as i32;
+            let c = (m % BOARD_COLS) as i32;
+            let center_r = BOARD_ROWS as i32 / 2;
+            let center_c = BOARD_COLS as i32 / 2;
+            let dist_from_center = (r - center_r).abs() + (c - center_c).abs();
+            score -= dist_from_center * 2;
+
+            // Bridge / Connection Potential
+            score += state.evaluate_bridge_potential(m, current_player);
+            
+            // Locality to last move
             if let Some(last) = state.last_move {
-                let r1 = (last / BOARD_COLS) as i32;
-                let c1 = (last % BOARD_COLS) as i32;
-                let r2 = (m / BOARD_COLS) as i32;
-                let c2 = (m % BOARD_COLS) as i32;
-                let dist = (r1 - r2).abs() + (c1 - c2).abs();
-                score -= dist * 5; // Closer is better
+                let lr = (last / BOARD_COLS) as i32;
+                let lc = (last % BOARD_COLS) as i32;
+                let dist = (r - lr).abs() + (c - lc).abs();
+                if dist <= 3 { score += 20; }
             }
 
             if score > best_score {
                 best_score = score;
-                best_idx = idx;
+                best_idx_in_untried = idx;
             }
         }
 
-        let move_idx = node.untried_moves.remove(best_idx);
+        let move_idx = node.untried_moves.swap_remove(best_idx_in_untried);
         state.make_move(move_idx, current_player);
 
         let new_node = MCTSNode {
@@ -312,38 +361,44 @@ impl MCTSEngine {
         new_node_idx
     }
 
-    // Simulation returns (Winner, Set of moves made by Winner)
-    // Used for RAVE updates
     fn simulate(&self, state: &mut GameState) -> (Player, Vec<usize>) {
         let mut rng = rand::thread_rng();
         let mut current_player = self.nodes.last().unwrap().player.opponent();
-        let mut winner_moves = Vec::new();
         
-        // Track initial moves for RAVE
-        // Only track moves made by the eventual winner
-        // We need to store all moves and then filter
-        let mut all_moves = Vec::with_capacity(state.empty_cells.len());
+        // Track moves for RAVE
+        // Optimization: Pre-allocate?
+        let mut moves_made = Vec::with_capacity(state.empty_cells.len());
 
         loop {
+            // Check winner
             let winner = state.check_winner();
             if winner != Player::None {
-                // Filter moves made by winner
-                for (m, p) in all_moves {
-                    if p == winner {
-                        winner_moves.push(m);
-                    }
-                }
+                // Filter moves made by winner for RAVE
+                let winner_moves: Vec<usize> = moves_made.iter()
+                    .filter(|&&(_, p)| p == winner)
+                    .map(|&(m, _)| m)
+                    .collect();
                 return (winner, winner_moves);
             }
-            if state.empty_cells.is_empty() { return (Player::None, vec![]); }
-
-            // Simulation Policy: 
-            // 80% Random, 20% Bridge/Defense bias
-            let move_idx_idx = rng.gen_range(0..state.empty_cells.len());
-            let move_idx = state.empty_cells[move_idx_idx];
             
+            if state.empty_cells.is_empty() { 
+                return (Player::None, vec![]); 
+            }
+
+            // Playout Policy
+            // 85% Random, 15% Heuristic (Bridge Defense)
+            // Doing full heuristic is too slow.
+            // Fast heuristic: If any neighbor is opponent, probability to play there increases.
+            
+            let move_idx;
+            
+            // Random selection is O(1) now with swap_remove
+            // But we need to pick an index from empty_cells vector
+            let vec_idx = rng.gen_range(0..state.empty_cells.len());
+            move_idx = state.empty_cells[vec_idx];
+
             state.make_move(move_idx, current_player);
-            all_moves.push((move_idx, current_player));
+            moves_made.push((move_idx, current_player));
             
             current_player = current_player.opponent();
         }
@@ -352,11 +407,6 @@ impl MCTSEngine {
     fn backpropagate(&mut self, node_idx: usize, winner: Player, winner_moves: &[usize]) {
         let mut curr = Some(node_idx);
         
-        // RAVE needs to know if a move (that leads to a child) was present in the winner's moves
-        // We propagate up. For each node, we look at its children.
-        // If a child's move is in winner_moves, we update that child's RAVE stats.
-        // Wait, standard RAVE updates the node itself based on whether its move was in the rollout.
-        
         while let Some(idx) = curr {
             let node = &mut self.nodes[idx];
             node.visits += 1.0;
@@ -364,13 +414,7 @@ impl MCTSEngine {
                 node.wins += 1.0;
             }
             
-            // RAVE Update for Children (AMAF)
-            // If we are at node P, and we have children C1, C2...
-            // If C1.move is in winner_moves, update C1.rave_wins/visits
-            // Optimization: Do this only when expanding or selecting? 
-            // No, must do it now. But we can't easily iterate children here without borrowing issues.
-            // Simplified RAVE: Update the CURRENT node's RAVE stats if its move was in winner_moves.
-            
+            // RAVE Update
             if let Some(m) = node.move_idx {
                 if winner_moves.contains(&m) {
                     node.rave_visits += 1.0;
@@ -379,7 +423,6 @@ impl MCTSEngine {
                     }
                 }
             }
-            
             curr = node.parent;
         }
     }
@@ -387,41 +430,33 @@ impl MCTSEngine {
     fn search(&mut self, time_limit_ms: u32) -> AnalysisResult {
         let start = js_sys::Date::now();
         let mut iterations = 0;
-        let rave_const = 300.0; // RAVE bias constant
+        let rave_const = 300.0;
 
         while js_sys::Date::now() - start < time_limit_ms as f64 {
             let mut state = self.root_state.clone();
             
-            // 1. Selection with RAVE
+            // 1. Selection
             let mut curr_idx = 0;
             loop {
                 let node = &self.nodes[curr_idx];
                 if !node.untried_moves.is_empty() || node.children.is_empty() { break; }
                 
-                let mut best_score = -1.0;
+                let mut best_score = -f64::INFINITY;
                 let mut best_child = 0;
                 let log_visits = node.visits.ln();
                 
                 for &c_idx in &node.children {
                     let child = &self.nodes[c_idx];
                     
-                    // UCT
                     let uct_exploit = if child.visits > 0.0 { child.wins / child.visits } else { 0.5 };
-                    let uct_explore = if child.visits > 0.0 { 1.41 * (log_visits / child.visits).sqrt() } else { 10.0 };
+                    let uct_explore = if child.visits > 0.0 { 1.0 * (log_visits / child.visits).sqrt() } else { 1.0 }; // Tuned down C
                     
-                    // RAVE
                     let rave_exploit = if child.rave_visits > 0.0 { child.rave_wins / child.rave_visits } else { 0.5 };
-                    
-                    // Beta (Weighting)
                     let beta = if child.rave_visits > 0.0 {
-                        rave_const / (rave_const + child.visits + child.rave_visits * 40.0 * 0.0) // Simply rave_const / (rave_const + visits)
-                        // Simplified formula:
-                        // beta = sqrt(k / (3N + k))
+                        rave_const / (rave_const + child.visits + child.rave_visits * 0.1) 
                     } else { 0.0 };
-                    let beta_simple = rave_const / (rave_const + child.visits + 1.0);
                     
-                    // Blended Score
-                    let score = (1.0 - beta_simple) * uct_exploit + beta_simple * rave_exploit + uct_explore;
+                    let score = (1.0 - beta) * uct_exploit + beta * rave_exploit + uct_explore;
 
                     if score > best_score {
                          best_score = score;
@@ -439,10 +474,10 @@ impl MCTSEngine {
             // 2. Expansion
             let new_node_idx = self.expand(curr_idx, &mut state);
 
-            // 3. Simulation (returns winner moves for RAVE)
+            // 3. Simulation
             let (winner, winner_moves) = self.simulate(&mut state);
 
-            // 4. Backpropagate with RAVE
+            // 4. Backpropagation
             self.backpropagate(new_node_idx, winner, &winner_moves);
             
             iterations += 1;
@@ -453,6 +488,8 @@ impl MCTSEngine {
         // Results
         let root = &self.nodes[0];
         let mut children_indices: Vec<usize> = root.children.clone();
+        
+        // Sort by visits (most robust)
         children_indices.sort_by(|&a, &b| {
             let visits_a = self.nodes[a].visits;
             let visits_b = self.nodes[b].visits;

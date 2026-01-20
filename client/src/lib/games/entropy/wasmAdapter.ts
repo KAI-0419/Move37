@@ -70,7 +70,7 @@ function printAnalysisLog(result: WasmAnalysisResult, difficulty: string) {
   const npsFormatted = Math.round(result.nps).toLocaleString();
   const simsFormatted = result.total_simulations.toLocaleString();
 
-  console.group(`🤖 NEXUS-7 AI Analysis [${difficulty}]`);
+  console.group(`🤖 NEXUS-7 AI Analysis [${difficulty}] (Enhanced v2)`);
   console.log(
     `%c🏆 Best Move: (${best.r}, ${best.c}) | Win Rate: ${winRatePercent}%`,
     "color: #4ade80; font-weight: bold; font-size: 14px;"
