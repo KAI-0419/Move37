@@ -170,7 +170,7 @@ const NEXUS_5_CONFIG: DifficultyConfig = {
  * - Deep, thorough analysis
  */
 const NEXUS_7_CONFIG: DifficultyConfig = {
-  maxDepth: 12,
+  maxDepth: 10,
   timeLimit: 15000,
   minDepth: 5,
 
@@ -179,7 +179,7 @@ const NEXUS_7_CONFIG: DifficultyConfig = {
   useEndgameSolver: true,        // Perfect endgame play
   useTranspositionTable: true,   // Full caching
   useOpeningBook: true,          // Perfect opening play
-  useMCTS: true,                 // MCTS + Alpha-Beta hybrid
+  useMCTS: false,                // DISABLED: MCTS is too slow for web workers. Switched to Deep Minimax.
 
   moveSelectionRange: 0.0,       // Always best move
   mistakeRate: 0.0,              // No mistakes
@@ -189,21 +189,21 @@ const NEXUS_7_CONFIG: DifficultyConfig = {
   useHistoryHeuristic: true,
 
   weights: {
-    territory: 10.0,             // Maximum territory focus
-    mobility: 4.0,               // Strong mobility
-    mobilityPotential: 3.0,      // Deep lookahead
-    centerControl: 1.2,          // Strong center control
-    cornerAvoidance: 1.0,        // Strong corner avoidance
+    territory: 5.0,              // Moderate territory focus
+    mobility: 8.0,               // Extreme mobility focus (Don't get trapped)
+    mobilityPotential: 5.0,      // Deep lookahead for moves
+    centerControl: 2.0,          // Strong center control
+    cornerAvoidance: 3.0,        // Stronger corner avoidance (Don't trap yourself)
     partitionAdvantage: 500,     // Critical partition detection
-    criticalCells: 3.0,          // Critical cell control
-    openness: 0.7,               // Openness awareness
-    wallPenalty: 0.5,
-    voronoiTerritory: 10.0,
-    immediateMobility: 4.0,
-    isolationPenalty: 8.0,
+    criticalCells: 4.0,          // Critical cell control
+    openness: 1.0,               // Openness awareness
+    wallPenalty: 0.8,
+    voronoiTerritory: 5.0,
+    immediateMobility: 8.0,
+    isolationPenalty: 12.0,      // Maximum penalty for being isolated
   },
 
-  destroyCandidateCount: 8,
+  destroyCandidateCount: 2,      // Optimized: Only check top 2 destroys to allow deeper search (Depth 8+)
   earlyTerminationThreshold: 8000,
 };
 

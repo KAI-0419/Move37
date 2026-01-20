@@ -118,31 +118,63 @@ function getAllMoves(
 
     if (destroyPositions.length === 0) continue;
 
+    // Optimization: Calculate opponent moves ONCE for this 'to' position
+    const tempBoard = { ...board, [isPlayer ? 'playerPos' : 'aiPos']: to };
+    const opponentMoves = getValidMoves(tempBoard, opponentPos, !isPlayer);
+    const opponentMovesCount = opponentMoves.length;
+
+    // SELF-PRESERVATION CHECK (Vital for NEXUS-7)
+    // Check our own future mobility from this new position 'to'.
+    // If we move here, how many moves will we have next turn?
+    const myNextMoves = getValidMoves(tempBoard, to, isPlayer);
+    const myNextMobility = myNextMoves.length;
+    
+    // Penalty for moving to a spot with very limited future options (Suicide prevention)
+    let survivalBonus = 0;
+    if (myNextMobility === 0) survivalBonus = -10000; // Literal suicide
+    else if (myNextMobility === 1) survivalBonus = -5000; // Walking into a trap
+    else if (myNextMobility === 2) survivalBonus = -1000; // Risky
+
     // Score and rank destroy positions
     const scoredDestroys = destroyPositions.map(pos => {
       let score = 0;
+      
+      // Add Survival Score
+      score += survivalBonus;
 
-      // Adjacent to opponent
+      // 1. Critical Priority: Checkmate Detection
+      // Does this destroy block an opponent's move?
+      const blocksOpponent = opponentMoves.some(m => m.r === pos.r && m.c === pos.c);
+      
+      if (blocksOpponent) {
+        if (opponentMovesCount === 1) {
+          // FATALITY: Opponent has only 1 move, and we are destroying it.
+          // This creates a state where opponent has 0 moves -> Instant Win.
+          score += 10000;
+        } else {
+          // Standard blocking bonus
+          score += 50; 
+        }
+      }
+
+      // 2. Adjacent to opponent (Pressure)
       const distToOpponent = Math.abs(pos.r - opponentPos.r) + Math.abs(pos.c - opponentPos.c);
       if (distToOpponent === 1) score += 30;
       else if (distToOpponent === 2) score += 15;
 
-      // Blocks opponent's moves
-      const tempBoard = { ...board, [isPlayer ? 'playerPos' : 'aiPos']: to };
-      const opponentMoves = getValidMoves(tempBoard, opponentPos, !isPlayer);
-      if (opponentMoves.some(m => m.r === pos.r && m.c === pos.c)) {
-        score += 25;
+      // 3. Don't block our own path (Self-Preservation)
+      // Check if this destroy blocks one of our potential future moves from 'to'
+      // (Simple check: is it adjacent to 'to'?)
+      const distToSelf = Math.abs(pos.r - to.r) + Math.abs(pos.c - to.c);
+      if (distToSelf === 1) {
+         // It might be a valid move for us next turn, check carefully
+         // But for heuristic, just a small penalty is enough
+         score -= 10;
       }
 
-      // Don't block our own path
-      const ourMoves = getValidMoves(tempBoard, to, isPlayer);
-      if (ourMoves.some(m => m.r === pos.r && m.c === pos.c)) {
-        score -= 20;
-      }
-
-      // Center control
+      // 4. Center control (General heuristic)
       const centerDist = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
-      score += (6 - centerDist) * 0.5;
+      score += (6 - centerDist) * 1.5;
 
       return { pos, score };
     });
