@@ -116,8 +116,15 @@ export async function getWasmAIMove(
   }
 
   let timeLimit = 1000;
-  if (difficulty === 'NEXUS-5') timeLimit = 2000;
-  if (difficulty === 'NEXUS-7') timeLimit = 4000;
+  let numericDifficulty = 3;
+  if (difficulty === 'NEXUS-5') {
+    timeLimit = 2000;
+    numericDifficulty = 5;
+  }
+  if (difficulty === 'NEXUS-7') {
+    timeLimit = 4000;
+    numericDifficulty = 7;
+  }
 
   try {
     const workerInstance = getWorker();
@@ -137,7 +144,8 @@ export async function getWasmAIMove(
         payload: {
           boardArray: flatBoard,
           isAiTurn: true,
-          timeLimit
+          timeLimit,
+          difficultyLevel: numericDifficulty
         }
       });
     });

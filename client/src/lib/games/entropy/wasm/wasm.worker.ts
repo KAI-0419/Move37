@@ -25,7 +25,7 @@ self.onmessage = async (e: MessageEvent) => {
   const { type, payload } = e.data;
 
   if (type === 'CALCULATE_MOVE') {
-    const { boardArray, isAiTurn, timeLimit } = payload;
+    const { boardArray, isAiTurn, timeLimit, difficultyLevel } = payload;
 
     try {
       if (!isInitialized) {
@@ -37,7 +37,7 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       // Perform calculation (this blocks the worker thread, but not the UI)
-      const resultObj = engine.get_best_move(boardArray, isAiTurn, timeLimit);
+      const resultObj = engine.get_best_move(boardArray, isAiTurn, timeLimit, difficultyLevel || 7);
       
       // Send result back to main thread
       self.postMessage({
