@@ -66,7 +66,7 @@ export class MinimaxWorkerPool {
   } | null = null;
 
   constructor(config: MinimaxWorkerPoolConfig = {}) {
-    const { workerTimeout = 15000 } = config;
+    const { workerTimeout = 20000 } = config;
     this.workerTimeout = workerTimeout;
     console.log(`[MinimaxWorkerPool] Initializing with timeout: ${workerTimeout}ms`);
   }

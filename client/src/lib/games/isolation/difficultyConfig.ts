@@ -123,7 +123,7 @@ const NEXUS_3_CONFIG: DifficultyConfig = {
  */
 const NEXUS_5_CONFIG: DifficultyConfig = {
   maxDepth: 7,
-  timeLimit: 6000,
+  timeLimit: 12000,
   minDepth: 4,
 
   useVoronoi: true,              // Advanced territory analysis
@@ -133,29 +133,29 @@ const NEXUS_5_CONFIG: DifficultyConfig = {
   useOpeningBook: true,          // Use opening book
   useMCTS: false,                // Pure alpha-beta
 
-  moveSelectionRange: 0.15,      // Pick from top 15%
-  mistakeRate: 0.05,             // 5% mistake rate
-  blunderThreshold: 10.0,        // Avoid major blunders
+  moveSelectionRange: 0.0,       // Always pick the best move (Expert shouldn't play randomly)
+  mistakeRate: 0.0,              // No intentional mistakes
+  blunderThreshold: Infinity,    // N/A
 
   useKillerMoves: true,
   useHistoryHeuristic: true,
 
   weights: {
-    territory: 8.0,              // Strong territory focus
-    mobility: 3.0,               // Good mobility awareness
-    mobilityPotential: 2.0,      // 2-move lookahead
-    centerControl: 1.0,          // Center control
-    cornerAvoidance: 0.8,        // Avoid corners
-    partitionAdvantage: 300,     // Partition detection
-    criticalCells: 2.0,          // Critical cell control
-    openness: 0.5,               // Openness bonus
-    wallPenalty: 0.4,
-    voronoiTerritory: 8.0,
-    immediateMobility: 3.0,
-    isolationPenalty: 6.0,
+    territory: 4.0,              // Reduced: Don't just expand, attack!
+    mobility: 6.0,               // Increased: Value options highly
+    mobilityPotential: 4.0,      // Increased: Look ahead for options
+    centerControl: 1.5,          // Increased: Control the center
+    cornerAvoidance: 1.0,        // Avoid corners
+    partitionAdvantage: 400,     // Stronger partition awareness
+    criticalCells: 3.0,          // Control cut-points
+    openness: 0.5,
+    wallPenalty: 0.5,
+    voronoiTerritory: 4.0,
+    immediateMobility: 6.0,
+    isolationPenalty: 10.0,      // Heavily penalize getting isolated
   },
 
-  destroyCandidateCount: 6,
+  destroyCandidateCount: 3,      // Optimized: Only check top 3 destroys to increase depth
   earlyTerminationThreshold: 5000,
 };
 
@@ -171,7 +171,7 @@ const NEXUS_5_CONFIG: DifficultyConfig = {
  */
 const NEXUS_7_CONFIG: DifficultyConfig = {
   maxDepth: 12,
-  timeLimit: 10000,
+  timeLimit: 15000,
   minDepth: 5,
 
   useVoronoi: true,              // Full Voronoi analysis
