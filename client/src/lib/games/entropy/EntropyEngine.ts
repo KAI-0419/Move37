@@ -25,6 +25,7 @@ import {
 import { isValidMove, getValidMoves } from "./moveValidation";
 import { isConnected } from "./connectionCheck";
 import { getAIMove } from "./evaluation";
+import { getWasmAIMove } from "./wasmAdapter";
 
 export class EntropyEngine implements IGameEngine {
   getGameType(): GameType {
@@ -180,6 +181,27 @@ export class EntropyEngine implements IGameEngine {
   ): Promise<AIMoveResult> {
     try {
       const board = parseBoardState(boardState);
+      
+      // Try WASM Engine first for high performance
+      // Only use WASM for higher difficulties or if available
+      if (difficulty === "NEXUS-7" || difficulty === "NEXUS-5") {
+        try {
+          console.log("Attempting WASM calculation for", difficulty);
+          const wasmResult = await getWasmAIMove(board, difficulty);
+          if (wasmResult) {
+            // Validate WASM move just in case
+             const isValid = this.isValidMove(boardState, wasmResult.move!, false);
+             if (isValid.valid) {
+               return wasmResult;
+             }
+             console.warn("WASM returned invalid move:", wasmResult.move);
+          }
+        } catch (wasmErr) {
+          console.warn("WASM engine failed, falling back to JS:", wasmErr);
+        }
+      }
+
+      // Fallback to existing JS Engine
       const result = await getAIMove(board, playerLastMove, difficulty, turnCount, boardHistory);
       
       // Validate that result has a valid move structure
