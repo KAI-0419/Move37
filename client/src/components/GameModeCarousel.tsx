@@ -65,7 +65,7 @@ export function GameModeCarousel({
     setCurrentIndex(clampedIndex);
 
     // Auto-select the first visible game for better UX
-    const firstVisibleGameIndex = clampedIndex;
+    const firstVisibleGameIndex = Math.round(clampedIndex);
     const game = AVAILABLE_GAMES[firstVisibleGameIndex];
     if (game && game.available && game.id !== selectedGameType) {
       onGameTypeChange(game.id);
@@ -74,7 +74,7 @@ export function GameModeCarousel({
 
   // Get the first visible game (for Enter key selection)
   const getFirstVisibleGameIndex = () => {
-    return currentIndex;
+    return Math.round(currentIndex);
   };
 
   // Reset currentIndex when cardsToShow changes to prevent out-of-bounds

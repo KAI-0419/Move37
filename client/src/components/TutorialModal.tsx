@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ChevronLeft, Target, Zap, Clock } from "lucide-react";
+import { ChevronRight, ChevronLeft, Target, Zap, Clock, Ban, Trophy } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GlitchButton } from "@/components/GlitchButton";
 import { KingPiece, KnightPiece, PawnPiece } from "@/components/ChessPieces";
@@ -118,6 +118,37 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
     }
   }, [currentStep]);
 
+  // Touch handling for swipe gestures
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (e: TouchEvent) => {
+    touchStartRef.current = {
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY,
+    };
+  };
+
+  const handleTouchEnd = (e: TouchEvent) => {
+    if (!touchStartRef.current) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+
+    const diffX = touchStartRef.current.x - touchEndX;
+    const diffY = touchStartRef.current.y - touchEndY;
+    const minSwipeDistance = 50;
+
+    // Check if horizontal swipe is dominant and exceeds threshold
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
+      if (diffX > 0) {
+        handleNext(); // Swipe Left -> Next
+      } else {
+        handlePrev(); // Swipe Right -> Prev
+      }
+    }
+    touchStartRef.current = null;
+  };
+
   // Reset when modal closes or game type changes
   useEffect(() => {
     if (!open) {
@@ -197,11 +228,14 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
       }
       onOpenChange(isOpen);
     }}>
-      <DialogContent className={cn(
-        "max-w-3xl max-h-[85vh] bg-black/95 border-2 border-primary/30 backdrop-blur-sm shadow-[0_0_30px_rgba(0,243,255,0.2)]",
-        // 모바일에서는 항상 스크롤 허용, 데스크톱(lg 이상)에서만 6번째 페이지 스크롤 숨김
-        currentStep === 5 ? "overflow-y-auto lg:overflow-y-hidden" : "overflow-y-auto"
-      )}>
+      <DialogContent
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className={cn(
+          "max-w-3xl max-h-[85vh] bg-black/95 border-2 border-primary/30 backdrop-blur-sm shadow-[0_0_30px_rgba(0,243,255,0.2)]",
+          // 모바일에서는 항상 스크롤 허용, 데스크톱(lg 이상)에서만 6번째 페이지 스크롤 숨김
+          currentStep === 5 ? "overflow-y-auto lg:overflow-y-hidden" : "overflow-y-auto"
+        )}>
         <DialogHeader className="pb-3">
           <DialogTitle className="text-lg font-display font-black text-primary tracking-wider flex items-center gap-2">
             <Zap className="w-5 h-5" />
@@ -307,9 +341,21 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
                 <h3 className="text-base font-bold text-primary mb-2 flex items-center gap-2">
                   {currentStep === 0 && <Target className="w-4 h-4" />}
                   {currentStep === 1 && <Target className="w-4 h-4" />}
-                  {currentStep === 2 && <span className="w-5 h-5 text-primary"><KingPiece /></span>}
-                  {currentStep === 3 && <span className="w-5 h-5 text-primary"><PawnPiece /></span>}
-                  {currentStep === 4 && <span className="w-5 h-5 text-primary"><KnightPiece /></span>}
+                  {currentStep === 2 && (
+                    gameType === "MINI_CHESS" ?
+                      <span className="w-5 h-5 text-primary"><KingPiece /></span> :
+                      <Ban className="w-4 h-4" />
+                  )}
+                  {currentStep === 3 && (
+                    gameType === "MINI_CHESS" ?
+                      <span className="w-5 h-5 text-primary"><PawnPiece /></span> :
+                      <Trophy className="w-4 h-4" />
+                  )}
+                  {currentStep === 4 && (
+                    gameType === "MINI_CHESS" ?
+                      <span className="w-5 h-5 text-primary"><KnightPiece /></span> :
+                      <Zap className="w-4 h-4" />
+                  )}
                   {currentStep === 5 && <Clock className="w-4 h-4" />}
                   {currentStep === 6 && <Target className="w-4 h-4" />}
                   {t(step.titleKey)}
