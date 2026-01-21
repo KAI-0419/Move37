@@ -6,7 +6,7 @@
  * automatic animation cycling.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
@@ -30,11 +30,13 @@ interface TutorialPreviewProps {
 function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenStats }: TutorialPreviewProps) {
   const { t } = useTranslation();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
   const [animatedBoard, setAnimatedBoard] = useState<string>("");
   const [showAnimation, setShowAnimation] = useState(false);
   const [engine, setEngine] = useState<any>(null);
   const [BoardComponent, setBoardComponent] = useState<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Get game-specific tutorial data
   const tutorialSteps = useMemo(() => getTutorialSteps(gameType), [gameType]);
@@ -79,7 +81,41 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
     }
   }, [tutorialSteps, initialBoard]);
 
-  // Auto-cycle through tutorial steps (simplified - just show different board states)
+  // Intersection Observer: Start playing when 90% visible (only once)
+  useEffect(() => {
+    if (hasPlayedOnce || !containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasPlayedOnce) {
+            setIsPlaying(true);
+          }
+        });
+      },
+      {
+        threshold: 0.9, // Trigger when 90% of the preview is visible
+        rootMargin: '0px',
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasPlayedOnce]);
+
+  // Reset when gameType changes (component remount or game selection change)
+  useEffect(() => {
+    setHasPlayedOnce(false);
+    setIsPlaying(false);
+    setCurrentStepIndex(0);
+    setShowAnimation(false);
+    setAnimatedBoard(initialBoard);
+  }, [gameType, initialBoard]);
+
+  // Auto-cycle through tutorial steps (single playthrough only)
   useEffect(() => {
     if (!isPlaying || tutorialSteps.length === 0 || !engine) return;
 
@@ -104,9 +140,20 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
         setAnimatedBoard(newBoardState);
       }, currentStep.animation.delay || 2400);
 
-      // Move to next step after animation completes
+      // Move to next step after animation completes (or stop if last step)
       const nextStepTimer = setTimeout(() => {
-        setCurrentStepIndex((prev) => (prev + 1) % tutorialSteps.length);
+        if (currentStepIndex < tutorialSteps.length - 1) {
+          setCurrentStepIndex((prev) => prev + 1);
+        } else {
+          // Reached the end - mark as played and reset to first frame
+          setHasPlayedOnce(true);
+          setIsPlaying(false);
+          setTimeout(() => {
+            setCurrentStepIndex(0);
+            setAnimatedBoard(tutorialSteps[0]?.boardState || initialBoard);
+            setShowAnimation(false);
+          }, 1000);
+        }
       }, (currentStep.animation.delay || 2400) + 4800);
 
       return () => {
@@ -114,9 +161,20 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
         clearTimeout(nextStepTimer);
       };
     } else {
-      // No animation, just wait and move to next step
+      // No animation, just wait and move to next step (or stop if last step)
       const timer = setTimeout(() => {
-        setCurrentStepIndex((prev) => (prev + 1) % tutorialSteps.length);
+        if (currentStepIndex < tutorialSteps.length - 1) {
+          setCurrentStepIndex((prev) => prev + 1);
+        } else {
+          // Reached the end - mark as played and reset to first frame
+          setHasPlayedOnce(true);
+          setIsPlaying(false);
+          setTimeout(() => {
+            setCurrentStepIndex(0);
+            setAnimatedBoard(tutorialSteps[0]?.boardState || initialBoard);
+            setShowAnimation(false);
+          }, 1000);
+        }
       }, 7200);
 
       return () => clearTimeout(timer);
@@ -148,7 +206,7 @@ function DefaultTutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
   }
 
   return (
-    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
+    <div ref={containerRef} className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
       {/* Header with Tutorial and Stats Buttons */}
       <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black/40 backdrop-blur-sm">
         <div className="flex items-center gap-2">

@@ -5,7 +5,7 @@
  * Plays through a predefined sequence at fast speed to showcase the game.
  */
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
@@ -31,9 +31,11 @@ export function MiniChessGameplayPreview({
 }: MiniChessGameplayPreviewProps) {
   const { t } = useTranslation();
   const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
   const [boardState, setBoardState] = useState<string>("");
   const [lastMove, setLastMove] = useState<GameMove | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const engine = useMemo(() => new MiniChessEngine(), []);
 
@@ -45,26 +47,66 @@ export function MiniChessGameplayPreview({
     setBoardState(engine.getInitialBoard());
   }, [engine]);
 
-  // Reset game
+  // Reset game to initial state (first frame)
   const resetGame = useCallback(() => {
     setCurrentMoveIndex(0);
     setBoardState(engine.getInitialBoard());
     setLastMove(null);
-    setIsPlaying(true);
+    setIsPlaying(false);
   }, [engine]);
 
-  // Auto-play game sequence
+  // Intersection Observer: Start playing when 90% visible (only once)
+  useEffect(() => {
+    if (hasPlayedOnce || !containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasPlayedOnce) {
+            setIsPlaying(true);
+          }
+        });
+      },
+      {
+        threshold: 0.9, // Trigger when 90% of the preview is visible
+        rootMargin: '0px',
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasPlayedOnce]);
+
+  // Reset when gameType changes (component remount or game selection change)
+  useEffect(() => {
+    setHasPlayedOnce(false);
+    setIsPlaying(false);
+    setCurrentMoveIndex(0);
+    setBoardState(engine.getInitialBoard());
+    setLastMove(null);
+  }, [gameType, engine]);
+
+  // Auto-play game sequence (single playthrough only)
   useEffect(() => {
     if (!isPlaying || !boardState) return;
 
     // Check if we've reached the end
     if (currentMoveIndex >= quickGameplaySequence.length) {
-      // Wait a bit before restarting
-      const restartTimer = setTimeout(() => {
-        resetGame();
-      }, 2000);
+      // Mark as played and stop
+      setHasPlayedOnce(true);
+      setIsPlaying(false);
 
-      return () => clearTimeout(restartTimer);
+      // Reset to initial state (first frame) after a short delay
+      const resetTimer = setTimeout(() => {
+        setCurrentMoveIndex(0);
+        setBoardState(engine.getInitialBoard());
+        setLastMove(null);
+      }, 1000);
+
+      return () => clearTimeout(resetTimer);
     }
 
     const timer = setTimeout(() => {
@@ -79,14 +121,14 @@ export function MiniChessGameplayPreview({
     }, MOVE_DELAY);
 
     return () => clearTimeout(timer);
-  }, [currentMoveIndex, isPlaying, boardState, resetGame, engine]);
+  }, [currentMoveIndex, isPlaying, boardState, engine]);
 
   const togglePlay = () => {
     setIsPlaying(prev => !prev);
   };
 
   return (
-    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
+    <div ref={containerRef} className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
       {/* Header with controls */}
       <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black/40 backdrop-blur-sm">
         <div className="flex items-center gap-2">
