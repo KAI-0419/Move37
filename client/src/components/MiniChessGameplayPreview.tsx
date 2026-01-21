@@ -39,8 +39,8 @@ export function MiniChessGameplayPreview({
 
   const engine = useMemo(() => new MiniChessEngine(), []);
 
-  // Fast-paced move delay (1680ms for cinematic feel)
-  const MOVE_DELAY = 1680;
+  // Fast-paced move delay (1500ms for cinematic feel)
+  const MOVE_DELAY = 1500;
 
   // Initialize board
   useEffect(() => {
@@ -199,7 +199,7 @@ export function MiniChessGameplayPreview({
               selectedSquare={null}
               lastMove={lastMove}
               validMoves={[]}
-              onSquareClick={() => {}}
+              onSquareClick={() => { }}
               isProcessing={false}
               size="small"
               difficulty="NEXUS-7"

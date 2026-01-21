@@ -119,7 +119,7 @@ class SelectThenMoveHandler implements GameInteractionHandler {
     // 게임 상태가 변경되면 항상 최신 상태로 업데이트하고 validMoves 재계산
     const previousBoard = this.game?.board;
     this.game = game;
-    
+
     // 보드 상태가 변경되었거나 선택된 칸이 있으면 validMoves 재계산
     // 이렇게 하면 게임 상태 업데이트 시 항상 최신 validMoves를 사용할 수 있음
     if (this.state.selectedSquare && (previousBoard !== game.board || !this.state.validMoves.length)) {
@@ -198,9 +198,9 @@ class SelectThenMoveHandler implements GameInteractionHandler {
 
     const engine = GameEngineFactory.getCachedEngine(this.gameType);
     if (!engine) return;
-    
+
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
-    
+
     if (isMyPiece) {
       // Track hover on player pieces (hesitation indicator)
       // 같은 칸을 여러 번 hover하는 것도 망설임으로 인식
@@ -210,14 +210,14 @@ class SelectThenMoveHandler implements GameInteractionHandler {
       const isDifferentSquare = hoverKey !== lastHoverKey;
       const HOVER_DEBOUNCE_MS = 200; // 200ms 이내의 연속 hover는 무시 (너무 빠른 반복 제외)
       const timeSinceLastHover = now - this.lastHoverTimestamp;
-      
+
       // 다른 칸을 hover하거나, 같은 칸이지만 충분한 시간이 지난 경우 카운트
       // (같은 칸을 여러 번 hover하는 것도 망설임으로 인식)
       if (isDifferentSquare || timeSinceLastHover >= HOVER_DEBOUNCE_MS) {
         this.hoverCount++;
         this.lastHoveredSquare = { r, c };
         this.lastHoverTimestamp = now;
-        
+
         if (this.onHoverCallback) {
           this.onHoverCallback(this.hoverCount);
         }
@@ -254,7 +254,7 @@ class SelectThenMoveHandler implements GameInteractionHandler {
       console.error("Game engine not found for type:", this.gameType);
       return;
     }
-    
+
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
 
     // Select own piece
@@ -277,13 +277,27 @@ class SelectThenMoveHandler implements GameInteractionHandler {
           throw new Error(t("gameRoom.errors.invalidGameId"));
         }
 
+        // Check if the move is valid locally first to avoid unnecessary server calls and errors
+        const isValidTarget = this.state.validMoves.some(
+          (m) => m.r === r && m.c === c
+        );
+
+        if (!isValidTarget) {
+          // If clicked on an invalid square, just show error signal and return
+          setHasError(true);
+          setTimeout(() => {
+            setHasError(false);
+          }, 500);
+          return;
+        }
+
         await makeMove({
           from: this.state.selectedSquare,
           to: { r, c }
         });
-        
+
         this.resetState();
-        
+
         console.log("Move successful:", {
           from: this.state.selectedSquare,
           to: { r, c },
@@ -326,7 +340,7 @@ class DirectMoveHandler implements GameInteractionHandler {
   updateGame(game: Game) {
     const previousBoard = this.game?.board;
     this.game = game;
-    
+
     // If game board state changed and we have a pending move, reset state
     // (This should not happen in normal flow, but handle defensively)
     if (previousBoard && previousBoard !== game.board && this.pendingMove) {
@@ -334,7 +348,7 @@ class DirectMoveHandler implements GameInteractionHandler {
       this.resetState();
       return;
     }
-    
+
     // For ENTROPY (Hex), update valid moves (all empty cells)
     if (this.gameType === "GAME_3") {
       try {
@@ -352,12 +366,12 @@ class DirectMoveHandler implements GameInteractionHandler {
       }
       return;
     }
-    
+
     // If we have a selected piece, update valid moves
     if (this.selectedPiece) {
       this.updateValidMoves();
     }
-    
+
     // If we have a pending move, recalculate destroy candidates with new board state
     if (this.pendingMove && this.gameType === "GAME_2") {
       try {
@@ -403,7 +417,7 @@ class DirectMoveHandler implements GameInteractionHandler {
       console.error("Error calculating valid moves:", error);
       this.validMoves = [];
     }
-    
+
     this.notifyStateChange();
   }
 
@@ -533,9 +547,9 @@ class DirectMoveHandler implements GameInteractionHandler {
             const boardState = parseBoardState(game.board);
             // Pass isPlayer=true since this is a player move
             this.destroyCandidates = getValidDestroyPositions(boardState, { r, c }, true);
-            
+
             console.log(`Destroy candidates for move to (${r}, ${c}):`, this.destroyCandidates);
-            
+
             // Isolation game requires destroy after every move
             // If no destroy candidates available (shouldn't happen in normal gameplay), show error
             if (this.destroyCandidates.length === 0) {
@@ -547,7 +561,7 @@ class DirectMoveHandler implements GameInteractionHandler {
               }, 1000);
               return;
             }
-            
+
             // Clear valid moves as we are now in destroy selection phase
             this.validMoves = [];
             // Notify that validMoves are now cleared
@@ -585,7 +599,7 @@ class DirectMoveHandler implements GameInteractionHandler {
         setTimeout(() => {
           setHasError(false);
         }, 500);
-        
+
         // Deselect or select new piece
         if (isMyPiece) {
           this.selectedPiece = { r, c };

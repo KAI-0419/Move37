@@ -319,11 +319,9 @@ export function IsolationBoard({
                               ? "linear-gradient(135deg, rgba(0,243,255,0.25) 0%, rgba(0,180,200,0.15) 100%)"
                               : isValidMoveTarget
                                 ? "linear-gradient(135deg, rgba(0,243,255,0.12) 0%, rgba(0,200,220,0.06) 100%)"
-                                : isLastMove
-                                  ? "linear-gradient(135deg, rgba(255,170,0,0.15) 0%, rgba(200,130,0,0.08) 100%)"
-                                  : isDarkSquare
-                                    ? "linear-gradient(135deg, rgba(30,35,40,0.6) 0%, rgba(20,25,30,0.8) 100%)"
-                                    : "linear-gradient(135deg, rgba(40,45,50,0.4) 0%, rgba(30,35,40,0.6) 100%)",
+                                : isDarkSquare
+                                  ? "linear-gradient(135deg, rgba(30,35,40,0.6) 0%, rgba(20,25,30,0.8) 100%)"
+                                  : "linear-gradient(135deg, rgba(40,45,50,0.4) 0%, rgba(30,35,40,0.6) 100%)",
                         boxShadow: isDestroyed
                           ? "inset 0 0 20px rgba(0,0,0,0.9), inset 0 0 10px rgba(80,0,0,0.4)"
                           : isDestroyCandidate
@@ -332,9 +330,7 @@ export function IsolationBoard({
                               ? "inset 0 0 20px rgba(0,243,255,0.3), 0 0 15px rgba(0,243,255,0.2)"
                               : isValidMoveTarget
                                 ? "inset 0 0 12px rgba(0,243,255,0.15), 0 0 8px rgba(0,243,255,0.1)"
-                                : isLastMove
-                                  ? "inset 0 0 10px rgba(255,170,0,0.15)"
-                                  : "inset 0 0 8px rgba(0,0,0,0.4)",
+                                : "inset 0 0 8px rgba(0,0,0,0.4)",
                         border: isDestroyed
                           ? "1px solid rgba(60,0,0,0.8)"
                           : isDestroyCandidate
@@ -343,9 +339,7 @@ export function IsolationBoard({
                               ? "2px solid rgba(0,243,255,0.8)"
                               : isValidMoveTarget
                                 ? "1px solid rgba(0,243,255,0.5)"
-                                : isLastMove
-                                  ? "1px solid rgba(255,170,0,0.5)"
-                                  : "1px solid rgba(60,70,80,0.3)",
+                                : "1px solid rgba(60,70,80,0.3)",
                         pointerEvents: isInteractionDisabled ? "none" : "auto",
                       }}
                       onClick={(e) => {
@@ -513,14 +507,23 @@ export function IsolationBoard({
                         </motion.div>
                       )}
 
-                      {/* Last move highlight glow */}
-                      {isLastMove && !isSelected && !isValidMoveTarget && (
-                        <div
-                          className="absolute inset-0 pointer-events-none"
-                          style={{
-                            boxShadow: "inset 0 0 15px rgba(255,170,0,0.3)",
-                          }}
-                        />
+                      {/* Last move indicator (center dot) - Only show if not occupied by piece or if transparency allows */}
+                      {isLastMove && !isSelected && !isDestroyed && (
+                        <motion.div
+                          className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        >
+                          <div
+                            className="rounded-full"
+                            style={{
+                              width: `${cellSize * 0.2}px`,
+                              height: `${cellSize * 0.2}px`,
+                              background: "rgba(255, 170, 0, 0.8)",
+                              boxShadow: "0 0 8px rgba(255, 170, 0, 0.6)",
+                            }}
+                          />
+                        </motion.div>
                       )}
                     </motion.div>
                   );

@@ -37,8 +37,8 @@ export function EntropyGameplayPreview({
   const [lastMove, setLastMove] = useState<Move | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fast-paced move delay (1680ms for cinematic feel)
-  const MOVE_DELAY = 1680;
+  // Fast-paced move delay (1500ms for cinematic feel)
+  const MOVE_DELAY = 1500;
 
   // Reset game to initial state (first frame)
   const resetGame = useCallback(() => {
@@ -200,13 +200,13 @@ export function EntropyGameplayPreview({
                 lastMove={
                   lastMove
                     ? {
-                        from: { r: -1, c: -1 },
-                        to: lastMove,
-                      }
+                      from: { r: -1, c: -1 },
+                      to: lastMove,
+                    }
                     : null
                 }
                 validMoves={[]}
-                onSquareClick={() => {}}
+                onSquareClick={() => { }}
                 isProcessing={false}
                 size="small"
                 difficulty="NEXUS-7"

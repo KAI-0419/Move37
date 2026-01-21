@@ -96,42 +96,24 @@ export const cinematicGameplaySequence: Move[] = [
  * Alternative shorter sequence for faster preview
  */
 export const quickGameplaySequence: Move[] = [
-  // Player opening
+  // 1. Player: Center control (Standard opening)
   { r: 5, c: 5 },
-  // AI
+  // 2. AI: Aggressive block/counter at distance
   { r: 3, c: 5 },
-  // Player
-  { r: 5, c: 4 },
-  // AI
-  { r: 4, c: 6 },
-  // Player
+  // 3. Player: Expand towards edge
   { r: 5, c: 3 },
-  // AI
-  { r: 2, c: 5 },
-  // Player
-  { r: 5, c: 2 },
-  // AI
-  { r: 1, c: 5 },
-  // Player
-  { r: 5, c: 1 },
-  // AI
-  { r: 5, c: 6 },
-  // Player
-  { r: 5, c: 7 },
-  // AI
+  // 4. AI: Cut connection path
+  { r: 4, c: 4 },
+  // 5. Player: Tactical bridge
+  { r: 6, c: 4 },
+  // 6. AI: Deep intrusion
   { r: 6, c: 5 },
-  // Player
+  // 7. Player: Side expansion
+  { r: 5, c: 7 },
+  // 8. AI: Far side block
   { r: 4, c: 7 },
-  // AI
-  { r: 7, c: 5 },
-  // Player
-  { r: 4, c: 8 },
-  // AI
+  // 9. Player: Connecting the groups
+  { r: 4, c: 6 },
+  // 10. AI: Desperate cut (End of Preview)
   { r: 3, c: 6 },
-  // Player
-  { r: 3, c: 9 },
-  // AI
-  { r: 8, c: 5 },
-  // Player - WINNING MOVE
-  { r: 3, c: 10 },
 ];

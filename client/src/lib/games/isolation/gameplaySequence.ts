@@ -92,39 +92,34 @@ export const cinematicGameplaySequence: IsolationGameplayMove[] = [
  * Shorter sequence for faster preview (10-12 moves)
  */
 export const quickGameplaySequence: IsolationGameplayMove[] = [
-  // Move 1: Player advances toward center
-  { from: { r: 6, c: 0 }, to: { r: 5, c: 1 }, destroy: { r: 6, c: 1 } },
+  // 1. Player: Opening (Destroy AI Escape)
+  { from: { r: 6, c: 0 }, to: { r: 4, c: 2 }, destroy: { r: 5, c: 1 } },
 
-  // Move 2: AI advances toward center
-  { from: { r: 0, c: 6 }, to: { r: 1, c: 5 }, destroy: { r: 0, c: 5 } },
+  // 2. AI: Center Response (Destroy Player Back)
+  { from: { r: 0, c: 6 }, to: { r: 2, c: 4 }, destroy: { r: 1, c: 5 } },
 
-  // Move 3: Player moves to center area
-  { from: { r: 5, c: 1 }, to: { r: 4, c: 2 }, destroy: { r: 5, c: 2 } },
+  // 3. Player: Center Control (Block Left)
+  { from: { r: 4, c: 2 }, to: { r: 3, c: 3 }, destroy: { r: 4, c: 2 } },
 
-  // Move 4: AI moves down
-  { from: { r: 1, c: 5 }, to: { r: 2, c: 4 }, destroy: { r: 1, c: 4 } },
+  // 4. AI: Maintain Distance (Block Up)
+  { from: { r: 2, c: 4 }, to: { r: 1, c: 4 }, destroy: { r: 2, c: 4 } },
 
-  // Move 5: Player takes center
-  { from: { r: 4, c: 2 }, to: { r: 3, c: 3 }, destroy: { r: 4, c: 3 } },
+  // 5. Player: Advance (Pressuring AI)
+  { from: { r: 3, c: 3 }, to: { r: 2, c: 3 }, destroy: { r: 3, c: 3 } },
 
-  // Move 6: AI blocks
-  { from: { r: 2, c: 4 }, to: { r: 3, c: 4 }, destroy: { r: 2, c: 3 } },
+  // 6. AI: Corner Retreat (Forced)
+  { from: { r: 1, c: 4 }, to: { r: 0, c: 4 }, destroy: { r: 1, c: 4 } },
 
-  // Move 7: Player moves strategically
-  { from: { r: 3, c: 3 }, to: { r: 3, c: 2 }, destroy: { r: 4, c: 2 } },
+  // 7. Player: Diagonal Cut (Trapping)
+  { from: { r: 2, c: 3 }, to: { r: 1, c: 2 }, destroy: { r: 2, c: 3 } },
 
-  // Move 8: AI tries to control space
-  { from: { r: 3, c: 4 }, to: { r: 4, c: 4 }, destroy: { r: 5, c: 4 } },
+  // 8. AI: Side Step (Desperate)
+  { from: { r: 0, c: 4 }, to: { r: 0, c: 3 }, destroy: { r: 0, c: 4 } },
 
-  // Move 9: Player blocks AI's path
-  { from: { r: 3, c: 2 }, to: { r: 2, c: 2 }, destroy: { r: 2, c: 1 } },
+  // 9. Player: The Trap (Closing the box)
+  { from: { r: 1, c: 2 }, to: { r: 2, c: 1 }, destroy: { r: 0, c: 2 } },
+  // Leaves AI with very few moves (0,3 -> 1,3 only)
 
-  // Move 10: AI forced into corner
-  { from: { r: 4, c: 4 }, to: { r: 5, c: 3 }, destroy: { r: 6, c: 3 } },
-
-  // Move 11: Player secures victory
-  { from: { r: 2, c: 2 }, to: { r: 1, c: 2 }, destroy: { r: 1, c: 3 } },
-
-  // Move 12: AI's final move (trapped)
-  { from: { r: 5, c: 3 }, to: { r: 6, c: 2 }, destroy: { r: 5, c: 2 } },
+  // 10. AI: Final Move (Into the only open slot - Trapped)
+  { from: { r: 0, c: 3 }, to: { r: 1, c: 3 }, destroy: { r: 0, c: 3 } },
 ];

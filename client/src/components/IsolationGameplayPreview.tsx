@@ -41,8 +41,8 @@ export function IsolationGameplayPreview({
   const [lastMove, setLastMove] = useState<IsolationGameplayMove | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fast-paced move delay (1680ms for cinematic feel)
-  const MOVE_DELAY = 1680;
+  // Fast-paced move delay (1500ms for cinematic feel)
+  const MOVE_DELAY = 1500;
 
   // Reset game to initial state (first frame)
   const resetGame = useCallback(() => {
@@ -207,13 +207,13 @@ export function IsolationGameplayPreview({
               lastMove={
                 lastMove
                   ? {
-                      from: lastMove.from,
-                      to: lastMove.to,
-                    }
+                    from: lastMove.from,
+                    to: lastMove.to,
+                  }
                   : null
               }
               validMoves={[]}
-              onSquareClick={() => {}}
+              onSquareClick={() => { }}
               isProcessing={false}
               size="small"
               difficulty="NEXUS-7"

@@ -191,19 +191,19 @@ export function MiniChessBoard({
       animate={
         hasError
           ? {
-              x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
-              y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
-              rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
-            }
+            x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
+            y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
+            rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
+          }
           : {}
       }
       transition={
         hasError
           ? {
-              duration: 0.6,
-              ease: [0.25, 0.1, 0.25, 1],
-              times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1],
-            }
+            duration: 0.6,
+            ease: [0.25, 0.1, 0.25, 1],
+            times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1],
+          }
           : {}
       }
     >
@@ -341,25 +341,19 @@ export function MiniChessBoard({
                           ? "linear-gradient(135deg, rgba(0,243,255,0.25) 0%, rgba(0,180,200,0.15) 100%)"
                           : isValidMoveTarget
                             ? "linear-gradient(135deg, rgba(0,243,255,0.12) 0%, rgba(0,200,220,0.06) 100%)"
-                            : isLastMove
-                              ? "linear-gradient(135deg, rgba(255,170,0,0.18) 0%, rgba(200,130,0,0.1) 100%)"
-                              : isDarkSquare
-                                ? "linear-gradient(135deg, rgba(30,35,40,0.7) 0%, rgba(20,25,30,0.85) 100%)"
-                                : "linear-gradient(135deg, rgba(45,50,55,0.5) 0%, rgba(35,40,45,0.65) 100%)",
+                            : isDarkSquare
+                              ? "linear-gradient(135deg, rgba(30,35,40,0.7) 0%, rgba(20,25,30,0.85) 100%)"
+                              : "linear-gradient(135deg, rgba(45,50,55,0.5) 0%, rgba(35,40,45,0.65) 100%)",
                         boxShadow: isSelected
                           ? "inset 0 0 20px rgba(0,243,255,0.3), 0 0 15px rgba(0,243,255,0.2)"
                           : isValidMoveTarget
                             ? "inset 0 0 12px rgba(0,243,255,0.15), 0 0 8px rgba(0,243,255,0.1)"
-                            : isLastMove
-                              ? "inset 0 0 12px rgba(255,170,0,0.2)"
-                              : "inset 0 0 8px rgba(0,0,0,0.4)",
+                            : "inset 0 0 8px rgba(0,0,0,0.4)",
                         border: isSelected
                           ? "2px solid rgba(0,243,255,0.8)"
                           : isValidMoveTarget
                             ? "1px solid rgba(0,243,255,0.5)"
-                            : isLastMove
-                              ? "1px solid rgba(255,170,0,0.5)"
-                              : "1px solid rgba(60,70,80,0.3)",
+                            : "1px solid rgba(60,70,80,0.3)",
                         pointerEvents: isInteractionDisabled ? "none" : "auto",
                       }}
                       onClick={(e) => {
@@ -447,14 +441,23 @@ export function MiniChessBoard({
                         </motion.div>
                       )}
 
-                      {/* Last move highlight glow */}
-                      {isLastMove && !isSelected && !isValidMoveTarget && (
-                        <div
-                          className="absolute inset-0 pointer-events-none"
-                          style={{
-                            boxShadow: "inset 0 0 15px rgba(255,170,0,0.3)",
-                          }}
-                        />
+                      {/* Last move indicator (center dot) */}
+                      {isLastMove && !isSelected && (
+                        <motion.div
+                          className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        >
+                          <div
+                            className="rounded-full"
+                            style={{
+                              width: `${cellSize * 0.12}px`,
+                              height: `${cellSize * 0.12}px`,
+                              background: "rgba(255, 170, 0, 0.8)",
+                              boxShadow: "0 0 6px rgba(255, 170, 0, 0.5)",
+                            }}
+                          />
+                        </motion.div>
                       )}
                     </motion.div>
                   );
