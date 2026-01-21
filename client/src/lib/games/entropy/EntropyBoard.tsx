@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 import { parseBoardState } from "./boardUtils";
+import { useEntropyWorkerCleanup } from "./useEntropyWorkerCleanup";
 import type { CellState } from "./types";
 
 /**
@@ -34,6 +35,9 @@ export function EntropyBoard({
   isPreviewMode = false,
   highlightSquares = [],
 }: BaseGameBoardProps) {
+  // Ensure background workers are cleaned up when component unmounts
+  useEntropyWorkerCleanup();
+
   // Parse board state
   const boardState = parseBoardState(boardString);
   const { boardSize, cells } = boardState;
