@@ -7,7 +7,7 @@
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
-import { Trophy, AlertTriangle, Skull } from "lucide-react";
+import { Trophy, AlertTriangle, Skull, X } from "lucide-react";
 import { GlitchButton } from "@/components/GlitchButton";
 import { cn } from "@/lib/utils";
 import { getUnlockedDifficulties } from "@/lib/storage";
@@ -25,6 +25,7 @@ export interface WinnerOverlayProps {
   onReturnToLobby: () => void;
   onPlayAgain: (targetDifficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => Promise<void>;
   onResetGameState: () => void;
+  onClose?: () => void;
 }
 
 export function WinnerOverlay({
@@ -36,6 +37,7 @@ export function WinnerOverlay({
   onReturnToLobby,
   onPlayAgain,
   onResetGameState,
+  onClose,
 }: WinnerOverlayProps) {
   const { t } = useTranslation();
 
@@ -139,14 +141,14 @@ export function WinnerOverlay({
   const shouldShowUnlock = winner === 'player' && (
     (justUnlockedDifficulty !== null && justUnlockedDifficulty !== undefined) ||
     ((currentDifficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) ||
-     (currentDifficulty === "NEXUS-5" && unlocked.has("NEXUS-7")))
+      (currentDifficulty === "NEXUS-5" && unlocked.has("NEXUS-7")))
   );
 
   // Determine unlock level: use justUnlockedDifficulty if available, otherwise infer from current difficulty
-  const unlockLevel = justUnlockedDifficulty === "NEXUS-5" ? "5" 
+  const unlockLevel = justUnlockedDifficulty === "NEXUS-5" ? "5"
     : justUnlockedDifficulty === "NEXUS-7" ? "7"
-    : currentDifficulty === "NEXUS-3" ? "5" 
-    : "7";
+      : currentDifficulty === "NEXUS-3" ? "5"
+        : "7";
 
   return (
     <motion.div
@@ -160,7 +162,18 @@ export function WinnerOverlay({
         paddingRight: 'max(1rem, env(safe-area-inset-right))',
       }}
     >
-      <div className="text-center space-y-4 sm:space-y-5 md:space-y-6 w-full max-w-[95vw] sm:max-w-md p-4 sm:p-6 md:p-8 lg:p-10 border border-white/20 bg-black my-auto">
+      <div className="relative text-center space-y-4 sm:space-y-5 md:space-y-6 w-full max-w-[95vw] sm:max-w-md p-4 sm:p-6 md:p-8 lg:p-10 border border-white/20 bg-black my-auto">
+        {/* Close Button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 text-muted-foreground hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+        )}
+
         {/* Icon - Responsive sizing */}
         <div className="flex justify-center">
           {winner === 'player' ? (
@@ -176,12 +189,12 @@ export function WinnerOverlay({
         <h2 className={cn(
           "text-2xl sm:text-3xl lg:text-4xl font-display font-black leading-tight px-2",
           winner === 'player' ? "text-primary" :
-          winner === 'draw' ? "text-secondary" :
-          difficultyColors.text
+            winner === 'draw' ? "text-secondary" :
+              difficultyColors.text
         )}>
           {winner === 'player' ? t("gameRoom.youWon") :
-           winner === 'draw' ? t("gameRoom.draw") :
-           t("gameRoom.youLost")}
+            winner === 'draw' ? t("gameRoom.draw") :
+              t("gameRoom.youLost")}
         </h2>
 
         {/* Message - Responsive font size and max width */}
@@ -189,8 +202,8 @@ export function WinnerOverlay({
           {winner === 'player'
             ? t("gameRoom.victoryMessage")
             : winner === 'draw'
-            ? t("gameRoom.drawMessage")
-            : t("gameRoom.defeatMessage")}
+              ? t("gameRoom.drawMessage")
+              : t("gameRoom.defeatMessage")}
         </p>
 
         {/* Unlock message - Responsive padding */}

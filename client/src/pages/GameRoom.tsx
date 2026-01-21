@@ -42,6 +42,16 @@ export default function GameRoom() {
   const makeMove = useMakeMove(gameId ?? 0);
   const createGame = useCreateGame();
 
+  // Track overlay visibility - MUST be at top level before any conditional returns
+  const [showResultOverlay, setShowResultOverlay] = useState(false);
+
+  // Show overlay when game ends
+  useEffect(() => {
+    if (game?.winner) {
+      setShowResultOverlay(true);
+    }
+  }, [game?.winner]);
+
   // Get game type from URL parameters
   const urlGameType = useMemo(() => {
     const searchParams = getCurrentSearchParams();
@@ -65,11 +75,11 @@ export default function GameRoom() {
 
   // Interaction handler state (for select-then-move pattern)
   const [interactionState, setInteractionState] = useState<SelectThenMoveState | null>(null);
-  
+
   // Player move tracking: time and hover events
   const playerTurnStartTimeRef = useRef<number | null>(null);
   const hoverCountRef = useRef<number>(0);
-  
+
   // Track when player's turn starts
   useEffect(() => {
     // Determine if it's player's turn
@@ -79,7 +89,7 @@ export default function GameRoom() {
       hoverCountRef.current = 0; // Reset hover count for new turn
     }
   }, [game?.turn, game?.winner, uiConfig.turnSystemType]);
-  
+
   // Create interaction handler
   const interactionHandler = useMemo(() => {
     return GameInteractionHandlerFactory.createHandler(
@@ -130,10 +140,10 @@ export default function GameRoom() {
   // Sync URL with game type when game loads and handle mismatches
   useEffect(() => {
     if (!game || isLoading) return;
-    
+
     const gameTypeFromData = game.gameType || DEFAULT_GAME_TYPE;
     const gameTypeFromUrl = urlGameType;
-    
+
     // If URL has game type but it doesn't match game data, update URL
     if (gameTypeFromUrl && gameTypeFromUrl !== gameTypeFromData) {
       console.warn(
@@ -207,36 +217,36 @@ export default function GameRoom() {
     // Only process if player won, difficulty exists, and we haven't unlocked yet for this game
     if (game?.winner === 'player' && game?.difficulty && !hasUnlockedRef.current && validatedGameType) {
       const difficulty = game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
-      
+
       // Check what will be unlocked before unlocking
       const nextDifficulty = difficulty === "NEXUS-3" ? "NEXUS-5" : difficulty === "NEXUS-5" ? "NEXUS-7" : null;
-      
+
       // Unlock next difficulty for this specific game type
       if (nextDifficulty) {
         // Unlock the difficulty (localStorage is synchronous, so this is immediate)
         handleVictoryUnlock(difficulty, validatedGameType);
         hasUnlockedRef.current = true;
-        
+
         // Mark that we just unlocked this difficulty
         setJustUnlockedDifficulty(nextDifficulty);
-        
+
         // Verify unlock was successful and log message
         // getUnlockedDifficulties reads from localStorage which is already updated
         const unlocked = getUnlockedDifficulties(validatedGameType);
         if (difficulty === "NEXUS-3" && unlocked.has("NEXUS-5")) {
-          setLogHistory(prev => [...prev, { 
-            message: t("gameRoom.log.nexusUnlocked", { level: "5", message: t("gameRoom.log.nexus5Unlocked") }), 
-            timestamp: new Date() 
+          setLogHistory(prev => [...prev, {
+            message: t("gameRoom.log.nexusUnlocked", { level: "5", message: t("gameRoom.log.nexus5Unlocked") }),
+            timestamp: new Date()
           }]);
         } else if (difficulty === "NEXUS-5" && unlocked.has("NEXUS-7")) {
-          setLogHistory(prev => [...prev, { 
-            message: t("gameRoom.log.nexusUnlocked", { level: "7", message: t("gameRoom.log.nexus7Unlocked") }), 
-            timestamp: new Date() 
+          setLogHistory(prev => [...prev, {
+            message: t("gameRoom.log.nexusUnlocked", { level: "7", message: t("gameRoom.log.nexus7Unlocked") }),
+            timestamp: new Date()
           }]);
         }
       }
     }
-    
+
     // Reset justUnlockedDifficulty when game changes or winner changes to non-player
     if (game?.winner !== 'player' || !game?.difficulty) {
       setJustUnlockedDifficulty(null);
@@ -288,7 +298,7 @@ export default function GameRoom() {
     if (!game) return DEFAULT_DIFFICULTY;
     return (game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY;
   }, [game?.difficulty]);
-  
+
   const difficultyColors = useMemo(() => {
     return getDifficultyColorConfig(validatedGameType, difficulty);
   }, [validatedGameType, difficulty]);
@@ -340,11 +350,11 @@ export default function GameRoom() {
   ]);
 
   // Use prevent navigation hook
-  const { 
-    handleNavigateAway, 
-    isConfirmOpen, 
-    confirmNavigation, 
-    cancelNavigation 
+  const {
+    handleNavigateAway,
+    isConfirmOpen,
+    confirmNavigation,
+    cancelNavigation
   } = usePreventNavigation({
     game,
     gameType: validatedGameType,
@@ -446,7 +456,7 @@ export default function GameRoom() {
 
   const handleSquareClick = async (r: number, c: number) => {
     if (!game) return;
-    
+
     // Prevent clicks during processing or when game is over
     // Check turn system: if it's player-ai system and it's AI's turn, prevent clicks
     const isAITurn = uiConfig.turnSystemType === 'player-ai' && game.turn === 'ai';
@@ -454,6 +464,7 @@ export default function GameRoom() {
       return;
     }
 
+    // ... rest of click handler
     // Use interaction handler to handle the click
     await interactionHandler.handleClick(
       r,
@@ -464,27 +475,27 @@ export default function GameRoom() {
         // Calculate move time and get hover count
         // moveTimeSeconds: 플레이어가 수를 두기까지 걸린 시간 (초 단위)
         // undefined인 경우: 시간 추적이 시작되지 않았거나 리셋된 경우
-        const moveTimeSeconds = playerTurnStartTimeRef.current 
-          ? (Date.now() - playerTurnStartTimeRef.current) / 1000 
+        const moveTimeSeconds = playerTurnStartTimeRef.current
+          ? (Date.now() - playerTurnStartTimeRef.current) / 1000
           : undefined;
-        
+
         // hoverCount: 플레이어가 수를 두기 전에 hover한 횟수 (망설임 지표)
         // 0인 경우 undefined로 전달하여 불필요한 데이터 전송 방지
         const hoverCount = interactionHandler.getHoverCount?.() ?? 0;
-        
+
         // Add metadata to move with explicit type handling
         const moveWithMetadata = {
           ...move,
-          moveTimeSeconds: moveTimeSeconds !== undefined && moveTimeSeconds > 0 
-            ? moveTimeSeconds 
+          moveTimeSeconds: moveTimeSeconds !== undefined && moveTimeSeconds > 0
+            ? moveTimeSeconds
             : undefined,
           hoverCount: hoverCount > 0 ? hoverCount : undefined
         };
-        
+
         // Reset tracking after move (다음 턴을 위해)
         playerTurnStartTimeRef.current = null;
         hoverCountRef.current = 0;
-        
+
         return await makeMove.mutateAsync(moveWithMetadata);
       },
       setHasError,
@@ -494,7 +505,7 @@ export default function GameRoom() {
 
   const handleSquareHover = (r: number, c: number) => {
     if (!game || !isPlayerTurn || game.winner) return;
-    
+
     // Track hover events through interaction handler
     if (interactionHandler.handleHover) {
       interactionHandler.handleHover(r, c, game);
@@ -543,19 +554,19 @@ export default function GameRoom() {
                   ? (game.turn as 'player' | 'ai')
                   : undefined;
                 return (
-                <BoardComponent
-                  boardString={game.board}
-                  turn={turnProp}
-                  selectedSquare={selectedSquare}
-                  validMoves={validMoves}
-                  destroyCandidates={destroyCandidates}
-                  onSquareClick={handleSquareClick}
-                  onSquareHover={handleSquareHover}
-                  lastMove={lastMove}
-                  isProcessing={makeMove.isPending}
-                  difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
-                  hasError={hasError}
-                />
+                  <BoardComponent
+                    boardString={game.board}
+                    turn={turnProp}
+                    selectedSquare={selectedSquare}
+                    validMoves={validMoves}
+                    destroyCandidates={destroyCandidates}
+                    onSquareClick={handleSquareClick}
+                    onSquareHover={handleSquareHover}
+                    lastMove={lastMove}
+                    isProcessing={makeMove.isPending}
+                    difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
+                    hasError={hasError}
+                  />
                 );
               } catch (error) {
                 console.error(`Failed to load board component for game type ${gameType}:`, error);
@@ -568,8 +579,8 @@ export default function GameRoom() {
             })()}
           </div>
 
-          {/* Winner Overlay - Show if enabled and game has ended */}
-          {game.winner && uiConfig.showWinnerOverlay && (
+          {/* Winner Overlay - Show if enabled, game has ended, AND overlay is active */}
+          {game.winner && uiConfig.showWinnerOverlay && showResultOverlay && (
             <WinnerOverlay
               winner={game.winner as "player" | "ai" | "draw"}
               difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
@@ -587,6 +598,7 @@ export default function GameRoom() {
                   difficulty: targetDifficulty,
                 });
                 setGameId(newGame.id);
+                setShowResultOverlay(false); // Reset overlay
               }}
               onResetGameState={() => {
                 if (interactionHandler.resetState) {
@@ -596,6 +608,7 @@ export default function GameRoom() {
                 setHasError(false);
                 setJustUnlockedDifficulty(null);
               }}
+              onClose={() => setShowResultOverlay(false)}
             />
           )}
         </main>
@@ -604,7 +617,7 @@ export default function GameRoom() {
         {!game.winner && (
           <div className="lg:hidden w-full px-4 py-3 border-t border-border bg-black/40 backdrop-blur-sm shrink-0 z-10 flex justify-center">
             <div className="w-full max-w-[280px]">
-              <GlitchButton 
+              <GlitchButton
                 variant="outline"
                 className={cn(
                   "w-full text-[10px] py-2",
@@ -619,7 +632,7 @@ export default function GameRoom() {
             </div>
           </div>
         )}
-        
+
         <ConfirmationDialog
           isOpen={isConfirmOpen}
           title={t("gameRoom.confirmLeave")}
@@ -671,8 +684,8 @@ export default function GameRoom() {
           {/* Action Buttons - Fixed at bottom of left panel */}
           {/* Desktop Button */}
           <div className="hidden lg:block space-y-2 shrink-0 mt-auto">
-            <GlitchButton 
-              variant="outline" 
+            <GlitchButton
+              variant="outline"
               className={cn(
                 "w-full text-sm py-4",
                 difficultyColors.borderOpacity,
@@ -681,7 +694,7 @@ export default function GameRoom() {
               )}
               onClick={() => handleNavigateAway("/")}
             >
-              {t("gameRoom.surrender")}
+              {game.winner ? t("gameRoom.returnToLobby") : t("gameRoom.surrender")}
             </GlitchButton>
           </div>
         </aside>
@@ -727,19 +740,19 @@ export default function GameRoom() {
                   hasError={hasError}
                 />
               );
-              } catch (error) {
-                console.error(`Failed to load board component for game type ${gameType}:`, error);
-                return (
-                  <div className="text-center text-muted-foreground">
-                    <p>{t("gameRoom.uiNotImplemented", { gameType })}</p>
-                  </div>
-                );
-              }
+            } catch (error) {
+              console.error(`Failed to load board component for game type ${gameType}:`, error);
+              return (
+                <div className="text-center text-muted-foreground">
+                  <p>{t("gameRoom.uiNotImplemented", { gameType })}</p>
+                </div>
+              );
+            }
           })()}
         </div>
 
-        {/* Winner Overlay - Show if enabled and game has ended */}
-        {game.winner && uiConfig.showWinnerOverlay && (
+        {/* Winner Overlay - Show if enabled, game has ended, AND overlay is active */}
+        {game.winner && uiConfig.showWinnerOverlay && showResultOverlay && (
           <WinnerOverlay
             winner={game.winner as "player" | "ai" | "draw"}
             difficulty={(game.difficulty as "NEXUS-3" | "NEXUS-5" | "NEXUS-7") || DEFAULT_DIFFICULTY}
@@ -756,6 +769,7 @@ export default function GameRoom() {
                 difficulty: targetDifficulty,
               });
               setGameId(newGame.id);
+              setShowResultOverlay(false);
             }}
             onResetGameState={() => {
               if (interactionHandler.resetState) {
@@ -764,15 +778,16 @@ export default function GameRoom() {
               setLogHistory([]);
               setHasError(false);
             }}
+            onClose={() => setShowResultOverlay(false)}
           />
         )}
       </main>
 
       {/* Mobile Surrender Button - Positioned above terminal log on small screens */}
-      {!game.winner && (
+      {(!game.winner || !showResultOverlay) && (
         <div className="lg:hidden w-full px-4 py-3 border-t border-border bg-black/40 backdrop-blur-sm shrink-0 z-10 flex justify-center">
           <div className="w-full max-w-[280px]">
-            <GlitchButton 
+            <GlitchButton
               variant="outline"
               className={cn(
                 "w-full text-[10px] py-2",
@@ -782,7 +797,7 @@ export default function GameRoom() {
               )}
               onClick={() => handleNavigateAway("/")}
             >
-              {t("gameRoom.surrender")}
+              {game.winner ? t("gameRoom.returnToLobby") : t("gameRoom.surrender")}
             </GlitchButton>
           </div>
         </div>
