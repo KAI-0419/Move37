@@ -84,6 +84,134 @@ export function GameModeCarousel({
     }
   }, [maxIndex, currentIndex]);
 
+  // Sync carousel with selected game mode on mount and when it changes
+  useEffect(() => {
+    const gameIndex = AVAILABLE_GAMES.findIndex(g => g.id === selectedGameType);
+    if (gameIndex !== -1 && gameIndex !== currentIndex) {
+      // If the selected game is out of view (considering cards shown), snap to it
+      // We want the selected game to be visible. 
+      // Simple strategy: snap the selected game to the start (leftmost) if possible, 
+      // or at least ensure it's in the visible range.
+      // Given the current implementation of snapToIndex simply sets currentIndex, 
+      // and currentIndex defines the START of the visible area:
+
+      // If we just want it to be *visible*, we could be smarter, but 
+      // "always show the page of the selected game mode" implies centering or bringing it into view.
+      // Let's set it as the current index (start of view) but respected bounds.
+
+      // However, if we scroll to the end, currentIndex might need to be maxIndex.
+      // Let's just try to set it to gameIndex, clamped by maxIndex.
+
+      // Wait, if I choose the last game, gameIndex will be high.
+      // currentIndex is the index of the LEFTMOST card.
+      // So if I select the last game, and I have 3 cards to show, 
+      // currentIndex should be (Total - 3).
+
+      // Actually, existing snapToIndex clamps to maxIndex.
+      // But we shouldn't pass gameIndex directly if it's > maxIndex.
+      // snapToIndex logic: Math.max(0, Math.min(index, maxIndex))
+
+      // If I want the selected game to be focused, passing gameIndex directly 
+      // (which snapToIndex clamps) is a good start. 
+      // But if the user selects the very last game, gameIndex is N-1.
+      // maxIndex is N - cardsToShow.
+      // Clamped index will be maxIndex. 
+      // So the view will start at maxIndex. 
+      // The cards shown will be [maxIndex, maxIndex+1, ... maxIndex+cardsToShow-1].
+      // The last card (index N-1) WILL be visible.
+
+      // So yes, calling snapToIndex(gameIndex) is correct to bring it into view 
+      // (specifically, making it the first one if possible, or sticking to the end).
+
+      // One detail: if the user manually scrolled, we might not want to force jump 
+      // unless the SELECTION changed externally (start up) or the user clicked something outside.
+      // But here selectedGameType IS the source of truth.
+      // If the user clicks a card in the carousel, onGameTypeChange is called, 
+      // selectedGameType updates, and this specific effect triggers.
+      // But wait! If I click the 2nd visible card, gameIndex is currentIndex + 1.
+      // This effect will run and set currentIndex to currentIndex + 1.
+      // So the carousel will shift to make the selected card the FIRST one.
+      // This might be annoying if I just wanted to select it but keep context?
+      // The user request says: "always show the page of the selected game mode".
+      // "항상 선택된 게임 모드의 페이지를 보여주도록" -> "Always show the page of the selected game mode".
+
+      // If I interpret "page" as "the card", then yes, it should be visible.
+      // If I interpret it as "snap to start", then my logic is correct.
+      // Standard carousel behavior often centers or brings to start.
+      // The previous code had `snapToIndex` doing `setCurrentIndex`.
+
+      // Let's protect against redundant updates if it's already visible?
+      // "always show" -> implies if it's hidden, show it.
+      // If it's already visible, maybe don't move it?
+      // But the request says "always show the page...".
+      // If I assume the user implies "on load/init", that's one thing.
+      // But "always" implies synchronization.
+
+      // Let's look at the existing behavior again.
+      // When I click a card, `onGameTypeChange` is called.
+      // If I click the 3rd card, it becomes selected.
+      // Should the carousel scroll to make it the 1st card?
+      // If yes, `snapToIndex(gameIndex)` is good.
+      // If no (it should stay in place), then we should only move if it's NOT visible.
+
+      // Let's refine the logic to be less intrusive if possible, OR strictly follow "show the page".
+      // Usually, selecting an item doesn't necessarily mean "scroll it to start".
+      // However, if I refresh, I want it to be there.
+      // And if I change it via some other means (if any), it should jump.
+
+      // Let's implement the "sync" which ensures it is visible.
+      // Ideally: if gameIndex is within [currentIndex, currentIndex + effectiveCardsToShow - 1], do nothing?
+      // BUT, the user said "show the PAGE of the selected game mode".
+      // This strongly suggests the view should update to reflect the selection.
+      // I will stick to the "snap to index" behavior as it guarantees visibility and is a predictable "sync".
+      // Also, looking at `snapToIndex` implementation, it sets state.
+      // `setCurrentIndex` will trigger a re-render/animation.
+
+      // Important: `snapToIndex` is defined inside the component and captures `maxIndex`.
+      // I shouldn't duplicate existing logic if I can help it, but I can't call `snapToIndex` from useEffect easily 
+      // if it's not wrapped in useCallback or I ignore dependency warnings (which I can't do lightly).
+
+      // Actually, `snapToIndex` depends on `maxIndex` and `onGameTypeChange`.
+      // `onGameTypeChange` changes `selectedGameType`.
+      // This creates a potential loop if `snapToIndex` calls `onGameTypeChange`...
+      // Wait, `snapToIndex` in the original code:
+      // const snapToIndex = (index: number) => {
+      //   ...
+      //   const game = AVAILABLE_GAMES[firstVisibleGameIndex];
+      //   if (... && game.id !== selectedGameType) { onGameTypeChange(game.id); }
+      // }
+
+      // OH! `snapToIndex` ALSO selects the game at the new index!
+      // This is a TWO-WAY binding.
+      // 1. Scroll changes selection (via snapToIndex -> onGameTypeChange).
+      // 2. We want Selection to change Scroll.
+
+      // If I add `useEffect(() => snapToIndex(gameIndex), [selectedGameType])`:
+      // 1. `selectedGameType` changes to X.
+      // 2. Effect calls `snapToIndex(index of X)`.
+      // 3. `snapToIndex` sets `currentIndex` to `index of X`.
+      // 4. `snapToIndex` gets `firstVisibleGameIndex` (which is now `index of X`).
+      // 5. `snapToIndex` sees `game.id` (X) equals `selectedGameType` (X).
+      // 6. It does NOT call `onGameTypeChange`.
+      // Loop broken. Safe.
+
+      // EXCEPT: `snapToIndex` is not a dependency-stable function (re-created every render).
+      // I should extract the logic or move the effect.
+
+      // Better approach:
+      // Just set `currentIndex` directly in the effect, but clamp it.
+      // And do NOT trigger the "auto-select" logic that `snapToIndex` has.
+      // The "auto-select" logic in `snapToIndex` is for when the *user scrolls*.
+      // When we sync from state, we only want to scroll, not re-select (it's already selected).
+
+      // So:
+      const clampedIndex = Math.max(0, Math.min(gameIndex, maxIndex));
+      if (clampedIndex !== currentIndex) {
+        setCurrentIndex(clampedIndex);
+      }
+    }
+  }, [selectedGameType, maxIndex, currentIndex]);
+
   // Keyboard navigation
   useEffect(() => {
     if (disabled) return; // Disable keyboard navigation when tutorial is open
@@ -226,10 +354,10 @@ export function GameModeCarousel({
                     !isAvailable
                       ? "border-white/30 bg-white/10 cursor-pointer hover:border-primary/40 hover:bg-primary/10"
                       : isSelected
-                      ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 shadow-[0_0_20px_rgba(0,243,255,0.3)]"
-                      : isFirstVisible && isAvailable
-                      ? "border-primary/60 bg-primary/5 hover:border-primary/70 hover:bg-primary/15 shadow-[0_0_10px_rgba(0,243,255,0.15)]"
-                      : "border-white/10 bg-white/5 hover:border-primary/50 hover:bg-primary/10 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)]"
+                        ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 shadow-[0_0_20px_rgba(0,243,255,0.3)]"
+                        : isFirstVisible && isAvailable
+                          ? "border-primary/60 bg-primary/5 hover:border-primary/70 hover:bg-primary/15 shadow-[0_0_10px_rgba(0,243,255,0.15)]"
+                          : "border-white/10 bg-white/5 hover:border-primary/50 hover:bg-primary/10 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)]"
                   )}
                 >
                   {!isAvailable && game.comingSoon && (
