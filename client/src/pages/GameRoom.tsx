@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -349,6 +349,24 @@ export default function GameRoom() {
     formatTime,
   ]);
 
+  // Handle surrender confirmation
+  const handleSurrender = useCallback(() => {
+    if (gameId && game && !game.winner) {
+      // Mark game as loss for player (winner: 'ai')
+      // Note: We don't wait for this async operation because we're navigating away immediately
+      gameStorage.updateGame(gameId, {
+        winner: 'ai',
+        history: [...(game.history || []), 'RESIGN'] // Optional: record resignation in history if supported
+      });
+
+      // Log the surrender
+      setLogHistory(prev => [...prev, {
+        message: t("gameRoom.log.playerSurrendered"),
+        timestamp: new Date()
+      }]);
+    }
+  }, [gameId, game, t]);
+
   // Use prevent navigation hook
   const {
     handleNavigateAway,
@@ -360,6 +378,7 @@ export default function GameRoom() {
     gameType: validatedGameType,
     isNavigatingAwayRef,
     t,
+    onConfirm: handleSurrender
   });
 
   // Get interaction state for select-then-move and direct-move patterns

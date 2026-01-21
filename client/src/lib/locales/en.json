@@ -108,6 +108,7 @@
       "calculationError": "Calculation error. No valid moves.",
       "calculationErrorKo": "Calculation error: No valid moves available.",
       "calculationErrorNoSelection": "Calculation error: Unable to select a valid move.",
+      "playerSurrendered": "Player surrendered.",
       "entropy": {
         "initializing": "Sector ENTROPY: Topological connection analysis protocol engaged. Invisible wall generation system active.",
         "noMoves": "No valid moves available. Connection failed.",

@@ -15,6 +15,7 @@ export interface UsePreventNavigationOptions {
   gameType: GameType;
   isNavigatingAwayRef: React.MutableRefObject<boolean>;
   t: (key: string) => string;
+  onConfirm?: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export function usePreventNavigation({
   gameType,
   isNavigatingAwayRef,
   t,
+  onConfirm,
 }: UsePreventNavigationOptions) {
   const [location, setLocation] = useLocation();
   const prevLocationRef = useRef(location);
@@ -60,6 +62,11 @@ export function usePreventNavigation({
   }, [game, isNavigatingAwayRef, setLocation]);
 
   const confirmNavigation = useCallback(() => {
+    // Execute onConfirm callback if provided (e.g. for surrender logic)
+    if (onConfirm) {
+      onConfirm();
+    }
+
     if (pendingPath) {
       isNavigatingAwayRef.current = true;
       setLocation(pendingPath);
@@ -71,12 +78,12 @@ export function usePreventNavigation({
     }
     setIsConfirmOpen(false);
     setPendingPath(null);
-  }, [pendingPath, isNavigatingAwayRef, setLocation]);
+  }, [pendingPath, isNavigatingAwayRef, setLocation, onConfirm]);
 
   const cancelNavigation = useCallback(() => {
     setIsConfirmOpen(false);
     setPendingPath(null);
-    
+
     // 만약 URL이 이미 변경된 상태라면 (뒤로가기 등), 원래 URL로 복구
     const currentUrl = buildGameRoomUrl(gameType);
     if (window.location.pathname !== currentUrl) {
@@ -94,7 +101,7 @@ export function usePreventNavigation({
         // 뒤로가기를 감지하면 다이얼로그를 띄우고 히스토리를 복구
         setIsConfirmOpen(true);
         setPendingPath(null); // 뒤로가기는 특정 경로가 아닌 히스토리 이동임
-        
+
         const currentUrl = buildGameRoomUrl(gameType);
         window.history.pushState(null, '', currentUrl);
       }
@@ -128,11 +135,11 @@ export function usePreventNavigation({
       // 경로가 변경되려고 할 때 다이얼로그 표시 및 경로 복구
       setPendingPath(location);
       setIsConfirmOpen(true);
-      
+
       const currentGameUrl = buildGameRoomUrl(gameType);
       isNavigatingAwayRef.current = true; // 복구 시 무한 루프 방지
       setLocation(currentGameUrl);
-      
+
       setTimeout(() => {
         isNavigatingAwayRef.current = false;
       }, 0);

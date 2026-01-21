@@ -111,6 +111,7 @@
       "calculationError": "계산 오류. 유효한 수가 없습니다.",
       "calculationErrorKo": "계산 오류: 유효한 수가 없습니다.",
       "calculationErrorNoSelection": "계산 오류: 유효한 수를 선택할 수 없습니다.",
+      "playerSurrendered": "플레이어가 항복했습니다.",
       "entropy": {
         "initializing": "섹터 ENTROPY: 위상수학적 연결 분석 프로토콜 활성화. 보이지 않는 벽 생성 시스템 작동 중.",
         "noMoves": "유효한 수가 없습니다. 연결 실패.",
