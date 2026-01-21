@@ -435,15 +435,80 @@ impl MCTSEngine {
         }
     }
 
-    fn search(&mut self, time_limit_ms: u32) -> AnalysisResult {
+    fn search(&mut self, time_limit_ms: u32, phase: u32) -> AnalysisResult {
         let start = js_sys::Date::now();
         let mut iterations = 0;
         let rave_const = 300.0;
 
+        // Adaptive Time Control Parameters
+        // Phase 0: Opening, 1: Mid, 2: End
+        
+        let soft_limit = time_limit_ms as f64;
+        let hard_limit = if phase == 1 { 
+            // Mid-game: Strict limit (already overdrive)
+            time_limit_ms as f64 
+        } else {
+            // Opening/End: Allow extension up to 3000ms if confused
+            if time_limit_ms < 3000 { 3000.0 } else { time_limit_ms as f64 }
+        };
+
         while iterations < self.config.max_simulations {
-            if iterations % 1000 == 0 {
+            // Check time/confidence every 500 sims
+            if iterations % 500 == 0 && iterations > 0 {
                 let elapsed = js_sys::Date::now() - start;
-                if elapsed >= time_limit_ms as f64 { break; }
+                
+                // 1. HARD STOP
+                if elapsed >= hard_limit { break; }
+
+                // 2. ADAPTIVE LOGIC
+                let root = &self.nodes[0];
+                let mut best_visits = 0.0;
+                let mut second_best_visits = 0.0;
+                let mut best_idx = 0;
+                
+                let mut sorted_children: Vec<usize> = root.children.clone();
+                sorted_children.sort_by(|&a, &b| self.nodes[b].visits.partial_cmp(&self.nodes[a].visits).unwrap_or(std::cmp::Ordering::Equal));
+                
+                if !sorted_children.is_empty() {
+                    let best_node = &self.nodes[sorted_children[0]];
+                    best_visits = best_node.visits;
+                    best_idx = sorted_children[0];
+                    if sorted_children.len() > 1 {
+                        second_best_visits = self.nodes[sorted_children[1]].visits;
+                    }
+                }
+
+                // Phase 1 (Mid-Game): "Mercy Exit" (Early Stop)
+                if phase == 1 {
+                    // If one move is utterly dominant or we have found a winning line
+                    let total_visits = root.visits;
+                    let best_wr = if best_visits > 0.0 { self.nodes[best_idx].wins / best_visits } else { 0.0 };
+                    
+                    // Condition A: Winning line found (98% win rate with significant visits)
+                    if best_visits > 500.0 && best_wr > 0.98 {
+                         break; // Stop early, we won
+                    }
+                    
+                    // Condition B: Dominant move (60% of total visits after 2000ms)
+                    if elapsed > 2000.0 && best_visits > total_visits * 0.60 {
+                         break; // Stop early, clear winner
+                    }
+                }
+                
+                // Phase 0/2 (Opening/End): "Panic Extension"
+                if (phase == 0 || phase == 2) && elapsed >= soft_limit {
+                    // We passed the soft limit. Should we stop?
+                    // If top move is not clear (less than 1.5x second best), EXTEND time
+                    if best_visits < second_best_visits * 1.5 {
+                        // Continue! (Implicit extension)
+                    } else {
+                        // Confident enough, or simple position
+                        break;
+                    }
+                } else if phase == 1 && elapsed >= soft_limit {
+                     // Mid game soft limit reached (which is usually equal to hard limit, but just in case)
+                     break;
+                }
             }
 
             let mut state = self.root_state.clone();
@@ -599,7 +664,7 @@ impl EntropyWasmEngine {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self { Self {} }
 
-    pub fn get_best_move(&self, board_array: &[u8], is_ai_turn: bool, time_limit_ms: u32, difficulty_level: u32) -> Result<JsValue, JsValue> {
+    pub fn get_best_move(&self, board_array: &[u8], is_ai_turn: bool, time_limit_ms: u32, difficulty_level: u32, phase: u32) -> Result<JsValue, JsValue> {
         if board_array.len() != NUM_CELLS { return Err(JsValue::from_str("Invalid board size")); }
         
         let mut state = GameState::new();
@@ -612,7 +677,7 @@ impl EntropyWasmEngine {
         let config = EngineConfig::for_difficulty(difficulty_level);
         
         let mut engine = MCTSEngine::new(state, player, config);
-        let result = engine.search(time_limit_ms);
+        let result = engine.search(time_limit_ms, phase);
         
         Ok(serde_wasm_bindgen::to_value(&result)?)
     }

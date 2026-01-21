@@ -80,10 +80,10 @@ function printAnalysisLog(result: WasmAnalysisResult, difficulty: string) {
   );
 
   console.groupCollapsed("📊 Candidate Details");
-  
+
   if (best) {
     console.log(
-        `1. (${best.r}, ${best.c}) - Rate: ${winRatePercent}% [Visits: ${best.visits}, Wins: ${best.wins}]`
+      `1. (${best.r}, ${best.c}) - Rate: ${winRatePercent}% [Visits: ${best.visits}, Wins: ${best.wins}]`
     );
   }
 
@@ -99,12 +99,13 @@ function printAnalysisLog(result: WasmAnalysisResult, difficulty: string) {
 
 export async function getWasmAIMove(
   board: BoardState,
-  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"
+  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7",
+  emptyCells: number
 ): Promise<AIMoveResult | null> {
   const rows = board.boardSize.rows;
   const cols = board.boardSize.cols;
   const flatBoard = new Uint8Array(rows * cols);
-  
+
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cell = board.cells[r][c];
@@ -115,54 +116,76 @@ export async function getWasmAIMove(
     }
   }
 
-  // Detect mobile device to prevent overheating
+  // Detect mobile device (informational only now)
   const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   let timeLimit = 1000;
   let numericDifficulty = 3;
+  let phase = 0; // 0: Opening, 1: Mid, 2: End
+
   if (difficulty === 'NEXUS-5') {
-    // Reduce time on mobile to prevent heat
     timeLimit = isMobile ? 1000 : 2000;
     numericDifficulty = 5;
+    // Nexus-5 uses flat time for simplicity
+    phase = 1;
   }
+
   if (difficulty === 'NEXUS-7') {
-    // Unify time limit to 4000ms for maximum difficulty on all devices
-    // User accepted thermal trade-off for mobile
-    timeLimit = 4000;
     numericDifficulty = 7;
+
+    // Dynamic Time Management (The Bell Curve of Thought)
+    if (emptyCells > 100) {
+      // Opening Phase: Fast, Intuitive (1000ms)
+      // "Thermal Headroom" accumulation
+      phase = 0;
+      timeLimit = 1000;
+      console.log(`[EntropyWasm] Phase: OPENING (${emptyCells} left) - Target: 1000ms`);
+    } else if (emptyCells >= 40) {
+      // Mid-Game: Peak Complexity (6000ms)
+      // "Overdrive" - spending the thermal buffer
+      phase = 1;
+      timeLimit = 6000;
+      console.log(`[EntropyWasm] Phase: MID-GAME (${emptyCells} left) - Target: 6000ms (Overdrive)`);
+    } else {
+      // End-Game: Cleanup (1500ms)
+      // Cooling down
+      phase = 2;
+      timeLimit = 1500;
+      console.log(`[EntropyWasm] Phase: END-GAME (${emptyCells} left) - Target: 1500ms`);
+    }
   }
 
   if (isMobile) {
-    console.log(`[EntropyWasm] Mobile device detected. Time limit set to ${timeLimit}ms for ${difficulty}`);
+    console.log(`[EntropyWasm] Mobile detected. Running NEXUS-7 dynamic profile.`);
   }
 
   try {
     const workerInstance = getWorker();
-    
+
     // Wrap worker communication in a Promise
     const resultObj = await new Promise<any>((resolve, reject) => {
-      // If there's an active request, reject it (or queue it, but single threaded AI implies one move at a time)
+      // If there's an active request, reject it
       if (activeRequest) {
-          // Ideally we should cancel the previous one
-          activeRequest.reject("Cancelled by new request");
+        activeRequest.reject("Cancelled by new request");
       }
-      
+
       activeRequest = { resolve, reject };
-      
+
       workerInstance.postMessage({
         type: 'CALCULATE_MOVE',
         payload: {
           boardArray: flatBoard,
           isAiTurn: true,
           timeLimit,
-          difficultyLevel: numericDifficulty
+          difficultyLevel: numericDifficulty,
+          phase // Pass phase for adaptive logic
         }
       });
     });
 
     // Validate result
     if (!resultObj || !resultObj.best_move) {
-        throw new Error("Invalid result from WASM worker");
+      throw new Error("Invalid result from WASM worker");
     }
 
     const result = resultObj as WasmAnalysisResult;

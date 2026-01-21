@@ -7,11 +7,11 @@ let isInitialized = false;
 // Initialize WASM
 async function initialize() {
   if (isInitialized) return;
-  
+
   try {
     // In a worker, we need to locate the wasm file relative to the worker script
     // Vite handles the import, but we need to ensure init is called
-    await init(); 
+    await init();
     engine = new EntropyWasmEngine();
     isInitialized = true;
     console.log('[Worker] Entropy WASM Engine initialized');
@@ -25,7 +25,7 @@ self.onmessage = async (e: MessageEvent) => {
   const { type, payload } = e.data;
 
   if (type === 'CALCULATE_MOVE') {
-    const { boardArray, isAiTurn, timeLimit, difficultyLevel } = payload;
+    const { boardArray, isAiTurn, timeLimit, difficultyLevel, phase } = payload;
 
     try {
       if (!isInitialized) {
@@ -37,8 +37,10 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       // Perform calculation (this blocks the worker thread, but not the UI)
-      const resultObj = engine.get_best_move(boardArray, isAiTurn, timeLimit, difficultyLevel || 7);
-      
+      // Phase defaults to 1 (Mid-Game behavior) if not provided
+      const gamePhase = phase !== undefined ? phase : 1;
+      const resultObj = engine.get_best_move(boardArray, isAiTurn, timeLimit, difficultyLevel || 7, gamePhase);
+
       // Send result back to main thread
       self.postMessage({
         type: 'CALCULATION_COMPLETE',

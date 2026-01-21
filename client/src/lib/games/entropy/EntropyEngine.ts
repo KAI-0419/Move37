@@ -45,18 +45,18 @@ export class EntropyEngine implements IGameEngine {
     try {
       const board = parseBoardState(boardState);
       const player: Player = isPlayer ? 'PLAYER' : 'AI';
-      
+
       // In Hex, move only has 'to' position (no 'from')
       const hexMove: Move = { r: move.to.r, c: move.to.c };
       const valid = isValidMove(board, hexMove, player);
-      
+
       if (!valid) {
         return {
           valid: false,
           error: "gameRoom.errors.illegalMove",
         };
       }
-      
+
       return { valid: true };
     } catch (error) {
       return {
@@ -68,19 +68,19 @@ export class EntropyEngine implements IGameEngine {
 
   makeMove(boardState: string, move: GameMove): string {
     const board = parseBoardState(boardState);
-    
+
     // Determine which player made the move based on turn count
     // Even turn count = PLAYER, odd = AI
     const isPlayerMove = board.turnCount % 2 === 0;
     const player: Player = isPlayerMove ? 'PLAYER' : 'AI';
-    
+
     // Apply the move
     const hexMove: Move = { r: move.to.r, c: move.to.c };
     setCellState(board, hexMove, player);
-    
+
     // Increment turn count
     board.turnCount++;
-    
+
     return generateBoardString(board);
   }
 
@@ -92,7 +92,7 @@ export class EntropyEngine implements IGameEngine {
   ): WinnerResult {
     try {
       const board = parseBoardState(boardState);
-      
+
       // Check for time out conditions
       if (playerTimeRemaining <= 0) {
         console.log("checkWinner: Player time expired");
@@ -102,18 +102,18 @@ export class EntropyEngine implements IGameEngine {
         console.log("checkWinner: AI time expired");
         return "player";
       }
-      
+
       // Check for connections
       if (isConnected(board, 'PLAYER')) {
         console.log("checkWinner: Player connected left to right");
         return "player";
       }
-      
+
       if (isConnected(board, 'AI')) {
         console.log("checkWinner: AI connected top to bottom");
         return "ai";
       }
-      
+
       // Hex game mathematical principle: No draws are possible
       // If board is full, one player MUST have a connection
       // This is a fundamental theorem of Hex game theory
@@ -122,11 +122,11 @@ export class EntropyEngine implements IGameEngine {
         // Board is full - recheck connections with absolute certainty
         // In Hex, when board is full, exactly one player has a winning connection
         console.log("checkWinner: Board is full - determining winner by connection");
-        
+
         // Double-check connections (shouldn't be necessary, but ensures correctness)
         const playerConnected = isConnected(board, 'PLAYER');
         const aiConnected = isConnected(board, 'AI');
-        
+
         if (playerConnected && !aiConnected) {
           return "player";
         } else if (aiConnected && !playerConnected) {
@@ -158,7 +158,7 @@ export class EntropyEngine implements IGameEngine {
           return playerCount > aiCount ? "player" : "ai";
         }
       }
-      
+
       // Game continues
       return null;
     } catch (error) {
@@ -181,20 +181,22 @@ export class EntropyEngine implements IGameEngine {
   ): Promise<AIMoveResult> {
     try {
       const board = parseBoardState(boardState);
-      
+
       // Try WASM Engine first for high performance
       // Only use WASM for higher difficulties or if available
       if (difficulty === "NEXUS-7" || difficulty === "NEXUS-5") {
         try {
           console.log("Attempting WASM calculation for", difficulty);
-          const wasmResult = await getWasmAIMove(board, difficulty);
+          // Calculate remaining moves for adaptive time management
+          const emptyCells = getValidMoves(board).length;
+          const wasmResult = await getWasmAIMove(board, difficulty, emptyCells);
           if (wasmResult) {
             // Validate WASM move just in case
-             const isValid = this.isValidMove(boardState, wasmResult.move!, false);
-             if (isValid.valid) {
-               return wasmResult;
-             }
-             console.warn("WASM returned invalid move:", wasmResult.move);
+            const isValid = this.isValidMove(boardState, wasmResult.move!, false);
+            if (isValid.valid) {
+              return wasmResult;
+            }
+            console.warn("WASM returned invalid move:", wasmResult.move);
           }
         } catch (wasmErr) {
           console.warn("WASM engine failed, falling back to JS:", wasmErr);
@@ -203,7 +205,7 @@ export class EntropyEngine implements IGameEngine {
 
       // Fallback to existing JS Engine
       const result = await getAIMove(board, playerLastMove, difficulty, turnCount, boardHistory);
-      
+
       // Validate that result has a valid move structure
       if (result && result.move) {
         // Additional validation: check if move is actually valid
@@ -223,7 +225,7 @@ export class EntropyEngine implements IGameEngine {
           }
         }
       }
-      
+
       return result;
     } catch (error) {
       console.error("Error in calculateAIMove:", error);
@@ -243,7 +245,7 @@ export class EntropyEngine implements IGameEngine {
       } catch (fallbackError) {
         console.error("Fallback also failed:", fallbackError);
       }
-      
+
       return {
         move: null,
         logs: ["gameRoom.log.entropy.error.criticalFailure"],
@@ -258,7 +260,7 @@ export class EntropyEngine implements IGameEngine {
   ): boolean {
     // For Hex, repetition is less critical, but we can check for exact board state repetition
     const board = parseBoardState(boardState);
-    
+
     // Apply the move temporarily
     const tempBoard = cloneBoard(board);
     const isPlayerMove = board.turnCount % 2 === 0;
@@ -266,9 +268,9 @@ export class EntropyEngine implements IGameEngine {
     const hexMove: Move = { r: move.to.r, c: move.to.c };
     setCellState(tempBoard, hexMove, player);
     tempBoard.turnCount++;
-    
+
     const newBoardString = generateBoardString(tempBoard);
-    
+
     // Check if this board state has appeared 3 times
     const count = boardHistory.filter(h => h === newBoardString).length;
     return count >= 2; // Already appeared twice, this would be the third
@@ -295,17 +297,17 @@ export class EntropyEngine implements IGameEngine {
     if (board.boardSize && board.cells) {
       return generateBoardString(board);
     }
-    
+
     // If board is a 2D array, convert to BoardState
     const rows = board.length;
     const cols = board[0]?.length || 0;
-    
+
     const boardState: BoardState = {
       boardSize: { rows, cols },
       cells: board,
       turnCount: 0,
     };
-    
+
     return generateBoardString(boardState);
   }
 
@@ -338,7 +340,7 @@ export class EntropyEngine implements IGameEngine {
     } catch (error) {
       console.error("Failed to parse history entry:", error);
     }
-    
+
     return null;
   }
 
