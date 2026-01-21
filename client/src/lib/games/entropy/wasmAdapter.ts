@@ -126,14 +126,14 @@ export async function getWasmAIMove(
     numericDifficulty = 5;
   }
   if (difficulty === 'NEXUS-7') {
-    // Significant reduction on mobile for heat management
-    // 4000ms at 100% CPU is too much for passive cooling on phones
-    timeLimit = isMobile ? 2500 : 4000;
+    // Unify time limit to 4000ms for maximum difficulty on all devices
+    // User accepted thermal trade-off for mobile
+    timeLimit = 4000;
     numericDifficulty = 7;
   }
 
   if (isMobile) {
-    console.log(`[EntropyWasm] Mobile device detected. Adjusting time limit to ${timeLimit}ms for ${difficulty}`);
+    console.log(`[EntropyWasm] Mobile device detected. Time limit set to ${timeLimit}ms for ${difficulty}`);
   }
 
   try {

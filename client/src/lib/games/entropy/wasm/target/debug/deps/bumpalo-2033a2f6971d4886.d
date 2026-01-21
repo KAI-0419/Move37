@@ -1,0 +1,9 @@
+C:\Users\rkdgu\Desktop\Move 37\client\src\lib\games\entropy\wasm\target\debug\deps\bumpalo-2033a2f6971d4886.d: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\lib.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\alloc.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\../README.md
+
+C:\Users\rkdgu\Desktop\Move 37\client\src\lib\games\entropy\wasm\target\debug\deps\libbumpalo-2033a2f6971d4886.rlib: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\lib.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\alloc.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\../README.md
+
+C:\Users\rkdgu\Desktop\Move 37\client\src\lib\games\entropy\wasm\target\debug\deps\libbumpalo-2033a2f6971d4886.rmeta: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\lib.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\alloc.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\../README.md
+
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\lib.rs:
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\alloc.rs:
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\bumpalo-3.19.1\src\../README.md:

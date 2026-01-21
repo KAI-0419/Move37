@@ -33,9 +33,9 @@ impl EngineConfig {
                 selection_temperature: 0.1, // Slight noise, mostly best move
             },
             7 | _ => EngineConfig {
-                max_simulations: 1_000_000, // Effectively unlimited by time
-                playout_heuristic_chance: 0.30, // Strong defensive heuristics
-                selection_temperature: 0.0, // Strict best move
+                max_simulations: 1_000_000, 
+                playout_heuristic_chance: 0.50, // Increased from 0.30 for smarter rollouts
+                selection_temperature: 0.0, 
             },
         }
     }
@@ -232,6 +232,7 @@ impl GameState {
         Player::None
     }
 
+    #[inline(always)]
     fn evaluate_bridge_potential(&self, idx: usize, player: Player) -> i32 {
         let neighbors = Self::get_neighbors(idx);
         let opponent = player.opponent();
@@ -248,7 +249,9 @@ impl GameState {
         }
 
         let mut score = 0;
+        // Connecting our own pieces is good (40pts)
         if my_neighbors >= 2 { score += 40; }
+        // Blocking opponent is critical (60pts)
         if opp_neighbors >= 2 { score += 60; }
         score
     }
@@ -304,7 +307,8 @@ impl MCTSEngine {
         let current_player = node.player.opponent();
 
         // Sample and pick best from untried
-        let sample_count = std::cmp::min(15, node.untried_moves.len());
+        // Increased from 15 to 40 for better candidate selection
+        let sample_count = std::cmp::min(40, node.untried_moves.len());
         let mut best_idx_in_untried = 0;
         let mut best_score = -10000;
         
@@ -316,13 +320,16 @@ impl MCTSEngine {
             
             let mut score = 0;
             
-            // Centrality
+            // Centrality - Reduced penalty (was *2, now /2 effectively - actually just 0.5 weight relative to before)
+            // But since we use integer math, we'll keep the logic simple:
+            // Old: score -= dist * 2;
+            // New: score -= dist; (Half the penalty)
             let r = (m / BOARD_COLS) as i32;
             let c = (m % BOARD_COLS) as i32;
             let center_r = BOARD_ROWS as i32 / 2;
             let center_c = BOARD_COLS as i32 / 2;
             let dist_from_center = (r - center_r).abs() + (c - center_c).abs();
-            score -= dist_from_center * 2;
+            score -= dist_from_center; // Reduced penalty
 
             score += state.evaluate_bridge_potential(m, current_player);
             
@@ -382,13 +389,15 @@ impl MCTSEngine {
             
             let move_idx;
             
+            // Only use heuristic if we are not in early game (less than 80 empty cells)
+            // This preserves speed in the opening
             if use_heuristic && state.empty_cells.len() < 80 {
                 // Heuristic pick: Try to pick a move that blocks opponent or connects self
-                // Simple implementation: Check random 5 moves, pick best
+                // Increased check count from 5 to 7 for better tactical awareness
                 let mut best_m = state.empty_cells[0];
                 let mut best_s = -100;
                 
-                let check_count = std::cmp::min(5, state.empty_cells.len());
+                let check_count = std::cmp::min(7, state.empty_cells.len());
                 for _ in 0..check_count {
                     let idx = rng.gen_range(0..state.empty_cells.len());
                     let m = state.empty_cells[idx];

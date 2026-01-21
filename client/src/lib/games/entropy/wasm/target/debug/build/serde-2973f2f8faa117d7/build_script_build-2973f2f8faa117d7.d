@@ -1,0 +1,5 @@
+C:\Users\rkdgu\Desktop\Move 37\client\src\lib\games\entropy\wasm\target\debug\build\serde-2973f2f8faa117d7\build_script_build-2973f2f8faa117d7.d: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\build.rs
+
+C:\Users\rkdgu\Desktop\Move 37\client\src\lib\games\entropy\wasm\target\debug\build\serde-2973f2f8faa117d7\build_script_build-2973f2f8faa117d7.exe: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\build.rs
+
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\build.rs:
