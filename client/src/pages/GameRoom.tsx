@@ -6,7 +6,7 @@ import { useGame, useMakeMove, useCreateGame } from "@/hooks/use-game";
 import { Scanlines } from "@/components/Scanlines";
 import { GameUIFactory } from "@/lib/games/GameUIFactory";
 import { GlitchButton } from "@/components/GlitchButton";
-import { TerminalText } from "@/components/TerminalText";
+
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { gameStorage, handleVictoryUnlock, getUnlockedDifficulties } from "@/lib/storage";

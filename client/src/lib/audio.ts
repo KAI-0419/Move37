@@ -97,7 +97,7 @@ export class AudioManager {
     nativeHapticsSupported: false
   };
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): AudioManager {
     if (!AudioManager.instance) {
@@ -118,7 +118,7 @@ export class AudioManager {
     this.capabilities.nativeAudioSupported = isNative;
     this.capabilities.nativeHapticsSupported = isNative;
 
-    console.log('[Audio] Platform capabilities:', this.capabilities);
+    // console.log('[Audio] Platform capabilities:', this.capabilities);
     return { ...this.capabilities };
   }
 
@@ -173,14 +173,14 @@ export class AudioManager {
       // 사용자 인터랙션 후에만 AudioContext 생성 가능
       if (!audioContext) {
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        console.log(`[Audio] AudioContext created, state: ${audioContext.state}`);
+        // console.log(`[Audio] AudioContext created, state: ${audioContext.state}`);
       }
 
       // Handle autoplay policy (suspended state)
       if (audioContext.state === 'suspended') {
-        console.log('[Audio] Resuming suspended AudioContext...');
+        // console.log('[Audio] Resuming suspended AudioContext...');
         await audioContext.resume();
-        console.log(`[Audio] AudioContext resumed, state: ${audioContext.state}`);
+        // console.log(`[Audio] AudioContext resumed, state: ${audioContext.state}`);
       }
     } catch (error) {
       console.error('[Audio] initializeWebAudio failed:', error);
@@ -188,25 +188,7 @@ export class AudioManager {
     }
   }
 
-  // 웹 사운드 미리 로드
-  private async preloadWebSounds(): Promise<void> {
-    if (!audioContext) return;
 
-    const soundPromises = Object.values(GAME_SOUNDS).map(async (sound) => {
-      try {
-        const response = await fetch(sound.path);
-        const arrayBuffer = await response.arrayBuffer();
-        if (!audioContext) return;
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        webAudioCache.set(sound.id, audioBuffer);
-        this.loadedSounds.add(sound.id);
-      } catch (error) {
-        console.warn(`Failed to preload web sound ${sound.id}:`, error);
-      }
-    });
-
-    await Promise.all(soundPromises);
-  }
 
   // 사운드 재생
   async playSound(soundId: string, volume: number = 1.0): Promise<void> {
@@ -238,7 +220,7 @@ export class AudioManager {
     try {
       // Stage 1: Initialize AudioContext (requires user gesture)
       if (!audioContext) {
-        console.log('[Audio] Initializing Web Audio on first play');
+        // console.log('[Audio] Initializing Web Audio on first play');
         await this.initializeWebAudio();
       }
 
@@ -249,7 +231,7 @@ export class AudioManager {
 
       // Stage 2: Load sound if needed (lazy loading)
       if (!webAudioCache.has(soundId)) {
-        console.log(`[Audio] Lazy loading sound: ${soundId}`);
+        // console.log(`[Audio] Lazy loading sound: ${soundId}`);
         await this.loadWebSound(soundId);
       }
 
@@ -270,7 +252,7 @@ export class AudioManager {
       gainNode.connect(audioContext.destination);
 
       source.start(0);
-      console.log(`[Audio] Played: ${soundId}`);
+      // console.log(`[Audio] Played: ${soundId}`);
     } catch (error) {
       console.warn(`[Audio] playWebSound failed for ${soundId}:`, error);
     }
@@ -290,7 +272,7 @@ export class AudioManager {
     }
 
     try {
-      console.log(`[Audio] Fetching: ${sound.path}`);
+      // console.log(`[Audio] Fetching: ${sound.path}`);
       const response = await fetch(sound.path);
 
       if (!response.ok) {
@@ -298,7 +280,7 @@ export class AudioManager {
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      console.log(`[Audio] Decoding ${soundId} (${arrayBuffer.byteLength} bytes)`);
+      // console.log(`[Audio] Decoding ${soundId} (${arrayBuffer.byteLength} bytes)`);
 
       if (!audioContext) return;
 
@@ -306,7 +288,7 @@ export class AudioManager {
       webAudioCache.set(soundId, audioBuffer);
       this.loadedSounds.add(soundId);
 
-      console.log(`[Audio] Loaded ${soundId} (${audioBuffer.duration.toFixed(2)}s)`);
+      // console.log(`[Audio] Loaded ${soundId} (${audioBuffer.duration.toFixed(2)}s)`);
     } catch (error) {
       console.error(`[Audio] Failed to load ${soundId} from ${sound.path}:`, error);
     }
@@ -389,7 +371,7 @@ export class AudioManager {
       if (!success) {
         console.warn(`[Haptics] Vibration request failed for pattern: ${pattern}`);
       } else {
-        console.log(`[Haptics] Vibrated: ${pattern} (${duration}ms)`);
+        // console.log(`[Haptics] Vibrated: ${pattern} (${duration}ms)`);
       }
     } catch (error) {
       console.warn(`[Haptics] Vibration error:`, error);

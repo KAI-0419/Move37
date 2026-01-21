@@ -7,11 +7,11 @@
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
-import { Trophy, AlertTriangle, Skull, X } from "lucide-react";
+import { Trophy, TriangleAlert, Skull, X } from "lucide-react";
 import { GlitchButton } from "@/components/GlitchButton";
 import { cn } from "@/lib/utils";
 import { getUnlockedDifficulties } from "@/lib/storage";
-import { getNextDifficulty } from "@/lib/utils/difficulty-utils";
+import { getNextDifficulty } from "@/lib/difficulty-utils";
 import type { GameType } from "@shared/schema";
 import type { DifficultyColorConfig } from "@/lib/games/GameUIConfig";
 import confetti from "canvas-confetti";
@@ -179,7 +179,7 @@ export function WinnerOverlay({
           {winner === 'player' ? (
             <Trophy className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
           ) : winner === 'draw' ? (
-            <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
+            <TriangleAlert className="w-12 h-12 sm:w-16 sm:h-16 text-secondary mb-2 sm:mb-4" />
           ) : (
             <Skull className={cn("w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-4", difficultyColors.icon)} />
           )}

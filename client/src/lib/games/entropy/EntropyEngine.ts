@@ -95,22 +95,22 @@ export class EntropyEngine implements IGameEngine {
 
       // Check for time out conditions
       if (playerTimeRemaining <= 0) {
-        console.log("checkWinner: Player time expired");
+        // console.log("checkWinner: Player time expired");
         return "ai";
       }
       if (aiTimeRemaining <= 0) {
-        console.log("checkWinner: AI time expired");
+        // console.log("checkWinner: AI time expired");
         return "player";
       }
 
       // Check for connections
       if (isConnected(board, 'PLAYER')) {
-        console.log("checkWinner: Player connected left to right");
+        // console.log("checkWinner: Player connected left to right");
         return "player";
       }
 
       if (isConnected(board, 'AI')) {
-        console.log("checkWinner: AI connected top to bottom");
+        // console.log("checkWinner: AI connected top to bottom");
         return "ai";
       }
 
@@ -121,7 +121,7 @@ export class EntropyEngine implements IGameEngine {
       if (emptyCells.length === 0) {
         // Board is full - recheck connections with absolute certainty
         // In Hex, when board is full, exactly one player has a winning connection
-        console.log("checkWinner: Board is full - determining winner by connection");
+        // console.log("checkWinner: Board is full - determining winner by connection");
 
         // Double-check connections (shouldn't be necessary, but ensures correctness)
         const playerConnected = isConnected(board, 'PLAYER');
@@ -186,7 +186,7 @@ export class EntropyEngine implements IGameEngine {
       // Only use WASM for higher difficulties or if available
       if (difficulty === "NEXUS-7" || difficulty === "NEXUS-5") {
         try {
-          console.log("Attempting WASM calculation for", difficulty);
+          // console.log("Attempting WASM calculation for", difficulty);
           // Calculate remaining moves for adaptive time management
           const emptyCells = getValidMoves(board).length;
           const wasmResult = await getWasmAIMove(board, difficulty, emptyCells);
@@ -304,8 +304,8 @@ export class EntropyEngine implements IGameEngine {
 
   getValidMoves(
     boardState: string,
-    position: { r: number; c: number },
-    isPlayer: boolean
+    _position: { r: number; c: number },
+    _isPlayer: boolean
   ): { r: number; c: number }[] {
     // In Hex, valid moves are all empty cells (position parameter is ignored)
     const board = parseBoardState(boardState);
@@ -370,7 +370,7 @@ export class EntropyEngine implements IGameEngine {
     return null;
   }
 
-  formatHistoryEntry(move: GameMove, isPlayer: boolean): string {
+  formatHistoryEntry(move: GameMove, _isPlayer: boolean): string {
     // Format: "r,c"
     return `${move.to.r},${move.to.c}`;
   }

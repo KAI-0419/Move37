@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useMemo, useRef, type TouchEvent } fr
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft, Target, Zap, Clock, Ban, Trophy } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
+// ...
+
+
 import { GlitchButton } from "@/components/GlitchButton";
 import { KingPiece, KnightPiece, PawnPiece } from "@/components/ChessPieces";
 import { cn } from "@/lib/utils";
@@ -241,6 +245,9 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
             <Zap className="w-5 h-5" />
             {t("tutorial.title")}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("tutorial.step", { current: currentStep + 1, total: tutorialSteps.length })}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

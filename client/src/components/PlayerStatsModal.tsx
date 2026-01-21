@@ -6,7 +6,7 @@
 
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PlayerStatsPanel } from "@/components/PlayerStatsPanel";
 import type { GameType } from "@shared/schema";
 
@@ -22,6 +22,10 @@ export function PlayerStatsModal({ open, onOpenChange, gameType }: PlayerStatsMo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[90dvh] bg-black/95 border-2 border-primary/30 backdrop-blur-xl p-0 overflow-hidden" style={{ maxHeight: 'calc(90dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}>
+        <DialogTitle className="sr-only">{t("lobby.stats.title")}</DialogTitle>
+        <DialogDescription className="sr-only">
+          {t("lobby.stats.title")} - View your game statistics and performance history
+        </DialogDescription>
         {/* Custom Header with Close Button */}
         <div className="relative p-4 sm:p-5 md:p-6 border-b border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
           <motion.div
@@ -31,12 +35,12 @@ export function PlayerStatsModal({ open, onOpenChange, gameType }: PlayerStatsMo
           >
             <div className="flex items-center gap-3">
               <motion.div
-                animate={{ 
+                animate={{
                   scale: [1, 1.1, 1],
                   opacity: [0.7, 1, 0.7]
                 }}
-                transition={{ 
-                  duration: 2, 
+                transition={{
+                  duration: 2,
                   repeat: Infinity,
                   ease: "easeInOut"
                 }}
