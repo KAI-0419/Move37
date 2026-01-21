@@ -149,8 +149,8 @@ export function EntropyGameplayPreview({
         />
 
         <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
-          <div className="w-[240px] h-[240px] flex items-center justify-center">
-            <div style={{ transform: 'scale(0.8)', transformOrigin: 'center' }}>
+          <div className="w-[280px] h-[280px] flex items-center justify-center">
+            <div style={{ transform: 'scale(0.9)', transformOrigin: 'center' }}>
               <EntropyBoard
                 boardString={boardString}
                 turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
@@ -168,6 +168,7 @@ export function EntropyGameplayPreview({
                 isProcessing={false}
                 size="small"
                 difficulty="NEXUS-7"
+                isPreviewMode={true}
               />
             </div>
           </div>

@@ -31,6 +31,7 @@ export function EntropyBoard({
   difficulty = "NEXUS-7",
   hasError = false,
   isTutorialMode = false,
+  isPreviewMode = false,
 }: BaseGameBoardProps) {
   // Parse board state
   const boardState = parseBoardState(boardString);
@@ -89,7 +90,7 @@ export function EntropyBoard({
   // Size configurations with responsive cell sizing
   const sizeConfig = useMemo(() => {
     const maxCellSizes = {
-      small: 20,
+      small: isPreviewMode ? 16 : (isTutorialMode ? 13 : 20),
       medium: 24,
       large: 28,
     };
@@ -502,10 +503,12 @@ export function EntropyBoard({
       </div>
 
       {/* Goal labels */}
-      <div className="flex justify-between mt-2 px-4 text-[10px] font-mono uppercase tracking-wider opacity-60">
-        <span className="text-primary">Your Goal: Left ↔ Right</span>
-        <span style={{ color: aiColors.solid }}>AI Goal: Top ↔ Bottom</span>
-      </div>
+      {!isTutorialMode && (
+        <div className="flex justify-between mt-2 px-4 text-[10px] font-mono uppercase tracking-wider opacity-60">
+          <span className="text-primary">Your Goal: Left ↔ Right</span>
+          <span style={{ color: aiColors.solid }}>AI Goal: Top ↔ Bottom</span>
+        </div>
+      )}
     </motion.div>
   );
 }
