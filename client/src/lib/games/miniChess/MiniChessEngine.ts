@@ -76,13 +76,13 @@ export class MiniChessEngine implements IGameEngine {
     return checkWinner(board, turnCount, playerTimeRemaining, aiTimeRemaining);
   }
 
-  calculateAIMove(
+  async calculateAIMove(
     boardState: string,
     playerLastMove: PlayerMove | null,
     difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7",
     turnCount?: number,
     boardHistory?: string[]
-  ): AIMoveResult {
+  ): Promise<AIMoveResult> {
     const board = parseFen(boardState);
     
     // Convert PlayerMove to format expected by getAIMove
@@ -103,7 +103,7 @@ export class MiniChessEngine implements IGameEngine {
     } : null;
     
     // Use local AI logic from evaluation module
-    const result = getAIMove(
+    const result = await getAIMove(
       board,
       playerMoveForAI,
       difficulty,

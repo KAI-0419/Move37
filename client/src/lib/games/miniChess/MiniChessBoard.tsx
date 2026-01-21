@@ -390,26 +390,14 @@ export function MiniChessBoard({
                       {pieceChar !== "." && (
                         <motion.div
                           key={`piece-${pieceChar}-${r}-${c}`}
-                          layout={!isTutorialMode}
-                          layoutId={
-                            !isTutorialMode && lastMove && isLastMoveDest
-                              ? `piece-moving-${lastMove.from.r}-${lastMove.from.c}-${pieceChar.toLowerCase()}`
-                              : !isTutorialMode
-                                ? `piece-${pieceChar.toLowerCase()}-${r}-${c}`
-                                : undefined
-                          }
-                          initial={false}
+                          initial={{ scale: 0.8, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0, opacity: 0 }}
                           transition={{
-                            layout: {
-                              type: "spring",
-                              stiffness: 400,
-                              damping: 25,
-                              duration: 0.5,
-                            },
-                            scale: { duration: 0.15 },
-                            opacity: { duration: 0.15 },
+                            type: "spring",
+                            stiffness: 500,
+                            damping: 30,
+                            mass: 1,
                           }}
                           className={cn(
                             "z-10 flex items-center justify-center select-none",

@@ -197,6 +197,8 @@ class SelectThenMoveHandler implements GameInteractionHandler {
     }
 
     const engine = GameEngineFactory.getCachedEngine(this.gameType);
+    if (!engine) return;
+    
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
     
     if (isMyPiece) {
@@ -248,6 +250,11 @@ class SelectThenMoveHandler implements GameInteractionHandler {
     }
 
     const engine = GameEngineFactory.getCachedEngine(this.gameType);
+    if (!engine) {
+      console.error("Game engine not found for type:", this.gameType);
+      return;
+    }
+    
     const isMyPiece = engine.isPlayerPiece(game.board, { r, c }, true);
 
     // Select own piece

@@ -533,7 +533,7 @@ function analyzePlayerPsychology(
  * 
  * @param difficulty - AI difficulty level: "NEXUS-3" (쉬움), "NEXUS-5" (보통), "NEXUS-7" (어려움)
  */
-export function getAIMove(
+export function runMiniChessSearch(
   board: Board,
   playerLastMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece, moveTimeSeconds?: number, hoverCount?: number } | null = null,
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
@@ -990,3 +990,37 @@ export function getAIMove(
     logs: [psychologicalInsight]
   };
 }
+
+/**
+ * Async AI move calculation (uses Web Worker)
+ */
+export async function getAIMove(
+  board: Board,
+  playerLastMove: { from: { r: number, c: number }, to: { r: number, c: number }, piece: Piece, captured?: Piece, moveTimeSeconds?: number, hoverCount?: number } | null = null,
+  difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7" = "NEXUS-7",
+  turnCount?: number,
+  boardHistory?: string[]
+): Promise<{ 
+  move: { from: { r: number, c: number }, to: { r: number, c: number } } | null;
+  logs: string[];
+}> {
+  try {
+    const { getMiniChessWorkerPool } = await import("./miniChessWorkerPool");
+    const workerPool = getMiniChessWorkerPool();
+    
+    // Convert Board array to FEN string for worker transfer
+    const { generateFen } = await import("./boardUtils");
+    const boardState = generateFen(board);
+    
+    const result = await workerPool.calculateMove(boardState, playerLastMove, difficulty, turnCount, boardHistory);
+    
+    // Result move is GameMove, we need to return what we promised
+    // The type matches: { from: {r,c}, to: {r,c} }
+    return result;
+  } catch (error) {
+    console.warn('[getAIMove] Worker failed, falling back to synchronous:', error);
+    const result = runMiniChessSearch(board, playerLastMove, difficulty, turnCount, boardHistory);
+    return result;
+  }
+}
+
