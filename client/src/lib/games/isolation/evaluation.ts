@@ -126,7 +126,7 @@ function getAllMoves(
     // If we move here, how many moves will we have next turn?
     const myNextMoves = getValidMoves(tempBoard, to, isPlayer);
     const myNextMobility = myNextMoves.length;
-    
+
     // Penalty for moving to a spot with very limited future options (Suicide prevention)
     let survivalBonus = 0;
     if (myNextMobility === 0) survivalBonus = -10000; // Literal suicide
@@ -136,14 +136,14 @@ function getAllMoves(
     // Score and rank destroy positions
     const scoredDestroys = destroyPositions.map(pos => {
       let score = 0;
-      
+
       // Add Survival Score
       score += survivalBonus;
 
       // 1. Critical Priority: Checkmate Detection
       // Does this destroy block an opponent's move?
       const blocksOpponent = opponentMoves.some(m => m.r === pos.r && m.c === pos.c);
-      
+
       if (blocksOpponent) {
         if (opponentMovesCount === 1) {
           // FATALITY: Opponent has only 1 move, and we are destroying it.
@@ -151,7 +151,7 @@ function getAllMoves(
           score += 10000;
         } else {
           // Standard blocking bonus
-          score += 50; 
+          score += 50;
         }
       }
 
@@ -165,9 +165,9 @@ function getAllMoves(
       // (Simple check: is it adjacent to 'to'?)
       const distToSelf = Math.abs(pos.r - to.r) + Math.abs(pos.c - to.c);
       if (distToSelf === 1) {
-         // It might be a valid move for us next turn, check carefully
-         // But for heuristic, just a small penalty is enough
-         score -= 10;
+        // It might be a valid move for us next turn, check carefully
+        // But for heuristic, just a small penalty is enough
+        score -= 10;
       }
 
       // 4. Center control (General heuristic)
@@ -375,91 +375,56 @@ function analyzePlayerPsychology(board: BoardState, playerMove: PlayerMove | nul
   const moveTimeSeconds = playerMove.moveTimeSeconds;
   const hoverCount = playerMove.hoverCount ?? 0;
 
-  const dr = playerMove.to.r - playerMove.from.r;
-  const dc = playerMove.to.c - playerMove.from.c;
-  const moveDistance = Math.max(Math.abs(dr), Math.abs(dc));
+  // V2 Analysis Data
+  const voronoi = calculateBitboardVoronoi(board.playerPos, board.aiPos, board.destroyed);
+  const playerMobility = voronoi.playerCount; // Approximate available moves/space
 
-  const aiDirR = board.aiPos.r - playerMove.from.r;
-  const aiDirC = board.aiPos.c - playerMove.from.c;
-  const dotProduct = dr * aiDirR + dc * aiDirC;
-  const isMovingTowardsAI = dotProduct > 0;
-  const isMovingAwayFromAI = dotProduct < 0;
-
-  const hasTimeData = moveTimeSeconds !== undefined;
-  const isQuickMove = hasTimeData && moveTimeSeconds <= 3.0;
-  const isLongThink = hasTimeData && moveTimeSeconds >= 10.0;
-  const hasHesitation = hoverCount >= 3;
-
-  const isAggressiveMove = isMovingTowardsAI && moveDistance >= 3;
-  const isDefensiveMove = isMovingAwayFromAI || moveDistance <= 2;
-
-  const currentTurn = turnCount || 0;
-  const isEarlyGame = currentTurn <= 5;
-  const isMidGame = currentTurn > 5 && currentTurn <= 15;
-  const isLateGame = currentTurn > 15;
-
-  const messages: string[] = [];
-
-  if (isLongThink && hasHesitation) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.longHesitation1",
-      "gameRoom.log.isolation.psychology.longHesitation2",
-      "gameRoom.log.isolation.psychology.longHesitation3"
-    );
-  } else if (isQuickMove && isAggressiveMove) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.quickAggressiveOptimal",
-      "gameRoom.log.isolation.psychology.quickAggressiveOptimal2",
-      "gameRoom.log.isolation.psychology.quickAggressiveOptimal3"
-    );
-  } else if (isLongThink) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.longThink1",
-      "gameRoom.log.isolation.psychology.longThink2",
-      "gameRoom.log.isolation.psychology.longThink3"
-    );
-  } else if (hasHesitation) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.hesitation1",
-      "gameRoom.log.isolation.psychology.hesitation2",
-      "gameRoom.log.isolation.psychology.hesitation3"
-    );
-  } else if (isQuickMove) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.quickMove1",
-      "gameRoom.log.isolation.psychology.quickMove2",
-      "gameRoom.log.isolation.psychology.quickMove3"
-    );
-  } else if (isAggressiveMove) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.aggressive1",
-      "gameRoom.log.isolation.psychology.aggressive2",
-      "gameRoom.log.isolation.psychology.aggressive3"
-    );
-  } else if (isDefensiveMove) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.defensive1",
-      "gameRoom.log.isolation.psychology.defensive2",
-      "gameRoom.log.isolation.psychology.defensive3"
-    );
-  } else if (isEarlyGame) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.earlyBalanced1",
-      "gameRoom.log.isolation.psychology.earlyBalanced2",
-      "gameRoom.log.isolation.psychology.earlyBalanced3"
-    );
-  } else if (isMidGame) {
-    messages.push(
-      "gameRoom.log.isolation.psychology.midBalanced1",
-      "gameRoom.log.isolation.psychology.midBalanced2",
-      "gameRoom.log.isolation.psychology.midBalanced3"
-    );
-  } else {
-    messages.push("gameRoom.log.isolation.playerBalanced");
+  // 1. Claustrophobia (Low mobility)
+  if (playerMobility <= 3) {
+    if (playerMobility === 0) return "gameRoom.log.isolation.psychology.claustrophobia"; // Should be game over, but just in case
+    return "gameRoom.log.isolation.psychology.claustrophobia";
+  }
+  if (playerMobility <= 5) {
+    return "gameRoom.log.isolation.psychology.claustrophobia2";
   }
 
-  const hash = board.destroyed.length + playerMove.from.r + playerMove.from.c + (turnCount || 0);
-  return messages[hash % messages.length];
+  // 2. Self-Trap (Destroying a tile that reduces own mobility significantly)
+  const isDestroyMoves = playerMove.destroy && isValidPosition(playerMove.destroy, board.boardSize);
+  if (isDestroyMoves) {
+    // Check if destroyed tile was adjacent to new player position
+    const dist = Math.abs(playerMove.to.r - playerMove.destroy!.r) + Math.abs(playerMove.to.c - playerMove.destroy!.c);
+    if (dist <= 1 && playerMobility < 10) {
+      if (Math.random() > 0.5) return "gameRoom.log.isolation.psychology.selfTrap";
+      return "gameRoom.log.isolation.psychology.selfTrap2";
+    }
+  }
+
+  // 3. Useless Destroy (Destroying tile far from both players)
+  if (isDestroyMoves) {
+    const distToAI = Math.abs(board.aiPos.r - playerMove.destroy!.r) + Math.abs(board.aiPos.c - playerMove.destroy!.c);
+    const distToPlayer = Math.abs(playerMove.to.r - playerMove.destroy!.r) + Math.abs(playerMove.to.c - playerMove.destroy!.c);
+    if (distToAI > 3 && distToPlayer > 3) {
+      if (Math.random() > 0.5) return "gameRoom.log.isolation.psychology.uselessDestroy";
+      return "gameRoom.log.isolation.psychology.uselessDestroy2";
+    }
+  }
+
+  // 4. Copycat (Mirroring AI's last move - simplified detection)
+  // If player moves to a symmetric position relative to center? Or just direction?
+  // Simple heuristic: Player moved same relative distance as AI's previous move (if we had history access easily here)
+  // Alternative: Player enters the exact spot AI just left?
+  // Let's use: Player moves to a spot symmetric to AI?
+
+  // 5. Cornered (Moving to corner)
+  const isCorner = (playerMove.to.r === 0 || playerMove.to.r === board.boardSize.rows - 1) &&
+    (playerMove.to.c === 0 || playerMove.to.c === board.boardSize.cols - 1);
+  if (isCorner) {
+    if (Math.random() > 0.3) return "gameRoom.log.isolation.psychology.cornered";
+    if (Math.random() > 0.5) return "gameRoom.log.isolation.psychology.cornered2";
+    return "gameRoom.log.isolation.psychology.cornered3";
+  }
+
+  return "gameRoom.log.isolation.playerBalanced";
 }
 
 /**

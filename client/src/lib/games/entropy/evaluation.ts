@@ -579,13 +579,13 @@ function generateBasicInsights(data: AdvancedInsightData): string[] {
   const { pathAnalysis, playerBehavior } = data;
 
   if (pathAnalysis.threatLevel === 'CRITICAL' || pathAnalysis.threatLevel === 'HIGH') {
-    insights.push("gameRoom.log.entropy.basic.defensivePlay");
+    insights.push("gameRoom.log.entropy.psychology.defensiveEdge");
   }
 
   if (playerBehavior.moveTimeSeconds < 3) {
-    insights.push("gameRoom.log.entropy.basic.quickDecision");
+    insights.push("gameRoom.log.entropy.psychology.quickMove");
   } else if (playerBehavior.moveTimeSeconds > 20) {
-    insights.push("gameRoom.log.entropy.basic.carefulThinking");
+    insights.push("gameRoom.log.entropy.psychology.longThink");
   }
 
   return insights.slice(0, 1); // Only 1 insight for NEXUS-3
@@ -1287,7 +1287,12 @@ export async function getAIMove(
         if (wouldBlockOpponent(board, topStrategic.move, 'AI')) {
           selectedMove = topStrategic.move;
           // Use simpler blocking message for NEXUS-3
-          logMessage = "gameRoom.log.entropy.blockingBasic";
+          const moveTime = playerLastMove?.moveTimeSeconds || 0;
+          if (moveTime < 2) {
+            logMessage = "gameRoom.log.entropy.psychology.quickBlocking";
+          } else {
+            logMessage = "gameRoom.log.entropy.psychology.blockingMove";
+          }
         }
       }
     }
