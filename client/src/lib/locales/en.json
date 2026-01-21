@@ -499,6 +499,9 @@
     "toggleHaptics": "Toggle haptics",
     "language": "Language",
     "info": "Settings are saved automatically",
-    "done": "Done"
+    "done": "Done",
+    "test": "Test",
+    "testSound": "Test sound",
+    "testHaptics": "Test haptics"
   }
 }

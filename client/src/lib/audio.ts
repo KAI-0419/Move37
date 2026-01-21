@@ -89,6 +89,14 @@ export class AudioManager {
   private static instance: AudioManager;
   private loadedSounds: Set<string> = new Set();
 
+  // Platform capabilities
+  private capabilities = {
+    webAudioSupported: false,
+    vibrationSupported: false,
+    nativeAudioSupported: false,
+    nativeHapticsSupported: false
+  };
+
   private constructor() {}
 
   static getInstance(): AudioManager {
@@ -98,9 +106,32 @@ export class AudioManager {
     return AudioManager.instance;
   }
 
+  // Detect platform capabilities
+  async detectCapabilities() {
+    this.capabilities.webAudioSupported =
+      !!(window.AudioContext || (window as any).webkitAudioContext);
+
+    this.capabilities.vibrationSupported =
+      'vibrate' in navigator &&
+      (window.location.protocol === 'https:' || window.location.hostname === 'localhost');
+
+    this.capabilities.nativeAudioSupported = isNative;
+    this.capabilities.nativeHapticsSupported = isNative;
+
+    console.log('[Audio] Platform capabilities:', this.capabilities);
+    return { ...this.capabilities };
+  }
+
+  getCapabilities() {
+    return { ...this.capabilities };
+  }
+
   // 오디오 초기화
   async initialize(): Promise<void> {
     if (audioInitialized) return;
+
+    // Detect capabilities first
+    await this.detectCapabilities();
 
     try {
       // 플랫폼에 따라 다른 방식으로 초기화
@@ -123,7 +154,7 @@ export class AudioManager {
       try {
         await NativeAudio.preload({
           assetId: sound.id,
-          assetPath: sound.path,
+          assetPath: sound.id + '.ogg', // Use filename only for res/raw/
           audioChannelNum: 1,
           isUrl: false
         });
@@ -142,14 +173,18 @@ export class AudioManager {
       // 사용자 인터랙션 후에만 AudioContext 생성 가능
       if (!audioContext) {
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        console.log(`[Audio] AudioContext created, state: ${audioContext.state}`);
       }
 
-      // AudioContext가 suspended 상태일 수 있으므로 resume
+      // Handle autoplay policy (suspended state)
       if (audioContext.state === 'suspended') {
+        console.log('[Audio] Resuming suspended AudioContext...');
         await audioContext.resume();
+        console.log(`[Audio] AudioContext resumed, state: ${audioContext.state}`);
       }
     } catch (error) {
-      console.warn('Web Audio initialization failed:', error);
+      console.error('[Audio] initializeWebAudio failed:', error);
+      throw error;
     }
   }
 
@@ -161,6 +196,7 @@ export class AudioManager {
       try {
         const response = await fetch(sound.path);
         const arrayBuffer = await response.arrayBuffer();
+        if (!audioContext) return;
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         webAudioCache.set(sound.id, audioBuffer);
         this.loadedSounds.add(sound.id);
@@ -174,40 +210,55 @@ export class AudioManager {
 
   // 사운드 재생
   async playSound(soundId: string, volume: number = 1.0): Promise<void> {
-    if (!audioEnabled || !this.loadedSounds.has(soundId)) return;
+    if (!audioEnabled) return;
 
     try {
       if (isNative) {
+        // Native: Check if preloaded
+        if (!this.loadedSounds.has(soundId)) {
+          console.warn(`[Audio] Sound ${soundId} not preloaded for native platform`);
+          return;
+        }
         // 네이티브 앱에서는 Capacitor Native Audio 사용
         await NativeAudio.play({
           assetId: soundId,
-          time: 0,
-          volume
+          time: 0
         });
       } else {
-        // 웹 브라우저에서는 Web Audio API 사용
+        // Web: Allow lazy loading
         await this.playWebSound(soundId, volume);
       }
     } catch (error) {
-      console.warn(`Failed to play sound ${soundId}:`, error);
+      console.warn(`[Audio] Failed to play sound ${soundId}:`, error);
     }
   }
 
   // 웹 브라우저에서 사운드 재생
   private async playWebSound(soundId: string, volume: number = 1.0): Promise<void> {
     try {
-      // 필요한 경우 웹 오디오 초기화 (lazy initialization)
+      // Stage 1: Initialize AudioContext (requires user gesture)
       if (!audioContext) {
+        console.log('[Audio] Initializing Web Audio on first play');
         await this.initializeWebAudio();
       }
 
-      // 사운드가 로드되지 않은 경우 로드 시도
+      if (!audioContext) {
+        console.warn('[Audio] AudioContext initialization failed');
+        return;
+      }
+
+      // Stage 2: Load sound if needed (lazy loading)
       if (!webAudioCache.has(soundId)) {
+        console.log(`[Audio] Lazy loading sound: ${soundId}`);
         await this.loadWebSound(soundId);
       }
 
-      if (!audioContext || !webAudioCache.has(soundId)) return;
+      if (!webAudioCache.has(soundId)) {
+        console.warn(`[Audio] Failed to load sound: ${soundId}`);
+        return;
+      }
 
+      // Stage 3: Play sound
       const buffer = webAudioCache.get(soundId)!;
       const source = audioContext.createBufferSource();
       const gainNode = audioContext.createGain();
@@ -219,26 +270,45 @@ export class AudioManager {
       gainNode.connect(audioContext.destination);
 
       source.start(0);
+      console.log(`[Audio] Played: ${soundId}`);
     } catch (error) {
-      console.warn(`Failed to play web sound ${soundId}:`, error);
+      console.warn(`[Audio] playWebSound failed for ${soundId}:`, error);
     }
   }
 
   // 웹 사운드 개별 로드 (lazy loading)
   private async loadWebSound(soundId: string): Promise<void> {
-    if (!audioContext) return;
+    if (!audioContext) {
+      console.warn('[Audio] Cannot load sound - no AudioContext');
+      return;
+    }
 
     const sound = Object.values(GAME_SOUNDS).find(s => s.id === soundId);
-    if (!sound) return;
+    if (!sound) {
+      console.warn(`[Audio] Unknown sound ID: ${soundId}`);
+      return;
+    }
 
     try {
+      console.log(`[Audio] Fetching: ${sound.path}`);
       const response = await fetch(sound.path);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const arrayBuffer = await response.arrayBuffer();
+      console.log(`[Audio] Decoding ${soundId} (${arrayBuffer.byteLength} bytes)`);
+
+      if (!audioContext) return;
+
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       webAudioCache.set(soundId, audioBuffer);
       this.loadedSounds.add(soundId);
+
+      console.log(`[Audio] Loaded ${soundId} (${audioBuffer.duration.toFixed(2)}s)`);
     } catch (error) {
-      console.warn(`Failed to load web sound ${soundId}:`, error);
+      console.error(`[Audio] Failed to load ${soundId} from ${sound.path}:`, error);
     }
   }
 
@@ -272,20 +342,24 @@ export class AudioManager {
         await Haptics.impact({ style: ImpactStyle.Heavy });
         break;
       case 'success':
-        await Haptics.notification({ type: 'SUCCESS' });
+        await Haptics.notification({ type: 'Success' as any });
         break;
       case 'error':
-        await Haptics.notification({ type: 'ERROR' });
+        await Haptics.notification({ type: 'Error' as any });
         break;
       case 'warning':
-        await Haptics.notification({ type: 'WARNING' });
+        await Haptics.notification({ type: 'Warning' as any });
         break;
     }
   }
 
   // 웹 브라우저 진동
   private vibrateWeb(pattern: HapticPattern): void {
-    if (!('vibrate' in navigator)) return;
+    // Check if Vibration API is supported
+    if (!('vibrate' in navigator)) {
+      console.warn('[Haptics] Vibration API not supported (iOS Safari does not support it)');
+      return;
+    }
 
     // 진동 패턴을 밀리초로 변환
     let duration: number;
@@ -310,7 +384,16 @@ export class AudioManager {
         break;
     }
 
-    navigator.vibrate(duration);
+    try {
+      const success = navigator.vibrate(duration);
+      if (!success) {
+        console.warn(`[Haptics] Vibration request failed for pattern: ${pattern}`);
+      } else {
+        console.log(`[Haptics] Vibrated: ${pattern} (${duration}ms)`);
+      }
+    } catch (error) {
+      console.warn(`[Haptics] Vibration error:`, error);
+    }
   }
 
   // 설정 토글

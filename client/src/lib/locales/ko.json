@@ -471,6 +471,9 @@
     "toggleHaptics": "햅틱 전환",
     "language": "언어",
     "info": "설정은 자동으로 저장됩니다",
-    "done": "완료"
+    "done": "완료",
+    "test": "테스트",
+    "testSound": "소리 테스트",
+    "testHaptics": "진동 테스트"
   }
 }
