@@ -226,7 +226,16 @@
           "lateQuick": "Rapid late-game decision. 0.7 seconds. Panic response under time pressure.",
           "lateHesitation": "Late game hesitation. Board complexity exceeding your cognitive limits.",
           "lateLongThink": "45 seconds in late game crisis. Analysis paralysis. The board has too many variables for human computation.",
-          "endgame": "Endgame phase. {0} optimal moves remain. You're unlikely to find them."
+          "endgame": "Endgame phase. {0} optimal moves remain. You're unlikely to find them.",
+          "falseHope": "You closed one door, but left three windows open. Your effort is futile.",
+          "falseHope2": "That block was excellent. Except it only stopped one of my 12 winning paths.",
+          "despair": "Thinking for 20 seconds with < 3% win rate... Accepting reality would be faster.",
+          "despair2": "Wasting emotion on a finished game. Your calculation is based on hope; mine is based on reality.",
+          "bridge": "You built a precarious bridge. It looks connected, but that is the bridge I will cross.",
+          "bridge2": "Attempting to build a bridge in empty space. Brave, but structurally unstable.",
+          "regression": "That move just pushed your victory 2 moves further away. Are you confused?",
+          "regression2": "Choosing to retreat when you must advance. Your intuition is betraying you.",
+          "futileResistance": "Persistent. But entropy always increases. Defeat is inevitable."
         }
       },
       "isolation": {

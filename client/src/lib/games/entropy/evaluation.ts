@@ -12,6 +12,7 @@
  */
 
 import type { BoardState, Move, Player } from "./types";
+import { UnionFind } from "./unionFind";
 import type { GameMove, PlayerMove, AIMoveResult } from "@shared/gameEngineInterface";
 import { parseBoardState } from "./boardUtils";
 import { isConnected, wouldWin, getEmptyCells } from "./connectionCheck";
@@ -178,14 +179,14 @@ function detectStrategicMoves(
 ): Array<{ move: Move; score: number }> {
   // Analyze player's path to understand their connection strategy
   const pathAnalysis = analyzePlayerPath(board);
-  
+
   // Calculate shortest paths for both players
   const playerShortestPath = calculateShortestPath(board, 'PLAYER');
   const aiShortestPath = calculateShortestPath(board, 'AI');
-  
+
   const emptyCells = getEmptyCells(board);
   const candidates: Array<{ move: Move; score: number }> = [];
-  
+
   const { rows, cols } = board.boardSize;
   const centerR = Math.floor(rows / 2);
   const centerC = Math.floor(cols / 2);
@@ -195,7 +196,7 @@ function detectStrategicMoves(
   for (const pos of playerShortestPath.path) {
     playerPathSet.add(`${pos.r},${pos.c}`);
   }
-  
+
   const aiPathSet = new Set<string>();
   for (const pos of aiShortestPath.path) {
     aiPathSet.add(`${pos.r},${pos.c}`);
@@ -208,7 +209,7 @@ function detectStrategicMoves(
   for (const empty of emptyCells) {
     let score = 0;
     const moveKey = `${empty.r},${empty.c}`;
-    
+
     // ULTIMATE PRIORITY: Block player's shortest path positions
     // This is the most critical defensive move
     if (playerPathSet.has(moveKey)) {
@@ -221,29 +222,29 @@ function detectStrategicMoves(
         score += 120; // High - blocking shortest path
       }
     }
-    
+
     // HIGHEST PRIORITY: Block critical positions (positions that would connect player's left and right groups)
     if (pathAnalysis.criticalPositions.some(cp => cp.r === empty.r && cp.c === empty.c)) {
       score += 100; // Critical blocking move
     }
-    
+
     // HIGH PRIORITY: Block predicted player moves (especially those on shortest path)
     if (threatSet.has(moveKey)) {
       score += 50; // Blocking a threat move
     }
-    
+
     // Check if this move would block opponent
     if (wouldBlockOpponent(board, empty, 'AI')) {
       score += 30; // This move blocks player's connection
     }
-    
+
     // OFFENSIVE: If threat level is not critical, also consider advancing AI's own path
     if (pathAnalysis.threatLevel !== 'CRITICAL' && pathAnalysis.threatLevel !== 'HIGH') {
       // Boost score if this move is on AI's shortest path
       if (aiPathSet.has(moveKey)) {
         score += 40; // This advances AI's own connection
       }
-      
+
       // Bonus if adjacent to AI's shortest path
       for (const aiPathPos of aiShortestPath.path) {
         const distance = getHexDistance(empty, aiPathPos);
@@ -253,7 +254,7 @@ function detectStrategicMoves(
         }
       }
     }
-    
+
     // MEDIUM PRIORITY: Block predicted next moves
     const predictedMoves = pathAnalysis.predictedMoves;
     for (let i = 0; i < Math.min(3, predictedMoves.length); i++) {
@@ -268,7 +269,7 @@ function detectStrategicMoves(
         break;
       }
     }
-    
+
     // STRATEGIC POSITIONING: Only when threat is low
     // When threat is high, focus purely on blocking
     if (pathAnalysis.threatLevel === 'LOW' || pathAnalysis.threatLevel === 'MEDIUM') {
@@ -282,7 +283,7 @@ function detectStrategicMoves(
           }
         }
       }
-      
+
       // Prefer moves that are 2-3 hex distance from player pieces
       // This creates pressure without being too obvious
       if (minDistanceToPlayer >= 2 && minDistanceToPlayer <= 3) {
@@ -292,13 +293,13 @@ function detectStrategicMoves(
           score += 3;
         }
       }
-      
+
       // Center control: moves near center are strategically valuable
       const centerDistance = getHexDistance(empty, { r: centerR, c: centerC });
       if (centerDistance <= 2) {
         score += 3;
       }
-      
+
       // Proximity to player pieces: creates pressure
       let nearbyPlayerPieces = 0;
       const neighbors = getValidNeighbors(empty, board.boardSize);
@@ -311,7 +312,7 @@ function detectStrategicMoves(
         score += 2; // Some pressure, but not too obvious
       }
     }
-    
+
     // Consider threat level: if threat is high, prioritize blocking over creativity
     if (pathAnalysis.threatLevel === 'CRITICAL' || pathAnalysis.threatLevel === 'HIGH') {
       // Boost scores for blocking moves when threat is high
@@ -322,19 +323,19 @@ function detectStrategicMoves(
         score *= 0.3; // Severely reduce non-blocking moves when threat is high
       }
     }
-    
+
     // Consider player's last move for additional context
     if (playerLastMove) {
       const playerMove: Move = { r: playerLastMove.to.r, c: playerLastMove.to.c };
       const distanceToLastMove = getHexDistance(empty, playerMove);
-      
+
       // If player just made a move, consider moves near it (but not too close)
       // Only if threat is not critical
       if (pathAnalysis.threatLevel !== 'CRITICAL' && distanceToLastMove >= 2 && distanceToLastMove <= 4) {
         score += 2;
       }
     }
-    
+
     if (score > 0) {
       candidates.push({ move: empty, score });
     }
@@ -355,16 +356,16 @@ function getHexDistance(
 ): number {
   const dr = pos2.r - pos1.r;
   const dc = pos2.c - pos1.c;
-  
+
   // Convert offset coordinates to cube coordinates
   const x1 = pos1.c - (pos1.r - (pos1.r & 1)) / 2;
   const z1 = pos1.r;
   const y1 = -x1 - z1;
-  
+
   const x2 = pos2.c - (pos2.r - (pos2.r & 1)) / 2;
   const z2 = pos2.r;
   const y2 = -x2 - z2;
-  
+
   // Cube distance
   return (Math.abs(x2 - x1) + Math.abs(y2 - y1) + Math.abs(z2 - z1)) / 2;
 }
@@ -633,7 +634,7 @@ function estimateWinProbability(
  * Analyze player psychology based on their move
  * Enhanced with strategic context, game phase, and board state analysis
  */
-function analyzePlayerPsychology(
+export function analyzePlayerPsychology(
   board: BoardState,
   playerMove: PlayerMove | null,
   turnCount?: number
@@ -645,50 +646,113 @@ function analyzePlayerPsychology(
   const moveTime = playerMove.moveTimeSeconds || 0;
   const hoverCount = playerMove.hoverCount || 0;
   const playerMovePos: Move = { r: playerMove.to.r, c: playerMove.to.c };
-  
+
   // Analyze strategic context of the move
   const pathAnalysis = analyzePlayerPath(board);
   const aiShortestPath = calculateShortestPath(board, 'AI');
   const playerShortestPath = calculateShortestPath(board, 'PLAYER');
-  
-  // Check if player's move blocks AI's path
-  const blocksAI = wouldBlockOpponent(board, playerMovePos, 'PLAYER');
-  
-  // Check if player's move is on their own shortest path
-  const onPlayerPath = playerShortestPath.path.some(
-    pos => pos.r === playerMovePos.r && pos.c === playerMovePos.c
+
+  // V2 Analysis Data
+  const aiWinningPaths = pathAnalysis.criticalPositions.length; // Approximate measure of AI flexibility
+  const winProb = estimateWinProbability(
+    playerShortestPath.distance,
+    aiShortestPath.distance,
+    (turnCount || 0) / (board.boardSize.rows * board.boardSize.cols),
+    pathAnalysis.threatLevel
   );
-  
+
+  // Detect "Regression" (Player moves backward or worsens position)
+  // We need previous shortest path... assuming simpler heuristic for now:
+  // If player move is NOT on their shortest path AND increases distance (conceptually)
+  const isRegressive = !playerShortestPath.path.some(p => p.r === playerMovePos.r && p.c === playerMovePos.c)
+    && playerShortestPath.distance > 5; // Struggling
+
   // Check if player's move is on AI's shortest path (blocking)
   const onAIPath = aiShortestPath.path.some(
     pos => pos.r === playerMovePos.r && pos.c === playerMovePos.c
   );
-  
-  // Check if move is in center or edge
+
   const { rows, cols } = board.boardSize;
+
+  // Detect "Bridge" (Typical hex pattern: 2 cells apart with empty middle)
+  let isBridge = false;
+  // Check if move connects two groups of friendly pieces that were not previously connected directly
+  const neighbors = getValidNeighbors(playerMovePos, board.boardSize);
+  let friendlyNeighbors = 0;
+
+  // Need UnionFind to check group connectivity properly - recreating locally for this move analysis
+  // (Optimization: In a real heavy engine we'd pass this in, but for one move analysis it's fine)
+  const uf = new UnionFind(rows * cols);
+  // ... populate UF ... actually, let's use a simpler heuristic for Bridge:
+  // Bridge pattern in Hex: You place a piece where you have two friendly pieces at distance 1,
+  // but they are not adjacent to each other.
+
+  for (const n of neighbors) {
+    if (board.cells[n.r][n.c] === 'PLAYER') {
+      friendlyNeighbors++;
+    }
+  }
+
+  // If we have exactly 2 friendly neighbors and they are NOT adjacent to each other -> Likely a bridge/connection
+  if (friendlyNeighbors >= 2) {
+    // Check adjacency between neighbors
+    // If none of the friendly neighbors are adjacent to each other, it's a strong local connection (Bridge-like)
+    let neighborsAdjacent = false;
+    const fNeighbors = neighbors.filter(n => board.cells[n.r][n.c] === 'PLAYER');
+
+    for (let i = 0; i < fNeighbors.length; i++) {
+      for (let j = i + 1; j < fNeighbors.length; j++) {
+        if (getHexDistance(fNeighbors[i], fNeighbors[j]) === 1) {
+          neighborsAdjacent = true;
+          break;
+        }
+      }
+    }
+
+    if (!neighborsAdjacent) {
+      isBridge = true;
+    }
+  }
+
+
+  // Check if player's move blocks AI's path
+  const blocksAI = wouldBlockOpponent(board, playerMovePos, 'PLAYER');
+
+  // Check if player's move is on their own shortest path
+  const onPlayerPath = playerShortestPath.path.some(
+    pos => pos.r === playerMovePos.r && pos.c === playerMovePos.c
+  );
+
+  // Check if move is in center or edge
   const centerR = Math.floor(rows / 2);
   const centerC = Math.floor(cols / 2);
   const distanceFromCenter = getHexDistance(playerMovePos, { r: centerR, c: centerC });
   const isCenterMove = distanceFromCenter <= 2;
-  const isEdgeMove = playerMovePos.c === 0 || playerMovePos.c === cols - 1 || 
-                     playerMovePos.r === 0 || playerMovePos.r === rows - 1;
-  
+  const isEdgeMove = playerMovePos.c === 0 || playerMovePos.c === cols - 1 ||
+    playerMovePos.r === 0 || playerMovePos.r === rows - 1;
+
   // Determine game phase
   const totalCells = rows * cols;
   const emptyCells = getEmptyCells(board);
   const emptyCount = emptyCells.length;
   const gamePhase = turnCount && turnCount < totalCells * 0.3 ? 'early' :
-                   turnCount && turnCount < totalCells * 0.7 ? 'mid' : 'late';
-  
+    turnCount && turnCount < totalCells * 0.7 ? 'mid' : 'late';
+
   // Check if move is on critical position
   const isCritical = pathAnalysis.criticalPositions.some(
     cp => cp.r === playerMovePos.r && cp.c === playerMovePos.c
   );
-  
+
   // Strategic move analysis with priority order
-  
+
   // 1. Critical blocking move (highest priority)
   if (blocksAI && isCritical) {
+    // V2: "False Hope" - blocked one path, but AI has many
+    if (aiWinningPaths >= 3) {
+      if (Math.random() > 0.5) return "gameRoom.log.entropy.psychology.falseHope";
+      return "gameRoom.log.entropy.psychology.falseHope2";
+    }
+
     if (moveTime < 3 && hoverCount < 3) {
       return "gameRoom.log.entropy.psychology.quickBlocking";
     }
@@ -700,7 +764,24 @@ function analyzePlayerPsychology(
     }
     return "gameRoom.log.entropy.psychology.blockingMove";
   }
-  
+
+  // V2: "Despair" - Low win prob + Long think
+  if (winProb < 10 && moveTime > 15) {
+    if (Math.random() > 0.5) return "gameRoom.log.entropy.psychology.despair";
+    return "gameRoom.log.entropy.psychology.despair2";
+  }
+
+  // V2: "Futile Resistance" - High turn count + hopeless
+  if (turnCount && turnCount > 50 && winProb < 5) {
+    return "gameRoom.log.entropy.psychology.futileResistance";
+  }
+
+  // V2: "Regression" - Worsening position
+  if (isRegressive && moveTime > 10) {
+    if (Math.random() > 0.5) return "gameRoom.log.entropy.psychology.regression";
+    return "gameRoom.log.entropy.psychology.regression2";
+  }
+
   // 2. AI path blocking (not critical but still blocking)
   if (blocksAI || onAIPath) {
     if (moveTime < 3 && hoverCount < 3) {
@@ -711,7 +792,7 @@ function analyzePlayerPsychology(
     }
     return "gameRoom.log.entropy.psychology.aiBlocking";
   }
-  
+
   // 3. Player path extension (aggressive)
   if (onPlayerPath) {
     if (moveTime < 3 && hoverCount < 3) {
@@ -725,9 +806,15 @@ function analyzePlayerPsychology(
     }
     return "gameRoom.log.entropy.psychology.pathExtension";
   }
-  
+
   // 4. Center control (aggressive)
   if (isCenterMove && !isEdgeMove) {
+    // V2: "Bridge" detection
+    if (isBridge) {
+      if (Math.random() > 0.5) return "gameRoom.log.entropy.psychology.bridge";
+      return "gameRoom.log.entropy.psychology.bridge2";
+    }
+
     if (moveTime < 3 && hoverCount < 3) {
       return "gameRoom.log.entropy.psychology.quickCenter";
     }
@@ -736,7 +823,7 @@ function analyzePlayerPsychology(
     }
     return "gameRoom.log.entropy.psychology.centerControl";
   }
-  
+
   // 5. Edge move (defensive)
   if (isEdgeMove) {
     if (moveTime < 3 && hoverCount < 3) {
@@ -750,7 +837,7 @@ function analyzePlayerPsychology(
     }
     return "gameRoom.log.entropy.psychology.defensiveEdge";
   }
-  
+
   // 6. Game phase specific analysis
   if (gamePhase === 'early') {
     if (moveTime < 3 && hoverCount < 3) {
@@ -761,7 +848,7 @@ function analyzePlayerPsychology(
     }
     return "gameRoom.log.entropy.psychology.earlyGame";
   }
-  
+
   if (gamePhase === 'late') {
     if (emptyCount <= 10) {
       if (moveTime < 3 && hoverCount < 3) {
@@ -776,20 +863,20 @@ function analyzePlayerPsychology(
       return "gameRoom.log.entropy.psychology.endgame";
     }
   }
-  
+
   // 7. Fallback to time-based analysis
   if (moveTime < 3 && hoverCount < 3) {
     return "gameRoom.log.entropy.psychology.quickMove";
   }
-  
+
   if (hoverCount > 5) {
     return "gameRoom.log.entropy.psychology.hesitation";
   }
-  
+
   if (moveTime > 30) {
     return "gameRoom.log.entropy.psychology.longThink";
   }
-  
+
   return "gameRoom.log.entropy.observing";
 }
 
@@ -952,16 +1039,16 @@ export async function getAIMove(
 
     // Analyze player's path to understand their connection strategy
     const pathAnalysis = analyzePlayerPath(board);
-    
+
     // Determine game phase and board state for contextual logging
     const { rows, cols } = board.boardSize;
     const totalCells = rows * cols;
     const emptyCount = validMoves.length;
     const filledCount = totalCells - emptyCount;
     const gamePhase = turnCount && turnCount < totalCells * 0.3 ? 'early' :
-                     turnCount && turnCount < totalCells * 0.7 ? 'mid' : 'late';
+      turnCount && turnCount < totalCells * 0.7 ? 'mid' : 'late';
     const boardDensity = filledCount / totalCells;
-    
+
     // Generate game phase log message
     let phaseLogMessage: string | null = null;
     if (gamePhase === 'early' && turnCount && turnCount <= 5) {
@@ -975,7 +1062,7 @@ export async function getAIMove(
         phaseLogMessage = "gameRoom.log.entropy.phase.late";
       }
     }
-    
+
     // Generate threat level log message
     let threatLogMessage: string | null = null;
     if (pathAnalysis.threatLevel === 'CRITICAL') {
@@ -985,14 +1072,14 @@ export async function getAIMove(
     } else if (pathAnalysis.threatLevel === 'MEDIUM') {
       threatLogMessage = "gameRoom.log.entropy.threat.medium";
     }
-    
+
     // Check for immediate block (prevent player from winning)
     // PRIORITY 1: Block critical positions that would connect player's left and right groups
     if (pathAnalysis.criticalPositions.length > 0) {
       // Find the best blocking move among critical positions
       let bestBlockingMove: Move | null = null;
       let bestBlockingScore = -1;
-      
+
       for (const critical of pathAnalysis.criticalPositions) {
         // Check if this critical position is a valid move
         const isValid = validMoves.some(m => m.r === critical.r && m.c === critical.c);
@@ -1005,7 +1092,7 @@ export async function getAIMove(
           }
         }
       }
-      
+
       if (bestBlockingMove) {
         const gameMove: GameMove = {
           from: { r: -1, c: -1 },
@@ -1018,7 +1105,7 @@ export async function getAIMove(
         };
       }
     }
-    
+
     // PRIORITY 2: Block immediate winning moves
     for (const move of validMoves) {
       if (wouldWin(board, move, 'PLAYER')) {
@@ -1033,7 +1120,7 @@ export async function getAIMove(
         };
       }
     }
-    
+
     // PRIORITY 3: Block high-threat moves based on path analysis and shortest path
     if (pathAnalysis.threatLevel === 'CRITICAL' || pathAnalysis.threatLevel === 'HIGH') {
       // Calculate player's shortest path to find the most critical blocking positions
@@ -1042,7 +1129,7 @@ export async function getAIMove(
       for (const pos of playerShortestPath.path) {
         playerPathSet.add(`${pos.r},${pos.c}`);
       }
-      
+
       // First, try to block positions on player's shortest path
       for (const pathPos of playerShortestPath.path) {
         const isValid = validMoves.some(m => m.r === pathPos.r && m.c === pathPos.c);
@@ -1052,7 +1139,7 @@ export async function getAIMove(
             to: pathPos,
           };
           // Shortest path blocking - strategic blocking message
-          const blockingLog = pathAnalysis.threatLevel === 'CRITICAL' 
+          const blockingLog = pathAnalysis.threatLevel === 'CRITICAL'
             ? "gameRoom.log.entropy.blockingPathCritical"
             : "gameRoom.log.entropy.blockingPath";
           return {
@@ -1061,7 +1148,7 @@ export async function getAIMove(
           };
         }
       }
-      
+
       // Fallback: Block other threat moves
       const threatMoves = findThreatMoves(board, 'AI');
       // Find the best blocking move among threats
@@ -1097,7 +1184,7 @@ export async function getAIMove(
       console.warn('[Evaluation] Worker Pool failed, using fallback MCTS:', error);
       bestMove = await runMCTS(board, 'AI', config, pathAnalysis.threatLevel);
     }
-    
+
     // Analyze MCTS result quality
     let mctsLogMessage: string | null = null;
     if (bestMove) {
@@ -1120,7 +1207,7 @@ export async function getAIMove(
     // IMPORTANT: When threat is high, prioritize blocking over "Move 37" creativity
     let selectedMove: Move | null = bestMove;
     let logMessage = "gameRoom.log.moveExecuted";
-    
+
     // Add difficulty-specific analysis depth log
     let difficultyLogMessage: string | null = null;
     if (difficulty === "NEXUS-3") {
@@ -1130,7 +1217,7 @@ export async function getAIMove(
     } else if (difficulty === "NEXUS-7") {
       difficultyLogMessage = "gameRoom.log.entropy.difficulty.nexus7";
     }
-    
+
     // Priority: MCTS log > phase log > threat log > difficulty log > default
     if (mctsLogMessage) {
       logMessage = mctsLogMessage;
@@ -1144,7 +1231,7 @@ export async function getAIMove(
 
     if (bestMove && (difficulty === "NEXUS-5" || difficulty === "NEXUS-7")) {
       const strategicMoves = detectStrategicMoves(board, playerLastMove);
-      
+
       // When threat is high, prioritize blocking moves over creative moves
       if (pathAnalysis.threatLevel === 'CRITICAL' || pathAnalysis.threatLevel === 'HIGH') {
         // Find the highest scoring blocking move
@@ -1172,7 +1259,7 @@ export async function getAIMove(
             break;
           }
         }
-        
+
         // For NEXUS-7: If we have a very high-scoring strategic move that blocks threats,
         // consider it even if MCTS didn't find it (rare but important for defense)
         if (selectedMove === bestMove && difficulty === "NEXUS-7" && strategicMoves.length > 0) {
@@ -1190,7 +1277,7 @@ export async function getAIMove(
         }
       }
     }
-    
+
     // For NEXUS-3: Use simpler path analysis for blocking
     if (difficulty === "NEXUS-3" && pathAnalysis.threatLevel !== 'LOW') {
       const strategicMoves = detectStrategicMoves(board, playerLastMove);
@@ -1204,7 +1291,7 @@ export async function getAIMove(
         }
       }
     }
-    
+
     // Fallback: if MCTS failed, use first valid move
     if (!selectedMove) {
       if (validMoves.length > 0) {
@@ -1254,8 +1341,8 @@ export async function getAIMove(
 
     // Determine game phase for insight context
     const currentGamePhase = currentGameProgress < 0.25 ? 'early' :
-                             currentGameProgress < 0.5 ? 'mid' :
-                             currentGameProgress < 0.75 ? 'late' : 'endgame';
+      currentGameProgress < 0.5 ? 'mid' :
+        currentGameProgress < 0.75 ? 'late' : 'endgame';
 
     // Analyze player behavior from their last move
     const moveTime = playerLastMove?.moveTimeSeconds || 0;
@@ -1275,7 +1362,7 @@ export async function getAIMove(
       getHexDistance(playerMovePos, { r: centerR, c: centerC }) <= 2 : false;
     const isPlayerEdgeMove = playerMovePos ?
       (playerMovePos.c === 0 || playerMovePos.c === cols - 1 ||
-       playerMovePos.r === 0 || playerMovePos.r === rows - 1) : false;
+        playerMovePos.r === 0 || playerMovePos.r === rows - 1) : false;
 
     // Calculate win probability estimate
     const winProbability = estimateWinProbability(

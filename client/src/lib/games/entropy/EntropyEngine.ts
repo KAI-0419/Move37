@@ -24,7 +24,7 @@ import {
 } from "./boardUtils";
 import { isValidMove, getValidMoves } from "./moveValidation";
 import { isConnected } from "./connectionCheck";
-import { getAIMove } from "./evaluation";
+import { getAIMove, analyzePlayerPsychology } from "./evaluation";
 import { getWasmAIMove } from "./wasmAdapter";
 
 export class EntropyEngine implements IGameEngine {
@@ -194,7 +194,19 @@ export class EntropyEngine implements IGameEngine {
             // Validate WASM move just in case
             const isValid = this.isValidMove(boardState, wasmResult.move!, false);
             if (isValid.valid) {
-              return wasmResult;
+              // ENHANCED LOGGING: Replace raw WASM logs with psychological analysis
+              // This creates the "creepy" AI effect for high difficulties
+              const psychoLog = analyzePlayerPsychology(
+                board,
+                playerLastMove,
+                board.turnCount // Pass turn count for game phase analysis
+              );
+
+              // Return result with psychological log
+              return {
+                ...wasmResult,
+                logs: [psychoLog]
+              };
             }
             console.warn("WASM returned invalid move:", wasmResult.move);
           }
@@ -223,6 +235,20 @@ export class EntropyEngine implements IGameEngine {
               logs: ["gameRoom.log.entropy.error.recalculation"],
             };
           }
+        }
+
+        // ENHANCED LOGGING: Ensure JS engine also provides psychological analysis
+        // This covers NEXUS-3 and fallback cases
+        if (result.logs && result.logs.some(l => l.includes('psychology'))) {
+          // Already has psychological logs, keep them
+        } else {
+          // Add psychological log if missing
+          const psychoLog = analyzePlayerPsychology(
+            board,
+            playerLastMove,
+            turnCount ?? board.turnCount
+          );
+          result.logs = [psychoLog];
         }
       }
 
