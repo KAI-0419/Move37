@@ -16,40 +16,35 @@ const tutorialInitialBoard = {
   destroyed: [],
 };
 
-// Create a dramatic victory board state for STEP 4
-// AI completely trapped with many destroyed tiles around
-const victoryBoardState = {
+// Create a complex state where the AI has lost in a sophisticated way for the first page
+const complexLossBoardState = {
   boardSize: { rows: 7, cols: 7 },
-  playerPos: { r: 1, c: 1 }, // Player positioned strategically
-  aiPos: { r: 3, c: 3 }, // AI trapped in center
+  playerPos: { r: 2, c: 2 },
+  aiPos: { r: 5, c: 5 },
   destroyed: [
-    // AI 주변 8방향 모두 파괴/막힘
-    { r: 2, c: 2 }, { r: 2, c: 3 }, { r: 2, c: 4 },
-    { r: 3, c: 2 }, { r: 3, c: 4 },
-    { r: 4, c: 2 }, { r: 4, c: 3 }, { r: 4, c: 4 },
-    // 추가 파괴 타일로 치열한 전투 표현
-    { r: 0, c: 3 }, { r: 0, c: 4 }, { r: 0, c: 5 },
-    { r: 1, c: 4 }, { r: 1, c: 5 },
-    { r: 2, c: 5 }, { r: 2, c: 6 },
-    { r: 3, c: 5 }, { r: 3, c: 6 },
-    { r: 4, c: 5 }, { r: 4, c: 6 },
-    { r: 5, c: 4 }, { r: 5, c: 5 }, { r: 5, c: 6 },
-    { r: 6, c: 3 }, { r: 6, c: 4 }, { r: 6, c: 5 },
-    // 추가 전략적 파괴
-    { r: 1, c: 0 }, { r: 2, c: 0 }, { r: 3, c: 0 }, { r: 4, c: 0 },
-    { r: 5, c: 2 }, { r: 6, c: 2 },
-    { r: 0, c: 1 }, { r: 0, c: 2 },
-    { r: 6, c: 0 }, { r: 6, c: 1 },
+    // Create a "scorched earth" path and complex isolation
+    { r: 0, c: 0 }, { r: 0, c: 6 }, { r: 6, c: 0 }, { r: 6, c: 6 },
+    { r: 1, c: 1 }, { r: 1, c: 2 }, { r: 1, c: 3 }, { r: 1, c: 5 },
+    { r: 2, c: 4 }, { r: 2, c: 5 }, { r: 2, c: 6 },
+    { r: 3, c: 1 }, { r: 3, c: 3 }, { r: 3, c: 4 },
+    { r: 4, c: 0 }, { r: 4, c: 2 }, { r: 4, c: 4 }, { r: 4, c: 5 }, { r: 4, c: 6 },
+    { r: 5, c: 1 }, { r: 5, c: 3 }, { r: 5, c: 4 }, { r: 5, c: 6 },
+    { r: 6, c: 1 }, { r: 6, c: 3 }, { r: 6, c: 4 }, { r: 6, c: 5 },
+    // Specifically trap the AI (5,5) - only one exit left which is also a dead end
+    { r: 4, c: 4 }, { r: 4, c: 5 }, { r: 4, c: 6 },
+    { r: 5, c: 4 }, { r: 5, c: 6 },
+    { r: 6, c: 4 }, { r: 6, c: 5 }, { r: 6, c: 6 }
   ],
 };
 
 const initialBoardState = generateBoardString(tutorialInitialBoard);
+const complexLossState = generateBoardString(complexLossBoardState);
 
 export const isolationTutorialSteps: TutorialStep[] = [
   {
     titleKey: "tutorial.steps.isolation.goal.title",
     descriptionKey: "tutorial.steps.isolation.goal.description",
-    boardState: initialBoardState,
+    boardState: complexLossState,
   },
   {
     titleKey: "tutorial.steps.isolation.movement.title",
@@ -57,6 +52,13 @@ export const isolationTutorialSteps: TutorialStep[] = [
     boardState: initialBoardState,
     highlightSquares: [
       { r: tutorialInitialBoard.playerPos.r, c: tutorialInitialBoard.playerPos.c }, // Player position
+    ],
+    selectedSquare: tutorialInitialBoard.playerPos,
+    validMoves: [
+      { r: 0, c: 2 }, { r: 1, c: 2 }, { r: 2, c: 2 }, { r: 4, c: 2 }, { r: 5, c: 2 }, { r: 6, c: 2 }, // Vertical
+      { r: 3, c: 0 }, { r: 3, c: 1 }, { r: 3, c: 3 }, // Horizontal
+      { r: 1, c: 0 }, { r: 2, c: 1 }, { r: 4, c: 3 }, { r: 5, c: 4 }, { r: 6, c: 5 }, // Diagonal \
+      { r: 0, c: 5 }, { r: 1, c: 4 }, { r: 2, c: 3 }, { r: 4, c: 1 }, { r: 5, c: 0 }, // Diagonal /
     ],
     animation: {
       from: tutorialInitialBoard.playerPos,
@@ -70,15 +72,27 @@ export const isolationTutorialSteps: TutorialStep[] = [
   {
     titleKey: "tutorial.steps.isolation.destroy.title",
     descriptionKey: "tutorial.steps.isolation.destroy.description",
-    boardState: initialBoardState,
+    boardState: generateBoardString({
+      boardSize: { rows: 7, cols: 7 },
+      playerPos: { r: 3, c: 2 },
+      aiPos: { r: 3, c: 4 },
+      destroyed: [
+        { r: 2, c: 5 }, { r: 4, c: 5 }
+      ],
+    }),
     highlightSquares: [
-      { r: tutorialInitialBoard.playerPos.r, c: tutorialInitialBoard.playerPos.c }, // Player position
+      { r: 3, c: 2 }, // Player position
+    ],
+    destroyCandidates: [
+      { r: 3, c: 3 }, // Targeting the square between player and AI
+      { r: 2, c: 4 }, // Targeting a square diagonal to AI
+      { r: 4, c: 4 }, // Targeting a square diagonal to AI
     ],
   },
   {
     titleKey: "tutorial.steps.isolation.victory.title",
     descriptionKey: "tutorial.steps.isolation.victory.description",
-    boardState: generateBoardString(victoryBoardState),
+    boardState: complexLossState,
   },
   {
     titleKey: "tutorial.steps.isolation.start.title",

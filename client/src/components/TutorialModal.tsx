@@ -20,7 +20,7 @@ interface TutorialModalProps {
 }
 
 export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE }: TutorialModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const [engine, setEngine] = useState<any>(null);
   const [BoardComponent, setBoardComponent] = useState<any>(null);
@@ -236,34 +236,33 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
                   <BoardComponent
                     boardString={displayBoard}
                     turn="player"
-                    selectedSquare={step.selectedSquare || null}
+                    selectedSquare={step.animation && showAnimation ? null : (step.selectedSquare || null)}
                     lastMove={step.animation && showAnimation ? {
                       from: step.animation.from,
                       to: step.animation.to
                     } : null}
-                    validMoves={step.validMoves || []}
-                    onSquareClick={() => {}}
+                    validMoves={step.animation && showAnimation ? [] : (step.validMoves || [])}
+                    destroyCandidates={step.destroyCandidates || []}
+                    onSquareClick={() => { }}
                     isProcessing={false}
                     size="small"
                     difficulty="NEXUS-7"
                     isTutorialMode={true}
                     highlightSquares={step.highlightSquares || []}
                   />
-                  
+
                   {/* Highlight squares overlay - using matching grid structure */}
                   {step.highlightSquares && gameType !== "GAME_3" && (
                     <div
                       className="absolute pointer-events-none"
                       style={{
-                        // Match board structure exactly:
-                        // p-2 (8px) + frame padding (3px) + p-3 (12px) = 23px
-                        top: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
-                        left: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
-                        right: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
-                        bottom: (gameType === "MINI_CHESS" || gameType === "GAME_2" || gameType === "GAME_3") ? '23px' : '6px',
+                        top: '23px',
+                        left: '23px',
+                        right: '23px',
+                        bottom: '23px',
                       }}
                     >
-                      <div 
+                      <div
                         className="grid gap-1 h-full w-full"
                         style={{
                           gridTemplateColumns: `repeat(${boardSize.cols}, minmax(0, 1fr))`,
@@ -363,10 +362,19 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
               variant="outline"
               onClick={handlePrev}
               disabled={currentStep === 0}
-              className="flex items-center gap-1.5 text-xs py-2 px-3"
+              className="flex items-center justify-center text-xs py-2 px-3 whitespace-nowrap"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              {t("tutorial.prev")}
+              <span className="flex items-center gap-1.5">
+                <ChevronLeft className="w-3.5 h-3.5 flex-shrink-0" />
+                {i18n.language.startsWith('en') ? (
+                  <>
+                    <span className="hidden sm:inline">{t("tutorial.prev")}</span>
+                    <span className="sm:hidden">PREV</span>
+                  </>
+                ) : (
+                  t("tutorial.prev")
+                )}
+              </span>
             </GlitchButton>
 
             <div className="text-[10px] font-mono text-muted-foreground">
@@ -375,10 +383,12 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
 
             <GlitchButton
               onClick={handleNext}
-              className="flex items-center gap-1.5 text-xs py-2 px-3"
+              className="flex items-center justify-center text-xs py-2 px-3 whitespace-nowrap"
             >
-              {currentStep === tutorialSteps.length - 1 ? t("tutorial.complete") : t("tutorial.next")}
-              {currentStep < tutorialSteps.length - 1 && <ChevronRight className="w-3.5 h-3.5" />}
+              <span className="flex items-center gap-1.5">
+                {currentStep === tutorialSteps.length - 1 ? t("tutorial.complete") : t("tutorial.next")}
+                {currentStep < tutorialSteps.length - 1 && <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+              </span>
             </GlitchButton>
           </div>
         </div>

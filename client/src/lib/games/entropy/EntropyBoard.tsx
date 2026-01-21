@@ -40,7 +40,7 @@ export function EntropyBoard({
 
   // Track previously placed pieces for animation
   const prevCellsRef = useRef<CellState[][] | null>(null);
-  const [newlyPlaced, setNewlyPlaced] = useState<{r: number, c: number} | null>(null);
+  const [newlyPlaced, setNewlyPlaced] = useState<{ r: number, c: number } | null>(null);
 
   // Track viewport width for responsive cell sizing
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -198,19 +198,19 @@ export function EntropyBoard({
       animate={
         hasError
           ? {
-              x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
-              y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
-              rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
-            }
+            x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
+            y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
+            rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
+          }
           : {}
       }
       transition={
         hasError
           ? {
-              duration: 0.6,
-              ease: [0.25, 0.1, 0.25, 1],
-              times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1],
-            }
+            duration: 0.6,
+            ease: [0.25, 0.1, 0.25, 1],
+            times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1],
+          }
           : {}
       }
     >
@@ -426,16 +426,26 @@ export function EntropyBoard({
                         zIndex: isHighlighted ? 10 : 1,
                       }}
                     >
-                      {/* Tutorial Highlight Overlay */}
+                      {/* Tutorial Highlight Overlay - Wave Ripple Effect */}
                       {isHighlighted && (
                         <motion.div
-                          className="absolute inset-0 z-20"
-                          initial={{ opacity: 0.4 }}
-                          animate={isTutorialMode ? { opacity: 0.4 } : { opacity: [0.3, 0.7, 0.3] }}
-                          transition={isTutorialMode ? {} : { duration: 1.5, repeat: Infinity }}
+                          className="absolute inset-0 z-20 pointer-events-none"
+                          initial={{ opacity: 0 }}
+                          animate={{
+                            opacity: [0, 0.7, 0],
+                            scale: [0.95, 1.05, 0.95],
+                          }}
+                          transition={{
+                            duration: 2.0,
+                            repeat: Infinity,
+                            delay: (r + c) * 0.12,
+                            ease: "easeInOut"
+                          }}
                           style={{
-                            background: "radial-gradient(circle, rgba(0,243,255,0.4) 0%, transparent 70%)",
-                            boxShadow: "inset 0 0 15px rgba(0,243,255,0.5)",
+                            background: "rgba(0, 243, 255, 0.15)",
+                            border: "2px solid rgba(0, 243, 255, 0.6)",
+                            boxShadow: "0 0 15px rgba(0, 243, 255, 0.4), inset 0 0 10px rgba(0, 243, 255, 0.2)",
+                            clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
                           }}
                         />
                       )}

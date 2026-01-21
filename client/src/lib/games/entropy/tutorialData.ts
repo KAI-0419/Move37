@@ -165,6 +165,9 @@ export const entropyTutorialSteps: TutorialStep[] = [
     titleKey: "tutorial.steps.entropy.hexGrid.title",
     descriptionKey: "tutorial.steps.entropy.hexGrid.description",
     boardState: initialBoardState,
+    highlightSquares: Array.from({ length: 11 }, (_, r) =>
+      Array.from({ length: 11 }, (_, c) => ({ r, c }))
+    ).flat(),
   },
   {
     titleKey: "tutorial.steps.entropy.playerGoal.title",
