@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense, useCallback } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ import type { GameType } from "@shared/schema";
 
 // requestIdleCallback 폴백 - 모바일 브라우저 호환성
 const requestIdleCallback = (typeof window !== 'undefined' && window.requestIdleCallback) ||
-  function(callback: (deadline: { timeRemaining: () => number; didTimeout: boolean }) => void, options?: { timeout?: number }) {
+  function (callback: (deadline: { timeRemaining: () => number; didTimeout: boolean }) => void, options?: { timeout?: number }) {
     const start = Date.now();
     return setTimeout(() => {
       callback({
@@ -27,7 +27,7 @@ const requestIdleCallback = (typeof window !== 'undefined' && window.requestIdle
   };
 
 const cancelIdleCallback = (typeof window !== 'undefined' && window.cancelIdleCallback) ||
-  function(id: number) {
+  function (id: number) {
     clearTimeout(id);
   };
 
@@ -157,12 +157,16 @@ function App() {
     };
   }, []);
 
+  const handleSplashFinish = useCallback(() => {
+    setIsSplashFinished(true);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         {showSplash ? (
-          <SplashScreen onFinish={() => setIsSplashFinished(true)} />
+          <SplashScreen onFinish={handleSplashFinish} />
         ) : (
           <Router />
         )}

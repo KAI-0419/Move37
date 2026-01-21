@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Scanlines } from "./Scanlines";
 import { useAdaptiveScale, clampSize, clampSpacing } from "../hooks/use-adaptive-scale";
 
@@ -326,11 +326,10 @@ function BootSequence({ stage }: { stage: number }) {
               duration: 0.4,
               ease: [0.25, 0.46, 0.45, 0.94],
             }}
-            className={`tracking-wider ${
-              isLastMessage
+            className={`tracking-wider ${isLastMessage
                 ? `text-[${DESIGN_TOKENS.colors.accent.green}]`
                 : `text-[${DESIGN_TOKENS.colors.primary.blue[400]}]`
-            }`}
+              }`}
             style={{
               color: isLastMessage
                 ? DESIGN_TOKENS.colors.accent.green
@@ -746,6 +745,12 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
   const [stage, setStage] = useState(0);
   const { fontSize, safeArea, device } = useAdaptiveScale();
 
+  // onFinish 콜백을 ref로 관리하여 이펙트 의존성 제거 (불필요한 리렌더링/재시작 방지)
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
+
   useEffect(() => {
     const startTime = Date.now();
 
@@ -766,7 +771,11 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
     // finish 콜백을 동적으로 실행할 수 있도록 함수로 래핑
     const finishSplash = () => {
       const finishTime = calculateFinishTime();
-      setTimeout(() => onFinish(), finishTime);
+      setTimeout(() => {
+        if (onFinishRef.current) {
+          onFinishRef.current();
+        }
+      }, finishTime);
     };
 
     // 타이머3는 finish 콜백을 위한 것
@@ -777,7 +786,7 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
       clearTimeout(timer2);
       clearTimeout(timer3);
     };
-  }, [onFinish]);
+  }, []); // 빈 의존성 배열: 컴포넌트 마운트 시 한 번만 실행됨을 보장
 
   return (
     <div
