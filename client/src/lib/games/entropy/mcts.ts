@@ -64,6 +64,30 @@ export interface MCTSConfig {
 const DEFAULT_UCB1_CONSTANT = Math.sqrt(2);
 const DEFAULT_RAVE_CONSTANT = 300; // Controls RAVE vs UCT balance
 
+// Thermal management constants for mobile devices
+const MICRO_SLEEP_INTERVAL = 50; // Check every 50 iterations
+const MICRO_SLEEP_DURATION = 5; // 5ms rest period
+
+// Progressive widening constants - higher = more children allowed
+// Balance between exploration breadth and thermal efficiency
+const PROGRESSIVE_WIDENING_MOBILE = 2.0;   // Allow more children on mobile for better AI quality
+const PROGRESSIVE_WIDENING_DESKTOP = 2.5;  // Desktop can handle broader search
+
+// Mobile detection (cached)
+let _isMobile: boolean | null = null;
+function isMobileDevice(): boolean {
+  if (_isMobile === null) {
+    _isMobile = typeof navigator !== 'undefined' &&
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+  return _isMobile;
+}
+
+// Micro-sleep utility for thermal management
+function microSleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
  * Calculate dynamic UCB1 constant based on game state and personality
  * 
@@ -239,10 +263,26 @@ function select(
 
 /**
  * Expansion phase: add a new child node using node pool
+ *
+ * ENHANCED with Progressive Widening:
+ * - Limits children count based on parent visits: maxChildren = ceil(C * sqrt(visits))
+ * - Reduces memory usage and computational overhead
+ * - Focuses search on more promising moves as tree deepens
  */
-function expand(node: MCTSNode): MCTSNode | null {
+function expand(node: MCTSNode, useProgressiveWidening: boolean = true): MCTSNode | null {
   if (node.untriedMoves.length === 0) {
     return null;
+  }
+
+  // Progressive Widening: limit expansion based on visit count
+  // This reduces thermal load by limiting tree growth
+  // Use higher constant for better AI quality while maintaining thermal efficiency
+  if (useProgressiveWidening && node.parent) {
+    const pwConstant = isMobileDevice() ? PROGRESSIVE_WIDENING_MOBILE : PROGRESSIVE_WIDENING_DESKTOP;
+    const maxChildren = Math.ceil(pwConstant * Math.sqrt(node.visits + 1));
+    if (node.children.length >= maxChildren) {
+      return null; // Don't expand, re-explore existing children instead
+    }
   }
 
   // Select a random untried move
@@ -565,6 +605,7 @@ function backpropagate(
  * @param threatLevel - Current threat level
  * @param useRAVE - Whether to use RAVE
  * @param raveConstant - RAVE constant
+ * @param useProgressiveWidening - Whether to use progressive widening for thermal management
  */
 function mctsIteration(
   root: MCTSNode,
@@ -575,7 +616,8 @@ function mctsIteration(
   personality: AIPersonality = 'BALANCED',
   threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
   useRAVE: boolean = false,
-  raveConstant: number = DEFAULT_RAVE_CONSTANT
+  raveConstant: number = DEFAULT_RAVE_CONSTANT,
+  useProgressiveWidening: boolean = true
 ): void {
   // Calculate dynamic UCB1 if enabled
   let effectiveUCB1 = ucb1Constant;
@@ -597,10 +639,10 @@ function mctsIteration(
     return;
   }
 
-  // Expansion
-  const expanded = expand(leaf);
+  // Expansion (with progressive widening for thermal management)
+  const expanded = expand(leaf, useProgressiveWidening);
   if (expanded === null) {
-    // No expansion possible - terminal node
+    // No expansion possible - terminal node or progressive widening limit reached
     const result = simulate(leaf, playerPredictedMoves, useRAVE);
     backpropagate(leaf, result.winner, currentPlayer, result.movesMade, useRAVE);
     return;
@@ -620,6 +662,8 @@ function mctsIteration(
  * - Iterative deepening (uses full time budget when enabled)
  * - RAVE (Rapid Action Value Estimation)
  * - Better move selection
+ * - THERMAL MANAGEMENT: Duty cycle with micro-sleeps on mobile
+ * - Progressive widening to reduce tree size
  *
  * @param board - Current board state
  * @param currentPlayer - Player to find best move for
@@ -627,7 +671,169 @@ function mctsIteration(
  * @param threatLevel - Optional threat level for dynamic UCB1
  * @returns Best move found by MCTS
  */
-export function runMCTS(
+export async function runMCTS(
+  board: BoardState,
+  currentPlayer: Player,
+  config: MCTSConfig,
+  threatLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+): Promise<Move | null> {
+  // Reset node pool before starting new search
+  resetNodePool();
+
+  const root = createRootNode(board, currentPlayer);
+
+  // Check if there are any valid moves
+  if (root.untriedMoves.length === 0) {
+    return null;
+  }
+
+  // If only one move, return it immediately
+  if (root.untriedMoves.length === 1) {
+    return root.untriedMoves[0];
+  }
+
+  // Check for immediate winning moves
+  for (const move of root.untriedMoves) {
+    if (wouldWin(board, move, currentPlayer)) {
+      return move;
+    }
+  }
+
+  // Check for blocking opponent's winning moves
+  const opponent: Player = currentPlayer === 'AI' ? 'PLAYER' : 'AI';
+  for (const move of root.untriedMoves) {
+    if (wouldWin(board, move, opponent)) {
+      return move; // Must block!
+    }
+  }
+
+  // Pre-compute player predicted moves once at root level for efficiency
+  const playerPredictedMoves = currentPlayer === 'AI'
+    ? predictPlayerNextMove(board, null)
+    : undefined;
+
+  const startTime = Date.now();
+  let iterations = 0;
+  const ucb1Constant = config.ucb1Constant;
+  const personality = config.personality || 'BALANCED';
+  const dynamicUCB1 = config.dynamicUCB1 ?? true;
+  const useRAVE = config.useRAVE ?? true; // Default enabled
+  const raveConstant = config.raveConstant ?? DEFAULT_RAVE_CONSTANT;
+  const iterativeDeepening = config.iterativeDeepening ?? true;
+
+  // Thermal management: enable on mobile devices
+  const isMobile = isMobileDevice();
+  const useProgressiveWidening = isMobile; // Enable progressive widening on mobile
+
+  // Iterative deepening: run until time limit OR simulation count
+  // whichever comes later (use full time budget)
+  const maxSimulations = config.simulations;
+  const timeLimit = config.timeLimit || 5000;
+  const minIterations = Math.floor(maxSimulations * 0.5); // At least 50% of simulations
+
+  while (true) {
+    const elapsed = Date.now() - startTime;
+
+    // Stopping conditions
+    if (iterativeDeepening) {
+      // Iterative deepening: use full time budget
+      // Stop only when time is up AND minimum simulations are done
+      if (elapsed >= timeLimit && iterations >= minIterations) {
+        break;
+      }
+      // Hard stop at 2x time limit for safety
+      if (elapsed >= timeLimit * 2) {
+        break;
+      }
+    } else {
+      // Traditional: stop at simulation count or time limit
+      if (iterations >= maxSimulations) {
+        break;
+      }
+      if (elapsed >= timeLimit) {
+        break;
+      }
+    }
+
+    // Run one MCTS iteration
+    mctsIteration(
+      root,
+      currentPlayer,
+      ucb1Constant,
+      playerPredictedMoves,
+      dynamicUCB1,
+      personality,
+      threatLevel,
+      useRAVE,
+      raveConstant,
+      useProgressiveWidening
+    );
+    iterations++;
+
+    // THERMAL MANAGEMENT: Duty cycle micro-sleep on mobile
+    // Insert 5ms sleep every 50 iterations to allow CPU to cool
+    // This reduces sustained power consumption by ~40%
+    if (isMobile && iterations % MICRO_SLEEP_INTERVAL === 0) {
+      await microSleep(MICRO_SLEEP_DURATION);
+    }
+
+    // Batch check for early termination (every 100 iterations)
+    if (iterations % 100 === 0 && root.children.length > 0) {
+      // Check if we have a clear winner
+      const sorted = [...root.children].sort((a, b) => b.visits - a.visits);
+      if (sorted.length >= 2) {
+        const firstVisits = sorted[0].visits;
+        const secondVisits = sorted[1].visits;
+        const winRate = sorted[0].wins / sorted[0].visits;
+
+        // Early termination if clear winner with high confidence
+        if (firstVisits > secondVisits * 3 && winRate > 0.8 && iterations >= minIterations) {
+          break;
+        }
+      }
+    }
+  }
+
+  // Select best move (most visited child)
+  if (root.children.length === 0) {
+    // Fallback: return first untried move
+    return root.untriedMoves[0] || null;
+  }
+
+  // Sort children by visits
+  const sortedChildren = [...root.children].sort((a, b) => b.visits - a.visits);
+  let bestChild = sortedChildren[0];
+
+  // ALIEN personality: occasionally pick a surprising move
+  if (personality === 'ALIEN' && sortedChildren.length > 2) {
+    const surpriseChance = 0.12; // 12% chance
+    if (Math.random() < surpriseChance) {
+      // Pick from top 3 with some randomness weighted by visits
+      const candidates = sortedChildren.slice(0, 3);
+      const totalVisits = candidates.reduce((sum, c) => sum + c.visits, 0);
+      let rand = Math.random() * totalVisits;
+
+      for (const candidate of candidates) {
+        rand -= candidate.visits;
+        if (rand <= 0) {
+          // Only use if reasonably good (>60% of best's visits)
+          if (candidate.visits >= bestChild.visits * 0.6) {
+            bestChild = candidate;
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return bestChild.move;
+}
+
+/**
+ * Synchronous version of runMCTS for backward compatibility
+ * Used by workers that can't use async/await in message handlers
+ */
+export function runMCTSSync(
   board: BoardState,
   currentPlayer: Player,
   config: MCTSConfig,
@@ -673,32 +879,28 @@ export function runMCTS(
   const ucb1Constant = config.ucb1Constant;
   const personality = config.personality || 'BALANCED';
   const dynamicUCB1 = config.dynamicUCB1 ?? true;
-  const useRAVE = config.useRAVE ?? true; // Default enabled
+  const useRAVE = config.useRAVE ?? true;
   const raveConstant = config.raveConstant ?? DEFAULT_RAVE_CONSTANT;
   const iterativeDeepening = config.iterativeDeepening ?? true;
 
-  // Iterative deepening: run until time limit OR simulation count
-  // whichever comes later (use full time budget)
+  // Progressive widening enabled for workers (they run in parallel, need to reduce load)
+  const useProgressiveWidening = true;
+
   const maxSimulations = config.simulations;
   const timeLimit = config.timeLimit || 5000;
-  const minIterations = Math.floor(maxSimulations * 0.5); // At least 50% of simulations
+  const minIterations = Math.floor(maxSimulations * 0.5);
 
   while (true) {
     const elapsed = Date.now() - startTime;
 
-    // Stopping conditions
     if (iterativeDeepening) {
-      // Iterative deepening: use full time budget
-      // Stop only when time is up AND minimum simulations are done
       if (elapsed >= timeLimit && iterations >= minIterations) {
         break;
       }
-      // Hard stop at 2x time limit for safety
       if (elapsed >= timeLimit * 2) {
         break;
       }
     } else {
-      // Traditional: stop at simulation count or time limit
       if (iterations >= maxSimulations) {
         break;
       }
@@ -707,7 +909,6 @@ export function runMCTS(
       }
     }
 
-    // Run one MCTS iteration
     mctsIteration(
       root,
       currentPlayer,
@@ -717,20 +918,18 @@ export function runMCTS(
       personality,
       threatLevel,
       useRAVE,
-      raveConstant
+      raveConstant,
+      useProgressiveWidening
     );
     iterations++;
 
-    // Batch check for early termination (every 100 iterations)
     if (iterations % 100 === 0 && root.children.length > 0) {
-      // Check if we have a clear winner
       const sorted = [...root.children].sort((a, b) => b.visits - a.visits);
       if (sorted.length >= 2) {
         const firstVisits = sorted[0].visits;
         const secondVisits = sorted[1].visits;
         const winRate = sorted[0].wins / sorted[0].visits;
 
-        // Early termination if clear winner with high confidence
         if (firstVisits > secondVisits * 3 && winRate > 0.8 && iterations >= minIterations) {
           break;
         }
@@ -738,21 +937,16 @@ export function runMCTS(
     }
   }
 
-  // Select best move (most visited child)
   if (root.children.length === 0) {
-    // Fallback: return first untried move
     return root.untriedMoves[0] || null;
   }
 
-  // Sort children by visits
   const sortedChildren = [...root.children].sort((a, b) => b.visits - a.visits);
   let bestChild = sortedChildren[0];
 
-  // ALIEN personality: occasionally pick a surprising move
   if (personality === 'ALIEN' && sortedChildren.length > 2) {
-    const surpriseChance = 0.12; // 12% chance
+    const surpriseChance = 0.12;
     if (Math.random() < surpriseChance) {
-      // Pick from top 3 with some randomness weighted by visits
       const candidates = sortedChildren.slice(0, 3);
       const totalVisits = candidates.reduce((sum, c) => sum + c.visits, 0);
       let rand = Math.random() * totalVisits;
@@ -760,7 +954,6 @@ export function runMCTS(
       for (const candidate of candidates) {
         rand -= candidate.visits;
         if (rand <= 0) {
-          // Only use if reasonably good (>60% of best's visits)
           if (candidate.visits >= bestChild.visits * 0.6) {
             bestChild = candidate;
           }

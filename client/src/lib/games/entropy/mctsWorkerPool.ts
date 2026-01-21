@@ -61,6 +61,61 @@ export interface WorkerPoolConfig {
 }
 
 /**
+ * Thermal throttling detection and adaptive simulation reduction
+ *
+ * When CPU thermal throttles, each iteration takes longer.
+ * We detect this by comparing recent iteration times to baseline.
+ */
+type ThermalLevel = 'NONE' | 'LIGHT' | 'MEDIUM' | 'HEAVY';
+
+interface ThermalState {
+  level: ThermalLevel;
+  simulationMultiplier: number;
+  timeMultiplier: number;
+}
+
+const THERMAL_MULTIPLIERS: Record<ThermalLevel, ThermalState> = {
+  NONE: { level: 'NONE', simulationMultiplier: 1.0, timeMultiplier: 1.0 },
+  LIGHT: { level: 'LIGHT', simulationMultiplier: 0.8, timeMultiplier: 0.85 },
+  MEDIUM: { level: 'MEDIUM', simulationMultiplier: 0.6, timeMultiplier: 0.7 },
+  HEAVY: { level: 'HEAVY', simulationMultiplier: 0.4, timeMultiplier: 0.5 },
+};
+
+/**
+ * Detect thermal state based on task execution times
+ * If recent tasks are taking significantly longer than early tasks,
+ * the device is likely thermal throttling
+ */
+function detectThermalState(taskTimes: number[]): ThermalState {
+  if (taskTimes.length < 3) {
+    return THERMAL_MULTIPLIERS.NONE;
+  }
+
+  // Compare average of recent tasks to first task (baseline)
+  const baseline = taskTimes[0];
+  const recentStart = Math.max(0, taskTimes.length - 3);
+  const recentTimes = taskTimes.slice(recentStart);
+  const recentAvg = recentTimes.reduce((a, b) => a + b, 0) / recentTimes.length;
+
+  const ratio = recentAvg / baseline;
+
+  if (ratio > 2.0) {
+    console.log(`[MCTSWorkerPool] Heavy thermal throttling detected (${ratio.toFixed(2)}x slowdown)`);
+    return THERMAL_MULTIPLIERS.HEAVY;
+  }
+  if (ratio > 1.5) {
+    console.log(`[MCTSWorkerPool] Medium thermal throttling detected (${ratio.toFixed(2)}x slowdown)`);
+    return THERMAL_MULTIPLIERS.MEDIUM;
+  }
+  if (ratio > 1.2) {
+    console.log(`[MCTSWorkerPool] Light thermal throttling detected (${ratio.toFixed(2)}x slowdown)`);
+    return THERMAL_MULTIPLIERS.LIGHT;
+  }
+
+  return THERMAL_MULTIPLIERS.NONE;
+}
+
+/**
  * MCTS Worker Pool
  *
  * Manages a pool of Web Workers for parallel MCTS computation.
@@ -71,6 +126,8 @@ export class MCTSWorkerPool {
   private workerCount: number;
   private workerTimeout: number;
   private isInitialized: boolean = false;
+  private taskExecutionTimes: number[] = []; // Track task times for thermal detection
+  private isMobile: boolean;
 
   constructor(config: WorkerPoolConfig = {}) {
     const {
@@ -86,11 +143,11 @@ export class MCTSWorkerPool {
       : 4; // Fallback to 4 if not available
 
     // Detect mobile device for thermal management
-    const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+    this.isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     // On mobile, cap workers to 4 to prevent overheating
     // On desktop, allow up to 8 (or maxWorkers config)
-    const effectiveMaxWorkers = isMobile ? Math.min(maxWorkers, 4) : maxWorkers;
+    const effectiveMaxWorkers = this.isMobile ? Math.min(maxWorkers, 4) : maxWorkers;
 
     // Use min(effectiveMaxWorkers, max(minWorkers, cores - 1))
     // Reserve 1 core for main thread and UI
@@ -101,7 +158,7 @@ export class MCTSWorkerPool {
 
     this.workerTimeout = workerTimeout;
 
-    console.log(`[MCTSWorkerPool] Initializing with ${this.workerCount} workers (${availableCores} cores, mobile=${isMobile})`);
+    console.log(`[MCTSWorkerPool] Initializing with ${this.workerCount} workers (${availableCores} cores, mobile=${this.isMobile})`);
   }
 
   /**
@@ -161,9 +218,27 @@ export class MCTSWorkerPool {
     }
 
     try {
+      const taskStartTime = performance.now();
+
+      // ADAPTIVE THROTTLING: Detect thermal state and adjust simulations
+      let thermalState = THERMAL_MULTIPLIERS.NONE;
+      if (this.isMobile && this.taskExecutionTimes.length >= 2) {
+        thermalState = detectThermalState(this.taskExecutionTimes);
+      }
+
+      // Apply thermal multipliers to config
+      const adjustedSimulations = Math.floor(config.simulations * thermalState.simulationMultiplier);
+      const adjustedTimeLimit = config.timeLimit
+        ? Math.floor(config.timeLimit * thermalState.timeMultiplier)
+        : undefined;
+
+      if (thermalState.level !== 'NONE') {
+        console.log(`[MCTSWorkerPool] Thermal adjustment: ${config.simulations} -> ${adjustedSimulations} sims, ${config.timeLimit} -> ${adjustedTimeLimit}ms`);
+      }
+
       // Distribute simulations across workers
-      const simulationsPerWorker = Math.floor(config.simulations / this.workers.length);
-      const remainingSimulations = config.simulations % this.workers.length;
+      const simulationsPerWorker = Math.floor(adjustedSimulations / this.workers.length);
+      const remainingSimulations = adjustedSimulations % this.workers.length;
 
       // Create worker tasks
       const workerTasks = this.workers.map((worker, index) => {
@@ -174,8 +249,8 @@ export class MCTSWorkerPool {
           ...config,
           simulations: workerSimulations,
           // Each worker gets proportional time limit
-          timeLimit: config.timeLimit
-            ? Math.floor(config.timeLimit * (workerSimulations / config.simulations))
+          timeLimit: adjustedTimeLimit
+            ? Math.floor(adjustedTimeLimit * (workerSimulations / adjustedSimulations))
             : undefined,
         };
 
@@ -185,10 +260,20 @@ export class MCTSWorkerPool {
       // Wait for all workers to complete (with timeout)
       const results = await Promise.all(workerTasks);
 
+      // Track task execution time for thermal detection
+      const taskEndTime = performance.now();
+      const taskDuration = taskEndTime - taskStartTime;
+      this.taskExecutionTimes.push(taskDuration);
+
+      // Keep only last 10 task times
+      if (this.taskExecutionTimes.length > 10) {
+        this.taskExecutionTimes.shift();
+      }
+
       // Merge results from all workers
       const aggregatedResult = this.mergeResults(results, board);
 
-      console.log(`[MCTSWorkerPool] Completed ${aggregatedResult.totalSimulations} simulations in ${aggregatedResult.totalTimeElapsed.toFixed(0)}ms`);
+      console.log(`[MCTSWorkerPool] Completed ${aggregatedResult.totalSimulations} simulations in ${aggregatedResult.totalTimeElapsed.toFixed(0)}ms (thermal: ${thermalState.level})`);
 
       return aggregatedResult.move;
     } catch (error) {

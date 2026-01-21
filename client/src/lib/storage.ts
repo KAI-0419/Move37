@@ -9,6 +9,11 @@ const UNLOCK_STORAGE_KEY_BY_GAME = "move37_unlocked_difficulties_by_game"; // Ga
 const MIGRATION_VERSION_KEY = "move37_storage_version";
 const CURRENT_STORAGE_VERSION = 2; // Increment when schema changes
 
+// Storage optimization constants
+const MAX_BOARD_HISTORY_LENGTH = 20; // Only keep last 20 board states for repetition detection
+const MAX_COMPLETED_GAMES = 10; // Keep at most 10 completed games per game type
+const MAX_TOTAL_GAMES = 30; // Maximum total games in storage
+
 export interface LocalGame {
   id: number;
   gameType: GameType; // Game type identifier for multi-game support
@@ -122,7 +127,7 @@ export function getAllGames(): LocalGame[] {
   try {
     const data = storage.getItem(STORAGE_KEY);
     if (!data) return [];
-    
+
     const games = JSON.parse(data);
     // Always migrate on read to ensure consistency
     return migrateGames(games);
@@ -131,12 +136,102 @@ export function getAllGames(): LocalGame[] {
   }
 }
 
-// Save all games to localStorage
+/**
+ * Optimize a game for storage by trimming large data
+ * - Limits boardHistory to last N entries
+ */
+function optimizeGameForStorage(game: LocalGame): LocalGame {
+  const optimized = { ...game };
+
+  // Trim boardHistory to prevent storage bloat
+  if (optimized.boardHistory && optimized.boardHistory.length > MAX_BOARD_HISTORY_LENGTH) {
+    optimized.boardHistory = optimized.boardHistory.slice(-MAX_BOARD_HISTORY_LENGTH);
+  }
+
+  return optimized;
+}
+
+/**
+ * Clean up old completed games to free storage space
+ * Keeps only the most recent completed games per game type
+ */
+function cleanupOldGames(games: LocalGame[], currentGameId: number | null): LocalGame[] {
+  // Separate active and completed games
+  const activeGames = games.filter(g => !g.winner || g.id === currentGameId);
+  const completedGames = games.filter(g => g.winner && g.id !== currentGameId);
+
+  // Group completed games by gameType
+  const completedByType = new Map<string, LocalGame[]>();
+  for (const game of completedGames) {
+    const type = game.gameType || 'MINI_CHESS';
+    if (!completedByType.has(type)) {
+      completedByType.set(type, []);
+    }
+    completedByType.get(type)!.push(game);
+  }
+
+  // Keep only most recent completed games per type
+  const keptCompleted: LocalGame[] = [];
+  for (const [_, typeGames] of completedByType) {
+    // Sort by creation date descending
+    typeGames.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Keep only MAX_COMPLETED_GAMES
+    keptCompleted.push(...typeGames.slice(0, MAX_COMPLETED_GAMES));
+  }
+
+  let result = [...activeGames, ...keptCompleted];
+
+  // If still too many games, remove oldest completed games
+  if (result.length > MAX_TOTAL_GAMES) {
+    const active = result.filter(g => !g.winner || g.id === currentGameId);
+    const completed = result.filter(g => g.winner && g.id !== currentGameId);
+    completed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    result = [...active, ...completed.slice(0, MAX_TOTAL_GAMES - active.length)];
+  }
+
+  return result;
+}
+
+// Save all games to localStorage with automatic cleanup on quota exceeded
 function saveAllGames(games: LocalGame[]): void {
+  // Optimize all games before saving
+  const optimizedGames = games.map(optimizeGameForStorage);
+
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(games));
+    storage.setItem(STORAGE_KEY, JSON.stringify(optimizedGames));
   } catch (error) {
-    console.error("Failed to save games to localStorage:", error);
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.warn("Storage quota exceeded, cleaning up old games...");
+
+      // Get current game ID to preserve it
+      const currentGameId = gameStorage.getCurrentGameId();
+
+      // Clean up old games
+      const cleanedGames = cleanupOldGames(optimizedGames, currentGameId);
+
+      try {
+        storage.setItem(STORAGE_KEY, JSON.stringify(cleanedGames));
+        console.log(`Cleaned up storage: ${games.length} -> ${cleanedGames.length} games`);
+      } catch (retryError) {
+        // Last resort: keep only active games
+        console.error("Still exceeded quota after cleanup, keeping only active games");
+        const activeOnly = cleanedGames.filter(g => !g.winner || g.id === currentGameId);
+
+        // Also clear boardHistory completely for active games
+        const minimalGames = activeOnly.map(g => ({
+          ...g,
+          boardHistory: g.boardHistory?.slice(-5) || [], // Keep only last 5 for repetition
+        }));
+
+        try {
+          storage.setItem(STORAGE_KEY, JSON.stringify(minimalGames));
+        } catch (finalError) {
+          console.error("Failed to save even minimal games:", finalError);
+        }
+      }
+    } else {
+      console.error("Failed to save games to localStorage:", error);
+    }
   }
 }
 

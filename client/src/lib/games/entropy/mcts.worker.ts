@@ -6,7 +6,7 @@
  */
 
 import type { BoardState, Move, Player } from "./types";
-import { runMCTS, type MCTSConfig } from "./mcts";
+import { runMCTSSync, type MCTSConfig } from "./mcts";
 
 /**
  * Worker message types
@@ -40,7 +40,9 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
 
     try {
       // Run MCTS with threat level for dynamic UCB1
-      const move = runMCTS(board, player, config, threatLevel);
+      // Use sync version in worker (workers can't await in message handlers easily)
+      // Progressive widening is enabled by default in runMCTSSync for thermal management
+      const move = runMCTSSync(board, player, config, threatLevel);
 
       const endTime = performance.now();
       const timeElapsed = endTime - startTime;

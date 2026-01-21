@@ -24,6 +24,44 @@ import { getOpeningBookMove, isOpeningPhase } from "./openingBook";
 import { solveEndgame, shouldUseEndgameSolver, getEndgameDepth, getEndgameTimeLimit, clearTranspositionTable } from "./endgameSolver";
 import { getVirtualConnectionCarriers, hasVirtualWin } from "./virtualConnections";
 
+// Mobile detection (cached)
+let _isMobileDevice: boolean | null = null;
+function isMobileDevice(): boolean {
+  if (_isMobileDevice === null) {
+    _isMobileDevice = typeof navigator !== 'undefined' &&
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+  return _isMobileDevice;
+}
+
+/**
+ * Mobile-optimized MCTS configurations
+ * Reduces simulation count and time limits to prevent thermal throttling
+ * while maintaining strong AI quality through algorithmic improvements
+ *
+ * NEXUS-7 Strategy: Compensate for reduced simulations with:
+ * - Lower UCB1 constant (stronger exploitation)
+ * - Higher RAVE constant (faster convergence)
+ * - Optimized progressive widening
+ */
+const MOBILE_CONFIG_OVERRIDES = {
+  "NEXUS-3": {
+    simulations: 600,    // -25% from 800
+    timeLimit: 1500,     // -25% from 2000ms
+  },
+  "NEXUS-5": {
+    simulations: 2500,   // -37.5% from 4000
+    timeLimit: 4000,     // -33% from 6000ms
+  },
+  "NEXUS-7": {
+    simulations: 8000,   // -20% from 10000 (increased from 6000 for stronger play)
+    timeLimit: 8500,     // -15% from 10000ms (increased from 7000 for better analysis)
+    // Additional overrides for stronger play
+    ucb1Constant: Math.sqrt(2) * 0.7,  // Stronger exploitation (was 0.85)
+    raveConstant: 550,                  // Faster convergence (was 400)
+  },
+} as const;
+
 /**
  * Get MCTS configuration based on difficulty
  *
@@ -41,15 +79,24 @@ import { getVirtualConnectionCarriers, hasVirtualWin } from "./virtualConnection
  *   - Maximum simulation count, full time budget utilization
  *   - Complete opening book, deep endgame solver
  *   - RAVE + iterative deepening for optimal play
+ *
+ * THERMAL MANAGEMENT:
+ * - On mobile devices, automatically applies reduced settings
+ * - Prevents overheating while maintaining AI quality
  */
 function getMCTSConfig(
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7"
 ): MCTSConfig {
+  const isMobile = isMobileDevice();
+
+  // Base configurations for desktop
+  let config: MCTSConfig;
+
   switch (difficulty) {
     case "NEXUS-3":
       // 일반인 수준: 캐주얼 플레이어가 이길 수 있음
       // Intentionally weak for learning the game
-      return {
+      config = {
         simulations: 800, // Low simulation count
         ucb1Constant: Math.sqrt(2) * 1.3, // High exploration = more random
         timeLimit: 2000, // Short time limit
@@ -59,11 +106,12 @@ function getMCTSConfig(
         raveConstant: 0,
         iterativeDeepening: false, // Don't use full time
       };
+      break;
 
     case "NEXUS-5":
       // HEX 전문가 수준: 강하지만 전문가에게는 패배 가능
       // Strong tactical play with solid strategy
-      return {
+      config = {
         simulations: 4000, // Medium-high simulation count
         ucb1Constant: Math.sqrt(2) * 0.95, // Slightly favor exploitation
         timeLimit: 6000, // 6 seconds
@@ -73,11 +121,12 @@ function getMCTSConfig(
         raveConstant: 250,
         iterativeDeepening: true, // Use full time budget
       };
+      break;
 
     case "NEXUS-7":
       // 인간 초월: 거의 이길 수 없는 최상위 레벨
       // Maximum strength with all optimizations
-      return {
+      config = {
         simulations: 10000, // Very high simulation count
         ucb1Constant: Math.sqrt(2) * 0.85, // Strong exploitation
         timeLimit: 10000, // 10 seconds (full budget)
@@ -87,7 +136,29 @@ function getMCTSConfig(
         raveConstant: 400, // Higher RAVE weight
         iterativeDeepening: true, // Use full time budget
       };
+      break;
   }
+
+  // Apply mobile overrides for thermal management
+  if (isMobile) {
+    const mobileOverride = MOBILE_CONFIG_OVERRIDES[difficulty];
+    config = {
+      ...config,
+      simulations: mobileOverride.simulations,
+      timeLimit: mobileOverride.timeLimit,
+    };
+
+    // NEXUS-7 specific: Apply additional algorithmic improvements to compensate for reduced simulations
+    if (difficulty === "NEXUS-7" && 'ucb1Constant' in mobileOverride) {
+      config.ucb1Constant = mobileOverride.ucb1Constant;
+      config.raveConstant = mobileOverride.raveConstant;
+      console.log(`[MCTS] Mobile NEXUS-7: Enhanced config - UCB1=${config.ucb1Constant.toFixed(3)}, RAVE=${config.raveConstant}`);
+    }
+
+    console.log(`[MCTS] Mobile device detected - using optimized config for ${difficulty}: ${mobileOverride.simulations} sims, ${mobileOverride.timeLimit}ms`);
+  }
+
+  return config;
 }
 
 /**
@@ -1022,9 +1093,9 @@ export async function getAIMove(
       const workerPool = getMCTSWorkerPool();
       bestMove = await workerPool.calculateMove(board, 'AI', config, pathAnalysis.threatLevel);
     } catch (error) {
-      // Fallback to synchronous MCTS if Worker Pool fails
-      console.warn('[Evaluation] Worker Pool failed, using synchronous MCTS:', error);
-      bestMove = runMCTS(board, 'AI', config, pathAnalysis.threatLevel);
+      // Fallback to async MCTS if Worker Pool fails
+      console.warn('[Evaluation] Worker Pool failed, using fallback MCTS:', error);
+      bestMove = await runMCTS(board, 'AI', config, pathAnalysis.threatLevel);
     }
     
     // Analyze MCTS result quality
