@@ -11,7 +11,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ChessPiece } from "@/components/ChessPieces";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
-import { useMiniChessWorkerCleanup } from "./useMiniChessWorkerCleanup";
+import { useWorkerCleanup } from "../useWorkerCleanup";
+import { terminateMiniChessWorkerPool } from "./miniChessWorkerPool";
 
 const BOARD_SIZE = 5;
 
@@ -36,7 +37,7 @@ export function MiniChessBoard({
   isTutorialMode = false,
 }: BaseGameBoardProps) {
   // Ensure background workers are cleaned up when component unmounts
-  useMiniChessWorkerCleanup();
+  useWorkerCleanup(terminateMiniChessWorkerPool, "Mini Chess");
 
   // Parse board string (FEN format: "NPKPN/5/5/5/npkpn")
   const rows: string[][] = useMemo(() => {

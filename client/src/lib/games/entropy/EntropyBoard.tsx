@@ -5,12 +5,13 @@
  * Handles rendering of the 11x11 hexagonal grid with polished UI.
  */
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 import { parseBoardState } from "./boardUtils";
-import { useEntropyWorkerCleanup } from "./useEntropyWorkerCleanup";
+import { useWorkerCleanup } from "../useWorkerCleanup";
+import { terminateMCTSWorkerPool } from "./mctsWorkerPool";
 import type { CellState } from "./types";
 
 /**
@@ -36,7 +37,7 @@ export function EntropyBoard({
   highlightSquares = [],
 }: BaseGameBoardProps) {
   // Ensure background workers are cleaned up when component unmounts
-  useEntropyWorkerCleanup();
+  useWorkerCleanup(terminateMCTSWorkerPool, "Entropy (Hex)");
 
   // Parse board state
   const boardState = parseBoardState(boardString);

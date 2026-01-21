@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 import { KingPiece } from "@/components/ChessPieces";
 import type { BaseGameBoardProps } from "../GameBoardInterface";
 import { parseBoardState } from "./boardUtils";
-import { useIsolationWorkerCleanup } from "./useIsolationWorkerCleanup";
+import { useWorkerCleanup } from "../useWorkerCleanup";
+import { terminateMinimaxWorkerPool } from "./minimaxWorkerPool";
 
 /**
  * ISOLATION Board Component
@@ -37,7 +38,7 @@ export function IsolationBoard({
   isTutorialMode = false,
 }: BaseGameBoardProps) {
   // Ensure background workers are cleaned up when component unmounts
-  useIsolationWorkerCleanup();
+  useWorkerCleanup(terminateMinimaxWorkerPool, "Isolation (Game 2)");
 
   // Parse board state
   const boardState = parseBoardState(boardString);
