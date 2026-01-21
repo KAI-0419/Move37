@@ -15,8 +15,8 @@ export function parseBoardState(boardString: string): BoardState {
     const parsed = JSON.parse(boardString);
     return {
       boardSize: parsed.boardSize || DEFAULT_BOARD_SIZE,
-      playerPos: parsed.playerPos,
-      aiPos: parsed.aiPos,
+      playerPos: parsed.playerPos || { r: 6, c: 0 },
+      aiPos: parsed.aiPos || { r: 0, c: 6 },
       destroyed: parsed.destroyed || [],
     };
   } catch (error) {
@@ -44,35 +44,35 @@ export function generateBoardString(board: BoardState): string {
 export function getInitialBoard(): BoardState {
   const boardSize = DEFAULT_BOARD_SIZE;
   const totalCells = boardSize.rows * boardSize.cols;
-  
+
   // Generate random positions for player and AI
   // Ensure they are at least 2 cells apart
   let playerPos: { r: number; c: number };
   let aiPos: { r: number; c: number };
-  
+
   do {
     const playerIndex = Math.floor(Math.random() * totalCells);
     const aiIndex = Math.floor(Math.random() * totalCells);
-    
+
     playerPos = {
       r: Math.floor(playerIndex / boardSize.cols),
       c: playerIndex % boardSize.cols,
     };
-    
+
     aiPos = {
       r: Math.floor(aiIndex / boardSize.cols),
       c: aiIndex % boardSize.cols,
     };
-    
+
     // Calculate Manhattan distance
     const distance = Math.abs(playerPos.r - aiPos.r) + Math.abs(playerPos.c - aiPos.c);
-    
+
     // If positions are different and at least 2 cells apart, we're good
     if (distance >= 2 && (playerPos.r !== aiPos.r || playerPos.c !== aiPos.c)) {
       break;
     }
   } while (true);
-  
+
   return {
     boardSize,
     playerPos,
@@ -137,16 +137,16 @@ export function getAdjacentPositions(
     { r: 1, c: 0 },    // bottom
     { r: 1, c: 1 },    // bottom-right
   ];
-  
+
   const adjacent: { r: number; c: number }[] = [];
-  
+
   for (const dir of directions) {
     const newPos = { r: pos.r + dir.r, c: pos.c + dir.c };
     if (isValidPosition(newPos, boardSize)) {
       adjacent.push(newPos);
     }
   }
-  
+
   return adjacent;
 }
 
@@ -169,23 +169,23 @@ export function floodFill(
   const visited = new Set<string>();
   const queue: { r: number; c: number }[] = [startPos];
   visited.add(`${startPos.r},${startPos.c}`);
-  
+
   // Start with count = 1 because we include the starting position
   let count = 1;
-  
+
   while (queue.length > 0) {
     const current = queue.shift()!;
     const adjacent = getAdjacentPositions(current, boardSize);
-    
+
     for (const next of adjacent) {
       const key = `${next.r},${next.c}`;
-      
+
       // Skip if already visited
       if (visited.has(key)) continue;
-      
+
       // Skip if destroyed
       if (isDestroyed(next, destroyed)) continue;
-      
+
       // Skip if occupied by the other piece
       // Note: We allow the starting position even if it's occupied (by the piece itself)
       // This is handled by the condition: if next is startPos, the condition is false
@@ -196,14 +196,14 @@ export function floodFill(
       ) {
         continue;
       }
-      
+
       // This position is reachable
       visited.add(key);
       queue.push(next);
       count++;
     }
   }
-  
+
   return count;
 }
 
@@ -213,20 +213,20 @@ export function floodFill(
 export function getEmptyCells(boardState: BoardState): { r: number; c: number }[] {
   const { boardSize, playerPos, aiPos, destroyed } = boardState;
   const empty: { r: number; c: number }[] = [];
-  
+
   for (let r = 0; r < boardSize.rows; r++) {
     for (let c = 0; c < boardSize.cols; c++) {
       const pos = { r, c };
-      
+
       // Skip if destroyed
       if (isDestroyed(pos, destroyed)) continue;
-      
+
       // Skip if occupied
       if (isOccupied(pos, playerPos, aiPos)) continue;
-      
+
       empty.push(pos);
     }
   }
-  
+
   return empty;
 }

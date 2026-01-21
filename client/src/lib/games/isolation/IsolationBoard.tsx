@@ -149,8 +149,8 @@ export function IsolationBoard({
 
   // Check if a position has a piece
   const getPieceAt = (r: number, c: number) => {
-    if (r === playerPos.r && c === playerPos.c) return "player";
-    if (r === aiPos.r && c === aiPos.c) return "ai";
+    if (playerPos && r === playerPos.r && c === playerPos.c) return "player";
+    if (aiPos && r === aiPos.r && c === aiPos.c) return "ai";
     return null;
   };
 
@@ -175,19 +175,19 @@ export function IsolationBoard({
       animate={
         hasError
           ? {
-              x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
-              y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
-              rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
-            }
+            x: [0, -1.5, 1.2, -0.8, 0.5, -0.2, 0],
+            y: [0, 0.8, -0.6, 0.4, -0.3, 0.1, 0],
+            rotate: [0, -0.5, 0.4, -0.3, 0.2, -0.1, 0],
+          }
           : {}
       }
       transition={
         hasError
           ? {
-              duration: 0.6,
-              ease: [0.25, 0.1, 0.25, 1],
-              times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1],
-            }
+            duration: 0.6,
+            ease: [0.25, 0.1, 0.25, 1],
+            times: [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1],
+          }
           : {}
       }
     >

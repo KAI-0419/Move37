@@ -247,10 +247,11 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
                     size="small"
                     difficulty="NEXUS-7"
                     isTutorialMode={true}
+                    highlightSquares={step.highlightSquares || []}
                   />
                   
                   {/* Highlight squares overlay - using matching grid structure */}
-                  {step.highlightSquares && (
+                  {step.highlightSquares && gameType !== "GAME_3" && (
                     <div
                       className="absolute pointer-events-none"
                       style={{

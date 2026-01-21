@@ -32,6 +32,7 @@ export function EntropyBoard({
   hasError = false,
   isTutorialMode = false,
   isPreviewMode = false,
+  highlightSquares = [],
 }: BaseGameBoardProps) {
   // Parse board state
   const boardState = parseBoardState(boardString);
@@ -234,43 +235,43 @@ export function EntropyBoard({
             `,
           }}
         >
-          {/* Edge indicators - Top (Player goal) */}
+          {/* Edge indicators - Top (AI goal) */}
           <div
             className="absolute left-0 right-0 h-1 z-10"
             style={{
               top: "-2px",
-              background: "linear-gradient(90deg, transparent 5%, rgba(0,243,255,0.8) 20%, rgba(0,243,255,1) 50%, rgba(0,243,255,0.8) 80%, transparent 95%)",
-              boxShadow: "0 0 15px rgba(0,243,255,0.6), 0 0 30px rgba(0,243,255,0.3)",
+              background: `linear-gradient(90deg, transparent 5%, ${aiColors.border} 20%, ${aiColors.solid} 50%, ${aiColors.border} 80%, transparent 95%)`,
+              boxShadow: `0 0 15px ${aiColors.glow}, 0 0 30px ${aiColors.glow}`,
             }}
           />
 
-          {/* Edge indicators - Bottom (Player goal) */}
+          {/* Edge indicators - Bottom (AI goal) */}
           <div
             className="absolute left-0 right-0 h-1 z-10"
             style={{
               bottom: "-2px",
-              background: "linear-gradient(90deg, transparent 5%, rgba(0,243,255,0.8) 20%, rgba(0,243,255,1) 50%, rgba(0,243,255,0.8) 80%, transparent 95%)",
-              boxShadow: "0 0 15px rgba(0,243,255,0.6), 0 0 30px rgba(0,243,255,0.3)",
+              background: `linear-gradient(90deg, transparent 5%, ${aiColors.border} 20%, ${aiColors.solid} 50%, ${aiColors.border} 80%, transparent 95%)`,
+              boxShadow: `0 0 15px ${aiColors.glow}, 0 0 30px ${aiColors.glow}`,
             }}
           />
 
-          {/* Edge indicators - Left (AI goal) */}
+          {/* Edge indicators - Left (Player goal) */}
           <div
             className="absolute top-0 bottom-0 w-1 z-10"
             style={{
               left: "-2px",
-              background: `linear-gradient(180deg, transparent 5%, ${aiColors.border} 20%, ${aiColors.solid} 50%, ${aiColors.border} 80%, transparent 95%)`,
-              boxShadow: `0 0 15px ${aiColors.glow}, 0 0 30px ${aiColors.glow}`,
+              background: "linear-gradient(180deg, transparent 5%, rgba(0,243,255,0.8) 20%, rgba(0,243,255,1) 50%, rgba(0,243,255,0.8) 80%, transparent 95%)",
+              boxShadow: "0 0 15px rgba(0,243,255,0.6), 0 0 30px rgba(0,243,255,0.3)",
             }}
           />
 
-          {/* Edge indicators - Right (AI goal) */}
+          {/* Edge indicators - Right (Player goal) */}
           <div
             className="absolute top-0 bottom-0 w-1 z-10"
             style={{
               right: "-2px",
-              background: `linear-gradient(180deg, transparent 5%, ${aiColors.border} 20%, ${aiColors.solid} 50%, ${aiColors.border} 80%, transparent 95%)`,
-              boxShadow: `0 0 15px ${aiColors.glow}, 0 0 30px ${aiColors.glow}`,
+              background: "linear-gradient(180deg, transparent 5%, rgba(0,243,255,0.8) 20%, rgba(0,243,255,1) 50%, rgba(0,243,255,0.8) 80%, transparent 95%)",
+              boxShadow: "0 0 15px rgba(0,243,255,0.6), 0 0 30px rgba(0,243,255,0.3)",
             }}
           />
 
@@ -343,6 +344,7 @@ export function EntropyBoard({
                 const isValidMoveTarget = validMoves.some((m) => m.r === r && m.c === c);
                 const isLastMoveDest = lastMove?.to.r === r && lastMove?.to.c === c;
                 const isNewlyPlaced = newlyPlaced?.r === r && newlyPlaced?.c === c;
+                const isHighlighted = highlightSquares.some(sq => sq.r === r && sq.c === c);
                 const { x, y } = getHexPosition(r, c);
                 const cellSize = config.cellSize;
                 const isInteractionDisabled = isAITurnOrProcessing && !isSelected && !isValidMoveTarget;
@@ -352,8 +354,8 @@ export function EntropyBoard({
                 const onBottomEdge = isBottomEdge(r);
                 const onLeftEdge = isLeftEdge(c, r);
                 const onRightEdge = isRightEdge(c, r);
-                const isPlayerEdge = onTopEdge || onBottomEdge;
-                const isAiEdge = onLeftEdge || onRightEdge;
+                const isPlayerEdge = onLeftEdge || onRightEdge;
+                const isAiEdge = onTopEdge || onBottomEdge;
 
                 return (
                   <motion.div
@@ -395,13 +397,11 @@ export function EntropyBoard({
                       style={{
                         clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
                         background: cellState === 'EMPTY'
-                          ? isValidMoveTarget
-                            ? "linear-gradient(135deg, rgba(0,243,255,0.15) 0%, rgba(0,243,255,0.05) 100%)"
-                            : isPlayerEdge
-                              ? "linear-gradient(135deg, rgba(0,243,255,0.08) 0%, rgba(0,30,35,0.9) 100%)"
-                              : isAiEdge
-                                ? `linear-gradient(135deg, ${aiColors.bg.replace('0.25', '0.08')} 0%, rgba(0,30,35,0.9) 100%)`
-                                : "linear-gradient(135deg, rgba(40,45,50,0.6) 0%, rgba(20,25,30,0.8) 100%)"
+                          ? isHighlighted
+                            ? "linear-gradient(135deg, rgba(0,243,255,0.2) 0%, rgba(0,243,255,0.1) 100%)"
+                            : isValidMoveTarget
+                              ? "linear-gradient(135deg, rgba(0,243,255,0.15) 0%, rgba(0,243,255,0.05) 100%)"
+                              : "linear-gradient(135deg, rgba(40,45,50,0.6) 0%, rgba(20,25,30,0.8) 100%)"
                           : cellState === 'PLAYER'
                             ? "linear-gradient(135deg, rgba(0,243,255,0.3) 0%, rgba(0,150,180,0.2) 100%)"
                             : `linear-gradient(135deg, ${aiColors.bg} 0%, ${aiColors.bg.replace('0.25', '0.15')} 100%)`,
@@ -412,17 +412,34 @@ export function EntropyBoard({
                             : isValidMoveTarget
                               ? "inset 0 0 10px rgba(0,243,255,0.2)"
                               : "inset 0 0 8px rgba(0,0,0,0.5)",
-                        border: cellState === 'PLAYER'
-                          ? "1px solid rgba(0,243,255,0.6)"
-                          : cellState === 'AI'
-                            ? `1px solid ${aiColors.border}`
-                            : isValidMoveTarget
-                              ? "1px solid rgba(0,243,255,0.4)"
-                              : isLastMoveDest
-                                ? "1px solid rgba(255,170,0,0.6)"
-                                : "1px solid rgba(60,70,80,0.4)",
+                        border: isHighlighted
+                          ? "2px solid #00f3ff"
+                          : cellState === 'PLAYER'
+                            ? "1px solid rgba(0,243,255,0.6)"
+                            : cellState === 'AI'
+                              ? `1px solid ${aiColors.border}`
+                              : isValidMoveTarget
+                                ? "1px solid rgba(0,243,255,0.4)"
+                                : isLastMoveDest
+                                  ? "1px solid rgba(255,170,0,0.6)"
+                                  : "1px solid rgba(60,70,80,0.4)",
+                        zIndex: isHighlighted ? 10 : 1,
                       }}
                     >
+                      {/* Tutorial Highlight Overlay */}
+                      {isHighlighted && (
+                        <motion.div
+                          className="absolute inset-0 z-20"
+                          initial={{ opacity: 0.4 }}
+                          animate={isTutorialMode ? { opacity: 0.4 } : { opacity: [0.3, 0.7, 0.3] }}
+                          transition={isTutorialMode ? {} : { duration: 1.5, repeat: Infinity }}
+                          style={{
+                            background: "radial-gradient(circle, rgba(0,243,255,0.4) 0%, transparent 70%)",
+                            boxShadow: "inset 0 0 15px rgba(0,243,255,0.5)",
+                          }}
+                        />
+                      )}
+
                       {/* Player piece */}
                       {cellState === 'PLAYER' && (
                         <motion.div
