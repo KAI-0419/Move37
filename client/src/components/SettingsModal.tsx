@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { X, Volume2, VolumeX, Smartphone, Languages, ChevronDown } from "lucide-react";
 import { GlitchButton } from "@/components/GlitchButton";
 import { cn } from "@/lib/utils";
-import { audioManager, GAME_SOUNDS } from "@/lib/audio";
+import { audioManager } from "@/lib/audio";
 import { useState, useEffect, useRef } from "react";
 import {
   DropdownMenu,
@@ -29,8 +29,7 @@ export function SettingsModal({ isOpen, onClose, selectedLanguage = "ko", onLang
   const { t } = useTranslation();
   const [audioEnabled, setAudioEnabled] = useState(audioManager.isAudioEnabled());
   const [hapticsEnabled, setHapticsEnabled] = useState(audioManager.isHapticsEnabled());
-  const [testingSoundButton, setTestingSoundButton] = useState(false);
-  const [testingHapticsButton, setTestingHapticsButton] = useState(false);
+
   const languageTriggerRef = useRef<HTMLButtonElement>(null);
   const [dropdownWidth, setDropdownWidth] = useState<number | undefined>(undefined);
 
@@ -76,27 +75,7 @@ export function SettingsModal({ isOpen, onClose, selectedLanguage = "ko", onLang
     audioManager.setHapticsEnabled(newValue);
   };
 
-  const handleTestSound = async () => {
-    setTestingSoundButton(true);
-    try {
-      await audioManager.playSound(GAME_SOUNDS.BUTTON_CLICK.id, 0.8);
-    } catch (error) {
-      console.error('Test sound failed:', error);
-    } finally {
-      setTimeout(() => setTestingSoundButton(false), 500);
-    }
-  };
 
-  const handleTestHaptics = async () => {
-    setTestingHapticsButton(true);
-    try {
-      await audioManager.vibrate('medium');
-    } catch (error) {
-      console.error('Test haptics failed:', error);
-    } finally {
-      setTimeout(() => setTestingHapticsButton(false), 500);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -148,19 +127,7 @@ export function SettingsModal({ isOpen, onClose, selectedLanguage = "ko", onLang
             </div>
             <div className="flex items-center gap-2">
               {/* Test Sound Button */}
-              <button
-                onClick={handleTestSound}
-                disabled={!audioEnabled || testingSoundButton}
-                className={cn(
-                  "px-3 py-1 text-xs border rounded transition-colors",
-                  audioEnabled
-                    ? "border-primary/40 text-primary hover:bg-primary/10"
-                    : "border-gray-600 text-gray-500 cursor-not-allowed"
-                )}
-                aria-label={t("settings.testSound", "Test sound")}
-              >
-                {testingSoundButton ? "..." : t("settings.test", "Test")}
-              </button>
+
               <button
                 onClick={handleToggleAudio}
                 className={cn(
@@ -193,19 +160,7 @@ export function SettingsModal({ isOpen, onClose, selectedLanguage = "ko", onLang
             </div>
             <div className="flex items-center gap-2">
               {/* Test Haptics Button */}
-              <button
-                onClick={handleTestHaptics}
-                disabled={!hapticsEnabled || testingHapticsButton}
-                className={cn(
-                  "px-3 py-1 text-xs border rounded transition-colors",
-                  hapticsEnabled
-                    ? "border-primary/40 text-primary hover:bg-primary/10"
-                    : "border-gray-600 text-gray-500 cursor-not-allowed"
-                )}
-                aria-label={t("settings.testHaptics", "Test haptics")}
-              >
-                {testingHapticsButton ? "..." : t("settings.test", "Test")}
-              </button>
+
               <button
                 onClick={handleToggleHaptics}
                 className={cn(

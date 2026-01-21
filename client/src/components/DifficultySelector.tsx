@@ -6,7 +6,7 @@
 
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Cpu, Skull, Lock, Check } from "lucide-react";
+import { Cpu, Skull, Lock, Check, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isDifficultyUnlocked } from "@/lib/storage";
 import type { GameType } from "@shared/schema";
@@ -35,7 +35,7 @@ export function DifficultySelector({
         };
       case "NEXUS-5":
         return {
-          icon: Cpu,
+          icon: Brain,
           color: "secondary",
           label: t("lobby.difficulty.medium"),
         };
@@ -118,8 +118,8 @@ export function DifficultySelector({
               !isUnlocked
                 ? cn(colors.borderLocked, colors.bgLocked, "cursor-pointer hover:border-primary/50 hover:bg-primary/15")
                 : isSelected
-                ? cn(colors.border, colors.bgGradient, colors.shadow)
-                : cn("border-white/10 bg-white/5", colors.hoverBorder, colors.hoverBg)
+                  ? cn(colors.border, colors.bgGradient, colors.shadow)
+                  : cn("border-white/10 bg-white/5", colors.hoverBorder, colors.hoverBg)
             )}
           >
             {!isUnlocked && (
