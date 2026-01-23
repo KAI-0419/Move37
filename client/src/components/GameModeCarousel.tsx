@@ -28,12 +28,25 @@ export function GameModeCarousel({
 }: GameModeCarouselProps) {
   const { toast } = useToast();
   const { width } = useResponsive();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Calculate how many cards to show based on screen width (responsive)
-  // Mobile (< 640px): 1 card, Small Tablet (640-767px): 1.5 cards, Tablet (768-1023px): 2 cards, Desktop (>= 1024px): 3 cards
+  
+  // Calculate how many cards to show based on screen width
   const cardsToShow = useMemo(() => getCardsToShow(width), [width]);
+  
+  // Calculate max index based on cards to show
+  const maxIndex = Math.max(0, AVAILABLE_GAMES.length - cardsToShow);
+
+  // Initialize currentIndex based on selectedGameType
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const index = AVAILABLE_GAMES.findIndex(g => g.id === selectedGameType);
+    if (index === -1) return 0;
+    // We clamp to maxIndex, but since cardsToShow might not be stable on first render (SSR/CSR mismatch),
+    // we prioritize showing the selected item if possible.
+    // However, to be safe with the logic below, we'll clamp it initially.
+    // Re-calculation will happen in useEffect if needed.
+    return Math.max(0, Math.min(index, AVAILABLE_GAMES.length - 1)); // Allow going up to length-1 initially
+  });
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Calculate card dimensions based on responsive cardsToShow
   // For fractional cards (1.5), we show 1 full card + peek of next
@@ -50,9 +63,6 @@ export function GameModeCarousel({
   // Width of each card relative to the moving container (for animation)
   const itemWidth = 100 / AVAILABLE_GAMES.length;
 
-  // Maximum index we can scroll to
-  const maxIndex = Math.max(0, AVAILABLE_GAMES.length - cardsToShow);
-
   // Calculate the actual percentage offset for smooth animation
   // Offset is calculated as a percentage of the moving container's own width
   const getOffset = (index: number) => {
@@ -61,6 +71,8 @@ export function GameModeCarousel({
 
   // Snap to card positions (no auto-select to prevent unwanted game changes)
   const snapToIndex = (index: number, shouldAutoSelect: boolean = false) => {
+    // Ensure we don't scroll past bounds
+    // Note: We use maxIndex for the upper bound of scrolling
     const clampedIndex = Math.max(0, Math.min(index, maxIndex));
     setCurrentIndex(clampedIndex);
 
@@ -79,48 +91,44 @@ export function GameModeCarousel({
     return Math.round(currentIndex);
   };
 
-  // Reset currentIndex when cardsToShow changes, ensuring selected game stays visible
-  useEffect(() => {
-    // Find the selected game's index
-    const selectedGameIndex = AVAILABLE_GAMES.findIndex(g => g.id === selectedGameType);
-
-    if (selectedGameIndex !== -1) {
-      // Calculate the index that shows the selected game
-      // If selected game index is within valid range, use it; otherwise clamp to maxIndex
-      const targetIndex = Math.max(0, Math.min(selectedGameIndex, maxIndex));
-
-      // Only update if needed to prevent unnecessary re-renders
-      if (currentIndex > maxIndex || currentIndex !== targetIndex) {
-        setCurrentIndex(targetIndex);
-      }
-    } else if (currentIndex > maxIndex) {
-      // Fallback: just clamp to maxIndex if selected game not found
-      setCurrentIndex(Math.max(0, maxIndex));
-    }
-  }, [maxIndex, selectedGameType, currentIndex]);
-
   // Sync carousel with selected game mode - ensure selected game is visible
   useEffect(() => {
     const gameIndex = AVAILABLE_GAMES.findIndex(g => g.id === selectedGameType);
     if (gameIndex === -1) return; // Game not found
 
-    // Calculate the target index to show the selected game
-    // The selected game should be the first visible card if possible
-    const targetIndex = Math.max(0, Math.min(gameIndex, maxIndex));
+    // Calculate the target index to show the selected game.
+    // If the game is at the end, we might need to scroll to maxIndex.
+    // If it's at the beginning, index 0.
+    // The goal is to make sure the game is within the visible window [currentIndex, currentIndex + cardsToShow]
+    
+    // If the game is already visible, don't move.
+    // Visible range is roughly [currentIndex, currentIndex + cardsToShow - 1]
+    
+    // We add a small buffer (0.1) to handle floating point inaccuracies
+    const isVisible = 
+      gameIndex >= currentIndex - 0.1 && 
+      gameIndex < currentIndex + cardsToShow - 0.5;
 
-    // Check if the selected game is currently visible in the viewport
-    const firstVisibleIndex = Math.floor(currentIndex);
-    const lastVisibleIndex = Math.min(
-      Math.ceil(currentIndex + cardsToShow) - 1,
-      AVAILABLE_GAMES.length - 1
-    );
-    const isSelectedGameVisible = gameIndex >= firstVisibleIndex && gameIndex <= lastVisibleIndex;
-
-    // Only update if the selected game is not visible
-    if (!isSelectedGameVisible) {
+    if (!isVisible) {
+      // If not visible, scroll to it.
+      // We prefer to put the selected game at the start (left) if possible,
+      // but respecting the maxIndex bound.
+      let targetIndex = gameIndex;
+      
+      // If scrolling to gameIndex would leave empty space at the end, clamp to maxIndex
+      targetIndex = Math.min(targetIndex, maxIndex);
+      
+      // Also ensure we don't go below 0
+      targetIndex = Math.max(0, targetIndex);
+      
       setCurrentIndex(targetIndex);
+    } else {
+      // Even if visible, if currentIndex is invalid (e.g. > maxIndex due to resize), fix it.
+      if (currentIndex > maxIndex) {
+        setCurrentIndex(maxIndex);
+      }
     }
-  }, [selectedGameType, maxIndex, currentIndex, cardsToShow]);
+  }, [selectedGameType, maxIndex, cardsToShow, currentIndex]); // Removed cardsToShow from dependency to avoid jumpiness on resize, but needed for calculation
 
   // Keyboard navigation
   useEffect(() => {
@@ -132,16 +140,18 @@ export function GameModeCarousel({
         return;
       }
 
+      const tolerance = 0.01;
+
       switch (e.key) {
         case "ArrowLeft":
           e.preventDefault();
-          if (currentIndex > 0) {
+          if (currentIndex > tolerance) {
             snapToIndex(currentIndex - 1, true);
           }
           break;
         case "ArrowRight":
           e.preventDefault();
-          if (currentIndex < maxIndex) {
+          if (currentIndex < maxIndex - tolerance) {
             snapToIndex(currentIndex + 1, true);
           }
           break;
@@ -167,22 +177,23 @@ export function GameModeCarousel({
     const threshold = 50; // Minimum drag distance to trigger slide
     const offset = info.offset.x;
     const velocity = info.velocity.x;
+    const tolerance = 0.01; // Tolerance for floating point comparisons
 
     // Use velocity to determine direction if drag distance is ambiguous
     if (Math.abs(velocity) > 500) {
       // High velocity - snap in direction of velocity
-      if (velocity > 0 && currentIndex > 0) {
+      if (velocity > 0 && currentIndex > tolerance) {
         snapToIndex(currentIndex - 1, true);
-      } else if (velocity < 0 && currentIndex < maxIndex) {
+      } else if (velocity < 0 && currentIndex < maxIndex - tolerance) {
         snapToIndex(currentIndex + 1, true);
       } else {
         snapToIndex(currentIndex, false);
       }
     } else if (Math.abs(offset) > threshold) {
       // Significant drag - snap in direction of drag
-      if (offset > 0 && currentIndex > 0) {
+      if (offset > 0 && currentIndex > tolerance) {
         snapToIndex(currentIndex - 1, true);
-      } else if (offset < 0 && currentIndex < maxIndex) {
+      } else if (offset < 0 && currentIndex < maxIndex - tolerance) {
         snapToIndex(currentIndex + 1, true);
       } else {
         snapToIndex(currentIndex, false); // Snap back
@@ -195,20 +206,20 @@ export function GameModeCarousel({
   // Navigation handlers
   const handlePrev = () => {
     if (disabled) return;
-    if (currentIndex > 0) {
+    if (currentIndex > 0.01) {
       snapToIndex(currentIndex - 1, true);
     }
   };
 
   const handleNext = () => {
     if (disabled) return;
-    if (currentIndex < maxIndex) {
+    if (currentIndex < maxIndex - 0.01) {
       snapToIndex(currentIndex + 1, true);
     }
   };
 
-  const canScrollPrev = currentIndex > 0;
-  const canScrollNext = currentIndex < maxIndex;
+  const canScrollPrev = currentIndex > 0.01;
+  const canScrollNext = currentIndex < maxIndex - 0.01;
 
   return (
     <div className="relative">
