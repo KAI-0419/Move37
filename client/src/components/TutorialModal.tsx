@@ -236,7 +236,7 @@ export function TutorialModal({ open, onOpenChange, gameType = DEFAULT_GAME_TYPE
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         className={cn(
-          "max-w-3xl max-h-[85vh] bg-black/95 border-2 border-primary/30 backdrop-blur-sm shadow-[0_0_30px_rgba(0,243,255,0.2)]",
+          "max-w-3xl max-h-[85vh] bg-black/95 border-2 border-primary/30 shadow-[0_0_30px_rgba(0,243,255,0.2)]",
           // 모바일에서는 항상 스크롤 허용, 데스크톱(lg 이상)에서만 6번째 페이지 스크롤 숨김
           currentStep === 5 ? "overflow-y-auto lg:overflow-y-hidden" : "overflow-y-auto"
         )}>
