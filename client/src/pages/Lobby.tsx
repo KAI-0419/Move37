@@ -360,7 +360,7 @@ export default function Lobby() {
                 transition={{ delay: 0.4 }}
                 className="lg:col-span-3 flex flex-col h-full min-h-0"
               >
-                <div className="h-[450px] sm:h-[500px] md:h-[550px] lg:h-full border-2 border-white/20 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.1)] bg-black/40 backdrop-blur-sm">
+                <div className="h-[450px] sm:h-[500px] md:h-[550px] lg:h-full border-2 border-white/20 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.1)] bg-black">
                   <TutorialPreview
                     gameType={selectedGameType}
                     className="h-full border-0 rounded-none bg-transparent"

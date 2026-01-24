@@ -38,7 +38,7 @@ export function EntropyGameplayPreview({
   return (
     <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
       {/* Header with controls */}
-      <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black/40 backdrop-blur-sm">
+      <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black">
         <div className="flex items-center gap-2">
           <motion.span
             className="text-[10px] font-mono text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded border border-primary/30 cursor-pointer select-none"
@@ -84,25 +84,15 @@ export function EntropyGameplayPreview({
       </div>
 
       {/* Board with cinematic effects */}
-      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-black/60 via-black/40 to-black/60">
+      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-black">
         {/* Ambient glow effect */}
-        <motion.div
-          className="absolute inset-0 pointer-events-none"
-          animate={{
-            background: [
-              "radial-gradient(circle at 30% 30%, rgba(0, 243, 255, 0.1) 0%, transparent 50%)",
-              "radial-gradient(circle at 70% 70%, rgba(0, 243, 255, 0.1) 0%, transparent 50%)",
-              "radial-gradient(circle at 30% 30%, rgba(0, 243, 255, 0.1) 0%, transparent 50%)",
-            ],
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-        />
+
 
         <div className="relative z-10 w-[300px] h-[300px] flex items-center justify-center">
           <video
             ref={videoRef}
             src="/videos/Entropy.mp4"
-            className="w-full h-full object-contain opacity-90"
+            className="w-full h-full object-contain"
             autoPlay
             loop
             muted
