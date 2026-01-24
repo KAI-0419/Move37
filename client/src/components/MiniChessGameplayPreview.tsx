@@ -1,135 +1,43 @@
 /**
  * Mini Chess Gameplay Preview Component
  *
- * High-quality cinematic gameplay preview showing automated chess game.
- * Plays through a predefined sequence at fast speed to showcase the game.
+ * High-quality cinematic gameplay preview using a pre-rendered video.
+ * Replaces the CPU-intensive real-time simulation.
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { GameType } from "@shared/schema";
-import { MiniChessBoard } from "@/lib/games/miniChess/MiniChessBoard";
-import { MiniChessEngine } from "@/lib/games/miniChess/MiniChessEngine";
-import { quickGameplaySequence } from "@/lib/games/miniChess/gameplaySequence";
-import type { GameMove } from "@shared/gameEngineInterface";
+
 
 interface MiniChessGameplayPreviewProps {
-  gameType: GameType;
   className?: string;
   onOpenTutorial?: () => void;
   onOpenStats?: () => void;
 }
 
 export function MiniChessGameplayPreview({
-  gameType,
   className,
   onOpenTutorial,
   onOpenStats,
 }: MiniChessGameplayPreviewProps) {
   const { t } = useTranslation();
-  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
-  const [boardState, setBoardState] = useState<string>("");
-  const [lastMove, setLastMove] = useState<GameMove | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const engine = useMemo(() => new MiniChessEngine(), []);
-
-  // Fast-paced move delay (1500ms for cinematic feel)
-  const MOVE_DELAY = 1500;
-
-  // Initialize board
+  // Ensure video plays when component mounts/updates
   useEffect(() => {
-    setBoardState(engine.getInitialBoard());
-  }, [engine]);
-
-  // Reset game to initial state (first frame)
-  const resetGame = useCallback(() => {
-    setCurrentMoveIndex(0);
-    setBoardState(engine.getInitialBoard());
-    setLastMove(null);
-    setIsPlaying(false);
-  }, [engine]);
-
-  // Intersection Observer: Start playing when 90% visible (only once)
-  useEffect(() => {
-    if (hasPlayedOnce || !containerRef.current) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !hasPlayedOnce) {
-            setIsPlaying(true);
-          }
-        });
-      },
-      {
-        threshold: 0.9, // Trigger when 90% of the preview is visible
-        rootMargin: '0px',
-      }
-    );
-
-    observer.observe(containerRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasPlayedOnce]);
-
-  // Reset when gameType changes (component remount or game selection change)
-  useEffect(() => {
-    setHasPlayedOnce(false);
-    setIsPlaying(false);
-    setCurrentMoveIndex(0);
-    setBoardState(engine.getInitialBoard());
-    setLastMove(null);
-  }, [gameType, engine]);
-
-  // Auto-play game sequence (single playthrough only)
-  useEffect(() => {
-    if (!isPlaying || !boardState) return;
-
-    // Check if we've reached the end
-    if (currentMoveIndex >= quickGameplaySequence.length) {
-      // Mark as played and stop
-      setHasPlayedOnce(true);
-      setIsPlaying(false);
-
-      // Reset to initial state (first frame) after a short delay
-      const resetTimer = setTimeout(() => {
-        setCurrentMoveIndex(0);
-        setBoardState(engine.getInitialBoard());
-        setLastMove(null);
-      }, 1000);
-
-      return () => clearTimeout(resetTimer);
+    if (videoRef.current) {
+      videoRef.current.play().catch(e => {
+        console.log("Autoplay prevented:", e);
+      });
     }
-
-    const timer = setTimeout(() => {
-      const move = quickGameplaySequence[currentMoveIndex];
-
-      // Apply move to board using engine
-      const newBoardState = engine.makeMove(boardState, move);
-      setBoardState(newBoardState);
-      setLastMove(move);
-
-      setCurrentMoveIndex(prev => prev + 1);
-    }, MOVE_DELAY);
-
-    return () => clearTimeout(timer);
-  }, [currentMoveIndex, isPlaying, boardState, engine]);
-
-  const togglePlay = () => {
-    setIsPlaying(prev => !prev);
-  };
+  }, []);
 
   return (
-    <div ref={containerRef} className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
-      {/* Header with controls */}
+    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
+      {/* Header with controls - Kept for consistency */}
       <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black/40 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <motion.span
@@ -144,7 +52,6 @@ export function MiniChessGameplayPreview({
             transition={{ duration: 2, repeat: Infinity }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={togglePlay}
           >
             PREVIEW
           </motion.span>
@@ -191,20 +98,16 @@ export function MiniChessGameplayPreview({
           transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
         />
 
-        <div className="relative z-10 max-w-full max-h-full flex items-center justify-center">
-          <div className="w-[240px] h-[240px] flex items-center justify-center">
-            <MiniChessBoard
-              boardString={boardState}
-              turn={currentMoveIndex % 2 === 0 ? "player" : "ai"}
-              selectedSquare={null}
-              lastMove={lastMove}
-              validMoves={[]}
-              onSquareClick={() => { }}
-              isProcessing={false}
-              size="small"
-              difficulty="NEXUS-7"
-            />
-          </div>
+        <div className="relative z-10 w-[300px] h-[300px] flex items-center justify-center">
+          <video
+            ref={videoRef}
+            src="/videos/Mini%20Chess.mp4"
+            className="w-full h-full object-contain opacity-90"
+            autoPlay
+            loop
+            muted
+            playsInline
+          />
         </div>
       </div>
     </div>

@@ -30,7 +30,6 @@ export interface BaseGameBoardProps {
   difficulty?: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
   hasError?: boolean;
   isTutorialMode?: boolean; // Whether the board is being used in tutorial mode
-  isPreviewMode?: boolean; // Whether the board is being used in a gameplay preview
   highlightSquares?: { r: number; c: number }[]; // Squares to highlight (e.g. for tutorial)
 }
 

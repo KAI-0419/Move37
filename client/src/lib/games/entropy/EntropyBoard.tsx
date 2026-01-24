@@ -33,7 +33,6 @@ export function EntropyBoard({
   difficulty = "NEXUS-7",
   hasError = false,
   isTutorialMode = false,
-  isPreviewMode = false,
   highlightSquares = [],
 }: BaseGameBoardProps) {
   // Ensure background workers are cleaned up when component unmounts
@@ -96,7 +95,7 @@ export function EntropyBoard({
   // Size configurations with responsive cell sizing
   const sizeConfig = useMemo(() => {
     const maxCellSizes = {
-      small: isPreviewMode ? 16 : (isTutorialMode ? 13 : 20),
+      small: isTutorialMode ? 13 : 20,
       medium: 24,
       large: 28,
     };

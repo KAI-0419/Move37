@@ -43,7 +43,7 @@ function loadDifficulty(gameType: GameType): "NEXUS-3" | "NEXUS-5" | "NEXUS-7" {
     if (saved === "NEXUS-3" || saved === "NEXUS-5" || saved === "NEXUS-7") {
       return saved;
     }
-    
+
     // Fallback to global key for backward compatibility
     const globalSaved = localStorage.getItem(GLOBAL_DIFFICULTY_STORAGE_KEY);
     if (globalSaved === "NEXUS-3" || globalSaved === "NEXUS-5" || globalSaved === "NEXUS-7") {
@@ -107,7 +107,7 @@ export default function Lobby() {
       const savedDifficulty = loadDifficulty(selectedGameType); // Pass gameType
       const unlocked = getUnlockedDifficulties(selectedGameType);
       // unlockedDifficulties is now computed via useMemo, no need to set state
-      
+
       // Only set selected difficulty if it's unlocked
       if (unlocked.has(savedDifficulty)) {
         setSelectedDifficulty(savedDifficulty);
@@ -151,15 +151,7 @@ export default function Lobby() {
     };
   }, [i18n, selectedGameType]);
 
-  // Preload game engine and UI when selected game type changes
-  useEffect(() => {
-    GameEngineFactory.getEngine(selectedGameType).catch(err =>
-      console.error(`Failed to preload engine for ${selectedGameType}:`, err)
-    );
-    GameUIFactory.getBoardComponent(selectedGameType).catch(err =>
-      console.error(`Failed to preload UI for ${selectedGameType}:`, err)
-    );
-  }, [selectedGameType]);
+
 
   // Save difficulty whenever it changes (only if unlocked)
   const handleDifficultyChange = (difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7") => {
@@ -276,7 +268,7 @@ export default function Lobby() {
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col relative overflow-hidden">
       <Scanlines />
-      
+
       {/* Background Elements */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-background to-background z-0" />
 
@@ -294,7 +286,7 @@ export default function Lobby() {
               <span className="text-blue-500 ml-1">37</span>
             </span>
           </motion.div>
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 sm:gap-3"
@@ -303,7 +295,7 @@ export default function Lobby() {
             <span className="text-primary font-mono text-[10px] sm:text-xs tracking-widest uppercase hidden sm:inline">
               {t("lobby.systemOnline")}
             </span>
-            
+
             {/* Test Ad Button (Native only) */}
             {Capacitor.isNativePlatform() && (
               <button
@@ -330,12 +322,12 @@ export default function Lobby() {
 
       {/* Main Content - Reorganized Layout: Mission Configuration Hub */}
       <main className="z-10 flex-1 max-w-7xl mx-auto w-full p-3 sm:p-4 md:p-5 lg:p-6 pb-16 sm:pb-20 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 min-h-0">
-        
+
         {/* Main Area: Mission Configuration Hub (Action) */}
         <section className="lg:col-span-12 flex flex-col gap-8 h-full min-h-0">
-          
+
           {/* Top Section: Game Mode Selection (Primary Decision) */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -348,7 +340,7 @@ export default function Lobby() {
               </h3>
               <div className="h-px flex-1 mx-2 sm:mx-4 bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
             </div>
-            
+
             <GameModeCarousel
               selectedGameType={selectedGameType}
               onGameTypeChange={handleGameTypeChange}
@@ -360,7 +352,7 @@ export default function Lobby() {
           {/* Bottom Section: Simulation & Launch Parameters */}
           {currentGameInfo?.available && (
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-8 min-h-0">
-              
+
               {/* Bottom Left: Tutorial Preview / Board Simulation (3/5) */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -368,7 +360,7 @@ export default function Lobby() {
                 transition={{ delay: 0.4 }}
                 className="lg:col-span-3 flex flex-col h-full min-h-0"
               >
-                  <div className="h-[450px] sm:h-[500px] md:h-[550px] lg:h-full border-2 border-white/20 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.1)] bg-black/40 backdrop-blur-sm">
+                <div className="h-[450px] sm:h-[500px] md:h-[550px] lg:h-full border-2 border-white/20 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.1)] bg-black/40 backdrop-blur-sm">
                   <TutorialPreview
                     gameType={selectedGameType}
                     className="h-full border-0 rounded-none bg-transparent"
@@ -379,7 +371,7 @@ export default function Lobby() {
               </motion.div>
 
               {/* Bottom Right: AI Difficulty & Launch (2/5) */}
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 }}
@@ -408,8 +400,8 @@ export default function Lobby() {
                   transition={{ delay: 0.6 }}
                   className="mt-auto border-2 border-primary/30 rounded-lg p-0.5 sm:p-1 bg-gradient-to-br from-primary/10 to-primary/5 shadow-[0_0_30px_rgba(0,243,255,0.2)]"
                 >
-                  <GlitchButton 
-                    onClick={handleStart} 
+                  <GlitchButton
+                    onClick={handleStart}
                     disabled={createGame.isPending || !currentGameInfo.available}
                     className="w-full h-16 sm:h-18 lg:h-20 text-base sm:text-lg lg:text-xl font-black py-4 sm:py-5 lg:py-6 relative overflow-hidden group"
                   >
@@ -465,7 +457,7 @@ export default function Lobby() {
 
       {/* Tutorial Modal (for full tutorial access) */}
       <TutorialModal open={tutorialOpen} onOpenChange={setTutorialOpen} gameType={selectedGameType} />
-      
+
       {/* Player Stats Modal */}
       <PlayerStatsModal
         open={statsModalOpen}
