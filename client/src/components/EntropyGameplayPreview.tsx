@@ -7,9 +7,10 @@
 
 import { useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Play, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSmartVideo } from "@/hooks/use-smart-video";
 
 
 interface EntropyGameplayPreviewProps {
@@ -24,21 +25,17 @@ export function EntropyGameplayPreview({
   onOpenStats,
 }: EntropyGameplayPreviewProps) {
   const { t } = useTranslation();
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Ensure video plays when component mounts/updates
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch(e => {
-        console.log("Autoplay prevented:", e);
-      });
-    }
-  }, []);
+  // Use Smart Video Hook (Triple-Check System)
+  const { videoRef, shouldPlay, isIdle } = useSmartVideo({
+    threshold: 0.9,      // 90% visibility required
+    idleTimeout: 60000   // 60 seconds idle timeout
+  });
 
   return (
-    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden", className)}>
+    <div className={cn("flex flex-col h-full bg-transparent overflow-hidden relative", className)}>
       {/* Header with controls */}
-      <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black">
+      <div className="flex items-center justify-between p-4 border-b-2 border-white/20 bg-black z-20">
         <div className="flex items-center gap-2">
           <motion.span
             className="text-[10px] font-mono text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded border border-primary/30 cursor-pointer select-none"
@@ -84,19 +81,18 @@ export function EntropyGameplayPreview({
       </div>
 
       {/* Board with cinematic effects */}
-      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-black">
-        {/* Ambient glow effect */}
+      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-transparent">
 
 
-        <div className="relative z-10 w-[300px] h-[300px] flex items-center justify-center">
+        <div className="relative z-0 w-[300px] h-[300px] flex items-center justify-center">
           <video
             ref={videoRef}
             src="/videos/Entropy.mp4"
             className="w-full h-full object-contain"
-            autoPlay
             loop
             muted
             playsInline
+          // autoPlay removed - controlled by hook
           />
         </div>
       </div>
