@@ -366,6 +366,7 @@ export default function Lobby() {
                     className="h-full border-0 rounded-none bg-transparent"
                     onOpenTutorial={handleTutorial}
                     onOpenStats={() => setStatsModalOpen(true)}
+                    isPaused={tutorialOpen || statsModalOpen || settingsModalOpen}
                   />
                 </div>
               </motion.div>

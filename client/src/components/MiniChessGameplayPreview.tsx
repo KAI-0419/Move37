@@ -17,19 +17,22 @@ interface MiniChessGameplayPreviewProps {
   className?: string;
   onOpenTutorial?: () => void;
   onOpenStats?: () => void;
+  isPaused?: boolean;
 }
 
 export function MiniChessGameplayPreview({
   className,
   onOpenTutorial,
   onOpenStats,
+  isPaused,
 }: MiniChessGameplayPreviewProps) {
   const { t } = useTranslation();
 
   // Use Smart Video Hook (Triple-Check System)
   const { videoRef, shouldPlay, isIdle } = useSmartVideo({
     threshold: 0.9,      // 90% visibility required
-    idleTimeout: 60000   // 60 seconds idle timeout
+    idleTimeout: 60000,  // 60 seconds idle timeout
+    disabled: isPaused   // Pause when external modals are open
   });
 
   return (

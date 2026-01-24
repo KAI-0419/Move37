@@ -16,9 +16,10 @@ interface TutorialPreviewProps {
   className?: string;
   onOpenTutorial?: () => void;
   onOpenStats?: () => void;
+  isPaused?: boolean;
 }
 
-export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenStats }: TutorialPreviewProps) {
+export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenStats, isPaused }: TutorialPreviewProps) {
   const { t } = useTranslation();
 
   // Use video previews for supported games
@@ -28,6 +29,7 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
         className={className}
         onOpenTutorial={onOpenTutorial}
         onOpenStats={onOpenStats}
+        isPaused={isPaused}
       />
     );
   }
@@ -38,6 +40,7 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
         className={className}
         onOpenTutorial={onOpenTutorial}
         onOpenStats={onOpenStats}
+        isPaused={isPaused}
       />
     );
   }
@@ -48,6 +51,7 @@ export function TutorialPreview({ gameType, className, onOpenTutorial, onOpenSta
         className={className}
         onOpenTutorial={onOpenTutorial}
         onOpenStats={onOpenStats}
+        isPaused={isPaused}
       />
     );
   }

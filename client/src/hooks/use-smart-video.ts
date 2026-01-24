@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 interface SmartVideoOptions {
     threshold?: number;   // Visibility threshold (0.0 - 1.0)
     idleTimeout?: number; // Time in ms before considering user idle
+    disabled?: boolean;   // Force pause if true
 }
 
 /**
@@ -19,7 +20,8 @@ interface SmartVideoOptions {
  */
 export function useSmartVideo({
     threshold = 0.9,      // Default 90% visibility required 
-    idleTimeout = 60000   // Default 60 seconds idle timeout
+    idleTimeout = 60000,  // Default 60 seconds idle timeout
+    disabled = false      // Default enabled
 }: SmartVideoOptions = {}) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [isVisible, setIsVisible] = useState(false);
@@ -98,7 +100,7 @@ export function useSmartVideo({
     }, [resetIdleTimer]);
 
     // Final Decision Logic
-    const shouldPlay = isVisible && isFocused && !isIdle;
+    const shouldPlay = isVisible && isFocused && !isIdle && !disabled;
 
     // Direct Video Control Side Effect
     useEffect(() => {
