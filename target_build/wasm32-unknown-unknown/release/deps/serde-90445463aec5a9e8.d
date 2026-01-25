@@ -1,0 +1,14 @@
+C:\Users\rkdgu\Desktop\Move 37\target_build\wasm32-unknown-unknown\release\deps\serde-90445463aec5a9e8.d: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\rkdgu\Desktop\Move\ 37\target_build\wasm32-unknown-unknown\release\build\serde-cd35e8c112d65635\out/private.rs
+
+C:\Users\rkdgu\Desktop\Move 37\target_build\wasm32-unknown-unknown\release\deps\libserde-90445463aec5a9e8.rlib: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\rkdgu\Desktop\Move\ 37\target_build\wasm32-unknown-unknown\release\build\serde-cd35e8c112d65635\out/private.rs
+
+C:\Users\rkdgu\Desktop\Move 37\target_build\wasm32-unknown-unknown\release\deps\libserde-90445463aec5a9e8.rmeta: C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\rkdgu\Desktop\Move\ 37\target_build\wasm32-unknown-unknown\release\build\serde-cd35e8c112d65635\out/private.rs
+
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs:
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs:
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs:
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs:
+C:\Users\rkdgu\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs:
+C:\Users\rkdgu\Desktop\Move\ 37\target_build\wasm32-unknown-unknown\release\build\serde-cd35e8c112d65635\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\rkdgu\\Desktop\\Move 37\\target_build\\wasm32-unknown-unknown\\release\\build\\serde-cd35e8c112d65635\\out

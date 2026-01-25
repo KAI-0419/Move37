@@ -17,7 +17,9 @@
       "Bash(npm install:*)",
       "Bash(dir /s /b \"C:\\\\Users\\\\rkdgu\\\\Desktop\\\\Move 37\\\\client\\\\src\\\\lib\\\\games\")",
       "Bash(cd:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git show:*)",
+      "Bash(wasm-pack build:*)"
     ]
   }
 }
