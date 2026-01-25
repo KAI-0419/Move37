@@ -230,3 +230,29 @@ export function getEmptyCells(boardState: BoardState): { r: number; c: number }[
 
   return empty;
 }
+
+/**
+ * OPTIMIZATION: Create a Set for O(1) destroyed cell lookups
+ * Use this when you need to check isDestroyed multiple times
+ *
+ * @param destroyed - Array of destroyed positions
+ * @returns Set with stringified positions for fast lookup
+ */
+export function createDestroyedSet(destroyed: { r: number; c: number }[]): Set<string> {
+  return new Set(destroyed.map(d => `${d.r},${d.c}`));
+}
+
+/**
+ * OPTIMIZATION: Check if position is destroyed using Set (O(1) instead of O(n))
+ * Must be used with a Set created by createDestroyedSet()
+ *
+ * @param pos - Position to check
+ * @param destroyedSet - Set created by createDestroyedSet()
+ * @returns true if position is destroyed
+ */
+export function isDestroyedFast(
+  pos: { r: number; c: number },
+  destroyedSet: Set<string>
+): boolean {
+  return destroyedSet.has(`${pos.r},${pos.c}`);
+}
