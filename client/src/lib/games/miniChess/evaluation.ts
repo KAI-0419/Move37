@@ -12,6 +12,34 @@ import { checkWinner } from "./winnerCheck";
 import { wouldCauseThreefoldRepetition } from "./repetition";
 
 /**
+ * Helper to log AI move analysis for developers
+ */
+function logAIMove(
+  move: { from: { r: number, c: number }, to: { r: number, c: number } },
+  score: number,
+  difficulty: string
+) {
+  // Calculate win rate estimation
+  // Score is roughly centipawns (100 = 1 pawn). Mate is +/- 10000.
+  let winRate = 50;
+  if (Math.abs(score) > 4000) {
+    winRate = score > 0 ? 100 : 0;
+  } else {
+    // Sigmoid-like scaling: 500 points (5 pawns) ~ 95% win rate
+    winRate = Math.min(99, Math.max(1, Math.round(50 + (score / 10))));
+  }
+
+  const fromStr = `(${move.from.r},${move.from.c})`;
+  const toStr = `(${move.to.r},${move.to.c})`;
+
+  console.log(
+    `%c[MiniChess AI (${difficulty})]%c Move: ${fromStr} -> ${toStr} | Score: ${score.toFixed(0)} | Win Rate: ${winRate}%`,
+    'color: #00ff00; font-weight: bold;',
+    'color: inherit;'
+  );
+}
+
+/**
  * Calculate material balance
  * Returns positive for AI advantage, negative for player advantage
  */
@@ -348,16 +376,13 @@ function analyzePlayerPsychology(
     return "초기 상태 분석 중...";
   }
 
-  // 개발 환경에서만 데이터 전달 체인 검증 로깅
-  if (process.env.NODE_ENV === 'development') {
-    console.debug('[analyzePlayerPsychology] 분석 데이터:', {
-      moveTimeSeconds: playerMove.moveTimeSeconds,
-      hoverCount: playerMove.hoverCount,
-      from: playerMove.from,
-      to: playerMove.to,
-      piece: playerMove.piece,
-      captured: playerMove.captured
-    });
+
+  // Log Player Move
+  if (playerMove) {
+    const fromStr = `(${playerMove.from.r},${playerMove.from.c})`;
+    const toStr = `(${playerMove.to.r},${playerMove.to.c})`;
+    const piece = playerMove.piece;
+    console.log(`%c[MiniChess Player]%c Move: ${fromStr} -> ${toStr} [${piece}]`, 'color: #00ffff; font-weight: bold;', 'color: inherit;');
   }
 
   const piece = playerMove.piece || board[playerMove.to.r]?.[playerMove.to.c];
@@ -502,26 +527,7 @@ function analyzePlayerPsychology(
   const hash = board.flat().filter(Boolean).length + playerMove.from.r + playerMove.from.c;
   const selectedMessage = psychologyMessages[hash % psychologyMessages.length];
 
-  // 개발 환경에서만 분석 결과 로깅
-  if (process.env.NODE_ENV === 'development') {
-    console.debug('[analyzePlayerPsychology] 분석 결과:', {
-      패턴: {
-        빠른수: isQuickMove,
-        오래고민: isLongThink,
-        망설임: hasHesitation,
-        중간시간: isMediumTime,
-        긴시간_망설임: isLongThink && hasHesitation,
-        중간시간_망설임: isMediumTime && hasHesitation
-      },
-      데이터: {
-        moveTimeSeconds,
-        hoverCount,
-        hasTimeData
-      },
-      선택된메시지: selectedMessage,
-      가능한메시지수: psychologyMessages.length
-    });
-  }
+  // 개발 환경에서만 분석 결과 로깅 - Removed to clean up console
 
   return selectedMessage;
 }
@@ -588,6 +594,7 @@ export function runMiniChessSearch(
       const winner = checkWinner(testBoard, turnCount);
       if (winner === 'ai') {
         const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+        logAIMove(immediateWinMoves[0], 10000, "NEXUS-7");
         return {
           move: immediateWinMoves[0],
           logs: [psychologicalInsight]
@@ -641,6 +648,12 @@ export function runMiniChessSearch(
     // Generate single psychological insight message
     const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
 
+    if (selectedMove) {
+      // Find score for the selected move
+      const moveScore = movesWithScores.find(m => m.move === selectedMove)?.score ?? 0;
+      logAIMove(selectedMove, moveScore, "NEXUS-7");
+    }
+
     return {
       move: selectedMove,
       logs: [psychologicalInsight]
@@ -692,6 +705,7 @@ export function runMiniChessSearch(
       const winner = checkWinner(testBoard, turnCount);
       if (winner === 'ai') {
         const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+        logAIMove(immediateWinMoves[0], 10000, "NEXUS-5");
         return {
           move: immediateWinMoves[0],
           logs: [psychologicalInsight]
@@ -753,6 +767,12 @@ export function runMiniChessSearch(
     }
 
     const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+
+    if (selectedMove) {
+      // Find score for the selected move
+      const moveScore = movesWithScores.find(m => m.move === selectedMove)?.score ?? 0;
+      logAIMove(selectedMove, moveScore, "NEXUS-5");
+    }
 
     return {
       move: selectedMove,
@@ -984,6 +1004,14 @@ export function runMiniChessSearch(
 
   // Generate single psychological insight message
   const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove);
+
+  if (selectedMove) {
+    // For NEXUS-3, find score from the moves array if available, or re-evaluate?
+    // In NEXUS-3 block, 'moves' is populated with scores.
+    // However, if we took the fallback path or random selection, we need to ensure we have the score.
+    // 'selectedMove' is just {from, to, score} in NEXUS-3 block, so we can use it directly.
+    logAIMove(selectedMove, selectedMove.score, "NEXUS-3");
+  }
 
   return {
     move: { from: selectedMove.from, to: selectedMove.to },
