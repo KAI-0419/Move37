@@ -12,6 +12,27 @@ import { checkWinner } from "./winnerCheck";
 import { wouldCauseThreefoldRepetition } from "./repetition";
 
 /**
+ * Statistics for the AI search
+ */
+interface SearchStats {
+  nodesVisited: number;
+  maxDepthReached: number;
+  initialDepth: number;
+  startTime: number;
+}
+
+function logSearchStats(stats: SearchStats, difficulty: string) {
+  const duration = performance.now() - stats.startTime;
+  const nps = Math.round(stats.nodesVisited / (duration / 1000));
+
+  console.log(
+    `%c[MiniChess AI Search (${difficulty})]%c Depth: ${stats.maxDepthReached}/${stats.initialDepth} | Nodes: ${stats.nodesVisited} | Time: ${duration.toFixed(0)}ms | NPS: ${nps}`,
+    'color: #ffa500; font-weight: bold;',
+    'color: inherit;'
+  );
+}
+
+/**
  * Helper to log AI move analysis for developers
  */
 function logAIMove(
@@ -316,8 +337,14 @@ function minimax(
   alpha: number,
   beta: number,
   isMaximizing: boolean,
+  stats: SearchStats,
   turnCount?: number
 ): number {
+  stats.nodesVisited++;
+  const currentDepth = stats.initialDepth - depth;
+  if (currentDepth > stats.maxDepthReached) {
+    stats.maxDepthReached = currentDepth;
+  }
   // Terminal conditions
   const winner = checkWinner(board, turnCount);
   if (winner === 'ai') return 10000 - depth; // Prefer faster wins
@@ -341,7 +368,7 @@ function minimax(
     let maxScore = -Infinity;
     for (const move of moves) {
       const newBoard = makeMove(board, move.from, move.to);
-      const score = minimax(newBoard, depth - 1, alpha, beta, false, turnCount);
+      const score = minimax(newBoard, depth - 1, alpha, beta, false, stats, turnCount);
       maxScore = Math.max(maxScore, score);
       alpha = Math.max(alpha, score);
       if (beta <= alpha) {
@@ -354,7 +381,7 @@ function minimax(
     let minScore = Infinity;
     for (const move of moves) {
       const newBoard = makeMove(board, move.from, move.to);
-      const score = minimax(newBoard, depth - 1, alpha, beta, true, turnCount);
+      const score = minimax(newBoard, depth - 1, alpha, beta, true, stats, turnCount);
       minScore = Math.min(minScore, score);
       beta = Math.min(beta, score);
       if (beta <= alpha) {
@@ -603,6 +630,13 @@ export function runMiniChessSearch(
     }
 
     const depth = 6;
+    const stats: SearchStats = {
+      nodesVisited: 0,
+      maxDepthReached: 0,
+      initialDepth: depth,
+      startTime: performance.now()
+    };
+
     const movesWithScores: Array<{
       move: { from: { r: number, c: number }, to: { r: number, c: number } };
       score: number;
@@ -612,7 +646,7 @@ export function runMiniChessSearch(
     for (const move of aiMoves) {
       const newBoard = makeMove(board, move.from, move.to);
       // Pass turnCount to minimax for accurate draw detection
-      let score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      let score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, stats, turnCount);
 
       // 반복 수에 페널티 부여 (필터링되지 않은 경우)
       if (boardHistory && boardHistory.length > 0) {
@@ -652,6 +686,7 @@ export function runMiniChessSearch(
       // Find score for the selected move
       const moveScore = movesWithScores.find(m => m.move === selectedMove)?.score ?? 0;
       logAIMove(selectedMove, moveScore, "NEXUS-7");
+      logSearchStats(stats, "NEXUS-7");
     }
 
     return {
@@ -716,6 +751,13 @@ export function runMiniChessSearch(
     // 미니맥스 알고리즘 적용 (깊이 4 - NEXUS-7보다 낮지만 강력함)
     // Depth 4 provides good balance between strength and speed
     const depth = 4;
+    const stats: SearchStats = {
+      nodesVisited: 0,
+      maxDepthReached: 0,
+      initialDepth: depth,
+      startTime: performance.now()
+    };
+
     const movesWithScores: Array<{
       move: { from: { r: number, c: number }, to: { r: number, c: number } };
       score: number;
@@ -724,7 +766,7 @@ export function runMiniChessSearch(
     // 각 수를 미니맥스로 평가
     for (const move of aiMoves) {
       const newBoard = makeMove(board, move.from, move.to);
-      let score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, turnCount);
+      let score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, stats, turnCount);
 
       // 반복 수에 페널티 부여 (필터링되지 않은 경우)
       if (boardHistory && boardHistory.length > 0) {
@@ -772,6 +814,7 @@ export function runMiniChessSearch(
       // Find score for the selected move
       const moveScore = movesWithScores.find(m => m.move === selectedMove)?.score ?? 0;
       logAIMove(selectedMove, moveScore, "NEXUS-5");
+      logSearchStats(stats, "NEXUS-5");
     }
 
     return {
