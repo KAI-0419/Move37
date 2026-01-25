@@ -5,7 +5,7 @@
  * Handles loading, state serialization, and move retrieval.
  */
 
-import init, { IsolationEngine } from "./wasm/pkg_new/isolation_engine";
+import init, { IsolationEngine } from "./wasm/pkg/isolation_engine";
 import type { BoardState } from "./types";
 import type { GameMove } from "@shared/gameEngineInterface";
 

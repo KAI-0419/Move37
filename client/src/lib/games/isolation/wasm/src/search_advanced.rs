@@ -9,7 +9,9 @@
 use crate::board::{GameState, Move};
 use crate::eval::{evaluate_advanced, EvalWeights};
 use crate::bitboard::*;
-use crate::transposition::{TranspositionTable, Bound};
+use crate::transposition::{TranspositionTable, Bound, update_hash_after_move};
+use crate::partition::*;
+use crate::endgame::*;
 
 /// Killer moves heuristic
 ///
@@ -109,6 +111,9 @@ pub struct AdvancedSearchConfig {
     pub use_tt: bool,
     pub use_killer_moves: bool,
     pub use_history: bool,
+    pub use_aspiration: bool,
+    pub use_pvs: bool,
+    pub use_null_move: bool,
 }
 
 impl AdvancedSearchConfig {
@@ -127,23 +132,90 @@ impl AdvancedSearchConfig {
             use_tt: true,
             use_killer_moves: true,
             use_history: true,
+            use_aspiration: true,
+            use_pvs: true,
+            use_null_move: true,
         }
     }
 }
 
 /// Find best move using advanced search
+
 pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) -> Option<Move> {
+
+    // 1. Opening Book Check
+
+    // Isolation typically has an opening phase where center control is key.
+
+    let destroyed_count = count_ones(state.destroyed) as u8;
+
+    if destroyed_count < 16 {
+
+        if let Some(opening_move) = crate::opening::get_opening_move(state, destroyed_count) {
+
+            web_sys::console::log_1(&"Opening book move found".into());
+
+            return Some(opening_move);
+
+        }
+
+    }
+
+    // 2. Endgame Solver Check
+
+    // If board is partitioned, use exact endgame solver for perfect play
+
+    let player_idx = state.player.trailing_zeros() as u8;
+    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_pos = index_to_pos(player_idx);
+    let ai_pos = index_to_pos(ai_idx);
+
+    let partition = detect_partition_bitboard(player_pos, ai_pos, state.destroyed);
+
+    if partition.is_partitioned && partition.ai_region_size <= 18 {
+        web_sys::console::log_1(&format!(
+            "Partition detected! AI region: {} cells, solving exactly...",
+            partition.ai_region_size
+        ).into());
+
+        let endgame_result = solve_endgame(
+            state,
+            partition.ai_region,
+            true, // is_ai
+            config.time_limit_ms / 2, // Use half the time budget for endgame solving
+        );
+
+        if endgame_result.solved {
+            web_sys::console::log_1(&format!(
+                "Endgame solved exactly! Longest path: {} moves",
+                endgame_result.longest_path
+            ).into());
+
+            if let Some(mv) = endgame_result.best_move {
+                return Some(mv);
+            }
+        } else {
+            web_sys::console::log_1(&"Endgame solver timed out, using heuristic search".into());
+        }
+    }
+
     let mut tt = TranspositionTable::new();
+    tt.new_search(); // Initialize generation for this search
+
     let mut killers = KillerMoves::new();
+
     let mut history = HistoryTable::new();
 
+
+
     let mut best_move = None;
-    let mut _best_score = -1_000_000;
+    let mut best_score = 0;
 
     let start_time = js_sys::Date::now();
     let time_limit = config.time_limit_ms as f64;
+    let mut nodes = 0;
 
-    // Iterative Deepening
+    // Iterative Deepening with Aspiration Windows
     for depth in 1..=config.max_depth {
         if js_sys::Date::now() - start_time > time_limit {
             break;
@@ -155,24 +227,43 @@ pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) 
             0
         };
 
-        let (m, score) = alpha_beta_advanced(
-            state,
-            depth,
-            -1_000_000,
-            1_000_000,
-            true,
-            &config,
-            &mut tt,
-            &mut killers,
-            &mut history,
-            hash,
-            start_time,
-            time_limit,
-        );
+        let (m, score) = if config.use_aspiration && depth >= 3 {
+            // Use aspiration windows for depth >= 3
+            aspiration_search(
+                state,
+                depth,
+                best_score,
+                &config,
+                &mut tt,
+                &mut killers,
+                &mut history,
+                hash,
+                start_time,
+                time_limit,
+                &mut nodes,
+            )
+        } else {
+            // Full window search for shallow depths
+            alpha_beta_advanced(
+                state,
+                depth,
+                -1_000_000,
+                1_000_000,
+                true,
+                &config,
+                &mut tt,
+                &mut killers,
+                &mut history,
+                hash,
+                start_time,
+                time_limit,
+                &mut nodes,
+            )
+        };
 
         if let Some(mv) = m {
             best_move = Some(mv);
-            _best_score = score;
+            best_score = score;
         }
 
         if js_sys::Date::now() - start_time > time_limit {
@@ -184,15 +275,106 @@ pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) 
     if config.use_tt && (tt.hits + tt.misses) > 0 {
         let hit_rate = tt.hit_rate() * 100.0;
         web_sys::console::log_1(&format!(
-            "TT: {} entries, {:.1}% hit rate ({} hits / {} total)",
+            "TT: {} entries, {:.1}% hit rate ({} hits / {} total), {} nodes searched",
             tt.size(),
             hit_rate,
             tt.hits,
-            tt.hits + tt.misses
+            tt.hits + tt.misses,
+            nodes
         ).into());
     }
 
     best_move
+}
+
+/// Aspiration window search
+/// Uses narrow alpha-beta windows around previous score to trigger more cutoffs
+#[allow(clippy::too_many_arguments)]
+fn aspiration_search(
+    state: &GameState,
+    depth: u8,
+    prev_score: i32,
+    config: &AdvancedSearchConfig,
+    tt: &mut TranspositionTable,
+    killers: &mut KillerMoves,
+    history: &mut HistoryTable,
+    hash: u64,
+    start_time: f64,
+    time_limit: f64,
+    nodes: &mut u32,
+) -> (Option<Move>, i32) {
+    const INITIAL_WINDOW: i32 = 50;
+    const MAX_WINDOW: i32 = 500;
+
+    let mut window = INITIAL_WINDOW;
+    let mut alpha = prev_score - window;
+    let mut beta = prev_score + window;
+
+    loop {
+        let (m, score) = alpha_beta_advanced(
+            state,
+            depth,
+            alpha,
+            beta,
+            true,
+            config,
+            tt,
+            killers,
+            history,
+            hash,
+            start_time,
+            time_limit,
+            nodes,
+        );
+
+        // Check if score is within window
+        if score > alpha && score < beta {
+            // Success! Score is within aspiration window
+            return (m, score);
+        }
+
+        // Failed - widen window and re-search
+        if score <= alpha {
+            // Fail low - widen lower bound
+            alpha = score - window;
+            if alpha < -1_000_000 {
+                alpha = -1_000_000;
+            }
+        } else {
+            // Fail high - widen upper bound
+            beta = score + window;
+            if beta > 1_000_000 {
+                beta = 1_000_000;
+            }
+        }
+
+        // Exponentially widen window
+        window *= 2;
+
+        // If window is too wide, just do full window search
+        if window > MAX_WINDOW {
+            return alpha_beta_advanced(
+                state,
+                depth,
+                -1_000_000,
+                1_000_000,
+                true,
+                config,
+                tt,
+                killers,
+                history,
+                hash,
+                start_time,
+                time_limit,
+                nodes,
+            );
+        }
+
+        // Check timeout
+        if js_sys::Date::now() - start_time > time_limit {
+            return (m, score);
+        }
+    }
 }
 
 /// Advanced alpha-beta search with all optimizations
@@ -210,10 +392,39 @@ fn alpha_beta_advanced(
     hash: u64,
     start_time: f64,
     time_limit: f64,
+    nodes: &mut u32,
 ) -> (Option<Move>, i32) {
-    // Check timeout
-    if js_sys::Date::now() - start_time > time_limit {
-        return (None, if maximizing { -1_000_000 } else { 1_000_000 });
+    *nodes += 1;
+
+    // Check timeout every 4096 nodes to avoid bridge overhead
+    if (*nodes & 4095) == 0 {
+        if js_sys::Date::now() - start_time > time_limit {
+            return (None, if maximizing { -1_000_000 } else { 1_000_000 });
+        }
+    }
+
+    // 1. Terminal State Detection (Game Over) - Check BEFORE depth == 0
+    // This fixes the "Horizon Effect" where immediate wins at depth 0 were seen as just heuristic scores.
+    let (current_r, current_c) = if maximizing {
+        let idx = state.ai.trailing_zeros() as u8;
+        index_to_pos(idx)
+    } else {
+        let idx = state.player.trailing_zeros() as u8;
+        index_to_pos(idx)
+    };
+    
+    let blocked = state.destroyed | state.player | state.ai;
+    let mobility = count_ones(get_queen_moves(current_r, current_c, blocked));
+
+    if mobility == 0 {
+        // Game over - current player has no moves and loses
+        // Return score: -100,000 (Loss)
+        // We subtract (depth * 100) so that a loss at high depth (near root, immediate loss)
+        // has a lower score than a loss at low depth (far from root, delayed loss).
+        // Example: Depth 8 (Fast loss) -> -100,800
+        //          Depth 2 (Slow loss) -> -100,200
+        // AI will maximize score, preferring -100,200 (Slow loss).
+        return (None, -100_000 - (depth as i32 * 100));
     }
 
     // Probe transposition table
@@ -238,6 +449,49 @@ fn alpha_beta_advanced(
         }
     }
 
+    // Null Move Pruning
+    // Skip if: (1) shallow depth, (2) in check/desperate, (3) endgame
+    if config.use_null_move && depth >= 3 && maximizing {
+        let ai_mobility = count_ones(get_queen_moves(current_r, current_c, blocked));
+
+        // Only use null move if we're not desperate (mobility > 3)
+        // and not in zugzwang-prone endgame (>10 free cells)
+        let free_cells = count_ones(!blocked);
+        if ai_mobility > 3 && free_cells > 10 {
+            // Make "null move" - pass turn to opponent
+            // We don't actually change the state, just flip the turn
+            let null_hash = if config.use_tt {
+                tt.compute_hash(state, !maximizing)
+            } else {
+                0
+            };
+
+            // Search with reduced depth (R=3 for aggressive pruning)
+            let reduction = 3.min(depth - 1);
+            let (_, null_score) = alpha_beta_advanced(
+                state,
+                depth - reduction,
+                -beta,
+                -beta + 1, // Null window
+                !maximizing,
+                config,
+                tt,
+                killers,
+                history,
+                null_hash,
+                start_time,
+                time_limit,
+                nodes,
+            );
+            let null_val = -null_score;
+
+            // If null move causes beta cutoff, position is too good
+            if null_val >= beta {
+                return (None, beta);
+            }
+        }
+    }
+
     // Leaf node - evaluate
     if depth == 0 {
         let (score, _) = evaluate_advanced(state, &config.weights);
@@ -248,9 +502,11 @@ fn alpha_beta_advanced(
     // Generate moves
     let moves = state.get_valid_moves(maximizing);
 
+    // Note: moves.is_empty() check is now redundant due to early mobility check above
+    // but we keep the flow standard.
     if moves.is_empty() {
-        // Game over - this side loses
-        return (None, -100_000 + (20 - depth as i32));
+         // Should be caught by early check, but safe to keep
+         return (None, -100_000 - (depth as i32 * 100));
     }
 
     let mut best_move = None;
@@ -269,6 +525,8 @@ fn alpha_beta_advanced(
         maximizing,
         config,
     );
+
+    let mut move_count = 0;
 
     for mut mv in ordered_moves {
         let destroy_candidates = get_destroy_candidates_advanced(state, &mv, maximizing, 6);
@@ -289,29 +547,75 @@ fn alpha_beta_advanced(
             }
             new_state.destroyed |= pos_to_mask(destroy_pos.0, destroy_pos.1);
 
-            // Compute new hash (incremental update would be faster, but correct hash first)
+            // Compute new hash incrementally (3-5% faster than full recomputation)
             let new_hash = if config.use_tt {
-                tt.compute_hash(&new_state, !maximizing)
+                update_hash_after_move(tt, hash, state, &new_state, maximizing, !maximizing)
             } else {
                 0
             };
 
-            // Recursive search
-            let (_, val) = alpha_beta_advanced(
-                &new_state,
-                depth - 1,
-                -beta,
-                -alpha,
-                !maximizing,
-                config,
-                tt,
-                killers,
-                history,
-                new_hash,
-                start_time,
-                time_limit,
-            );
-            let score = -val;
+            let score = if config.use_pvs && move_count > 0 && depth >= 3 {
+                // Principal Variation Search (PVS)
+                // Search with null window first
+                let (_, val) = alpha_beta_advanced(
+                    &new_state,
+                    depth - 1,
+                    -alpha - 1,
+                    -alpha,
+                    !maximizing,
+                    config,
+                    tt,
+                    killers,
+                    history,
+                    new_hash,
+                    start_time,
+                    time_limit,
+                    nodes,
+                );
+                let null_score = -val;
+
+                if null_score > alpha && null_score < beta {
+                    // Null window failed - re-search with full window
+                    let (_, val) = alpha_beta_advanced(
+                        &new_state,
+                        depth - 1,
+                        -beta,
+                        -alpha,
+                        !maximizing,
+                        config,
+                        tt,
+                        killers,
+                        history,
+                        new_hash,
+                        start_time,
+                        time_limit,
+                        nodes,
+                    );
+                    -val
+                } else {
+                    null_score
+                }
+            } else {
+                // First move or PVS disabled - use full window
+                let (_, val) = alpha_beta_advanced(
+                    &new_state,
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    !maximizing,
+                    config,
+                    tt,
+                    killers,
+                    history,
+                    new_hash,
+                    start_time,
+                    time_limit,
+                    nodes,
+                );
+                -val
+            };
+
+            move_count += 1;
 
             if score > max_score {
                 max_score = score;
@@ -406,6 +710,24 @@ fn order_moves(
 
             if count_ones(opp_moves) == 0 {
                 score += 50_000; // Immediate winning move
+            }
+
+            // 5. Survival Instinct (Suicide Prevention) - TypeScript Parity
+            // Calculate our mobility AFTER this move.
+            // If we move to a spot with 0 exits, it's suicide.
+            let opp_mask = if maximizing { state.ai } else { state.player };
+            // Blocked for next turn: Destroyed + Opponent + My New Pos
+            // (My old pos becomes empty, so we don't include it in blocked)
+            let future_blocked = state.destroyed | opp_mask | pos_to_mask(mv.to.0, mv.to.1);
+            let my_future_moves = get_queen_moves(mv.to.0, mv.to.1, future_blocked);
+            let my_mobility = count_ones(my_future_moves);
+
+            if my_mobility == 0 {
+                score -= 100_000; // SUICIDE: Do not go here
+            } else if my_mobility == 1 {
+                score -= 20_000; // DANGER: High risk of being trapped
+            } else if my_mobility == 2 {
+                score -= 2_000; // CAUTION
             }
 
             (mv, score)

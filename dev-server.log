@@ -1,0 +1,6 @@
+
+> move 37@1.0.0 dev
+> tsx server/index.ts
+
+[2m23:36:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because lockfile has changed
+11:36:45 PM [express] serving on http://0.0.0.0:5000

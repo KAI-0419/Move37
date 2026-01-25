@@ -154,8 +154,9 @@ fn get_destroy_candidates_advanced(
     let full_board = (1u64 << CELL_COUNT) - 1;
     let empty = full_board & !occupied;
 
-    // Score ALL empty positions
-    let mut scored_candidates: Vec<((u8, u8), i32)> = Vec::new();
+    // Score ALL empty positions using stack allocation to avoid heap overhead
+    let mut candidates = [((0u8, 0u8), 0i32); 49];
+    let mut count = 0;
 
     let mut temp = empty;
     while temp != 0 {
@@ -164,18 +165,21 @@ fn get_destroy_candidates_advanced(
         let pos = index_to_pos(idx);
 
         let score = score_destroy_position(state, pos, target_mobility, our_new_pos, (tr, tc), maximizing);
-        scored_candidates.push((pos, score));
+        
+        candidates[count] = (pos, score);
+        count += 1;
 
         temp &= temp - 1;
     }
 
-    // Sort by score descending
-    scored_candidates.sort_by(|a, b| b.1.cmp(&a.1));
+    // Sort only the valid portion using unstable sort (faster, no alloc)
+    let valid_slice = &mut candidates[0..count];
+    valid_slice.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
     // Take top N candidates
-    scored_candidates.into_iter()
+    valid_slice.iter()
         .take(candidate_count)
-        .map(|(pos, _score)| pos)
+        .map(|(pos, _score)| *pos)
         .collect()
 }
 
@@ -204,36 +208,7 @@ fn score_destroy_position(
         }
     }
 
-    // 2. PARTITION CREATION (HIGH VALUE)
-    // Check if this destroy creates advantageous partition
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
-    let player_pos_full = index_to_pos(player_idx);
-    let ai_pos_full = index_to_pos(ai_idx);
-
-    let new_destroyed = state.destroyed | pos_mask;
-    let partition = detect_partition_bitboard(player_pos_full, ai_pos_full, new_destroyed);
-
-    if partition.is_partitioned {
-        let advantage = partition.ai_region_size - partition.player_region_size;
-        if maximizing {
-            // AI wants positive advantage
-            if advantage > 0 {
-                score += advantage * 150; // Heavily favor advantageous partitions
-            } else if advantage < 0 {
-                score -= advantage.abs() * 150; // Avoid bad partitions
-            }
-        } else {
-            // Player wants negative advantage (for AI)
-            if advantage < 0 {
-                score += advantage.abs() * 150;
-            } else if advantage > 0 {
-                score -= advantage * 150;
-            }
-        }
-    }
-
-    // 3. Adjacent to opponent (Pressure)
+    // 2. Adjacent to opponent (Pressure)
     let dist_to_opponent = manhattan_distance(pos, opponent_pos);
     if dist_to_opponent == 1 {
         score += 30;
@@ -241,26 +216,18 @@ fn score_destroy_position(
         score += 15;
     }
 
-    // 4. Don't block our own future moves
+    // 3. Don't block our own future moves (Critical Survival)
     let dist_to_self = manhattan_distance(pos, our_new_pos);
     if dist_to_self == 1 {
-        score -= 10;
+        score -= 50;
     }
 
-    // 5. Center control
+    // 4. Center control
     let center_dist = (pos.0 as i32 - 3).abs() + (pos.1 as i32 - 3).abs();
     score += (6 - center_dist) * 2;
 
-    // 6. Voronoi impact (if state allows)
-    let voronoi_before = calculate_voronoi_optimized(player_pos_full, ai_pos_full, state.destroyed);
-    let voronoi_after = calculate_voronoi_optimized(player_pos_full, ai_pos_full, new_destroyed);
-    let territory_gain = (voronoi_after.ai_count - voronoi_before.ai_count) -
-                         (voronoi_after.player_count - voronoi_before.player_count);
-    if maximizing {
-        score += territory_gain * 5;
-    } else {
-        score -= territory_gain * 5;
-    }
+    // Note: Expensive Partition and Voronoi checks removed for performance (NPS).
+    // These are evaluated at leaf nodes.
 
     score
 }

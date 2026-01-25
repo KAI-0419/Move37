@@ -26,6 +26,7 @@ pub struct TTEntry {
     pub score: i32,
     pub bound: Bound,
     pub best_move: Option<Move>,
+    pub generation: u8,
 }
 
 /// Transposition Table with Zobrist Hashing
@@ -37,6 +38,8 @@ pub struct TranspositionTable {
     zobrist_turn: u64,
     pub hits: u64,
     pub misses: u64,
+    current_generation: u8,
+    max_entries: usize,
 }
 
 impl TranspositionTable {
@@ -71,6 +74,8 @@ impl TranspositionTable {
             zobrist_turn,
             hits: 0,
             misses: 0,
+            current_generation: 0,
+            max_entries: 500_000, // ~50MB at ~100 bytes per entry
         }
     }
 
@@ -151,18 +156,37 @@ impl TranspositionTable {
 
     /// Store an entry in the transposition table
     ///
-    /// Replacement strategy: Always replace (simple and effective)
-    /// More sophisticated strategies (depth-preferred, two-tier) can be added later
+    /// Replacement strategy: Depth-preferred with generation tracking
+    /// - Always replace if: (1) no existing entry, (2) deeper search, or (3) same depth + exact score
+    /// - Otherwise keep existing entry (preserves valuable deep searches)
     pub fn store(&mut self, hash: u64, depth: u8, score: i32, bound: Bound, best_move: Option<Move>) {
-        let entry = TTEntry {
-            hash,
-            depth,
-            score,
-            bound,
-            best_move,
+        // Check if we need to evict entries
+        if self.table.len() >= self.max_entries {
+            self.evict_old_entries();
+        }
+
+        // Check if we should replace existing entry
+        let should_replace = if let Some(existing) = self.table.get(&hash) {
+            // Replace if: (1) deeper search, or (2) same depth + exact score, or (3) old generation
+            depth > existing.depth
+                || (depth == existing.depth && bound == Bound::Exact)
+                || existing.generation < self.current_generation.saturating_sub(2)
+        } else {
+            true // No existing entry
         };
 
-        self.table.insert(hash, entry);
+        if should_replace {
+            let entry = TTEntry {
+                hash,
+                depth,
+                score,
+                bound,
+                best_move,
+                generation: self.current_generation,
+            };
+
+            self.table.insert(hash, entry);
+        }
     }
 
     /// Clear the transposition table
@@ -170,6 +194,43 @@ impl TranspositionTable {
         self.table.clear();
         self.hits = 0;
         self.misses = 0;
+        self.current_generation = 0;
+    }
+
+    /// Start a new search (increment generation)
+    pub fn new_search(&mut self) {
+        self.current_generation = self.current_generation.wrapping_add(1);
+        self.hits = 0;
+        self.misses = 0;
+    }
+
+    /// Evict old entries when table is full
+    fn evict_old_entries(&mut self) {
+        // Keep entries from current and previous generation, remove older ones
+        let min_generation = self.current_generation.saturating_sub(1);
+
+        self.table.retain(|_, entry| {
+            entry.generation >= min_generation || entry.depth >= 6
+        });
+
+        // If still too large, remove lowest depth entries
+        if self.table.len() >= self.max_entries {
+            // Collect keys to remove (avoid borrow checker issues)
+            let mut entries: Vec<_> = self.table.iter()
+                .map(|(hash, entry)| (*hash, entry.depth))
+                .collect();
+            entries.sort_by_key(|(_, depth)| *depth);
+
+            let remove_count = self.table.len() - (self.max_entries * 3 / 4);
+            let keys_to_remove: Vec<u64> = entries.iter()
+                .take(remove_count)
+                .map(|(hash, _)| *hash)
+                .collect();
+
+            for hash in keys_to_remove {
+                self.table.remove(&hash);
+            }
+        }
     }
 
     /// Get hit rate for statistics
@@ -187,23 +248,14 @@ impl TranspositionTable {
         self.table.len()
     }
 
-    /// Resize table if it gets too large (memory management)
-    pub fn limit_size(&mut self, max_entries: usize) {
-        if self.table.len() > max_entries {
-            // Simple strategy: clear oldest entries
-            // Keep only the most recently added entries
-            let remove_count = self.table.len() - max_entries / 2;
+    /// Set maximum number of entries
+    pub fn set_max_entries(&mut self, max_entries: usize) {
+        self.max_entries = max_entries;
+    }
 
-            // Collect keys to remove (this is a simple approach)
-            let keys_to_remove: Vec<u64> = self.table.keys()
-                .take(remove_count)
-                .copied()
-                .collect();
-
-            for key in keys_to_remove {
-                self.table.remove(&key);
-            }
-        }
+    /// Get maximum number of entries
+    pub fn max_entries(&self) -> usize {
+        self.max_entries
     }
 }
 
@@ -325,6 +377,7 @@ mod tests {
             assert_eq!(e.score, 100);
             assert_eq!(e.depth, 5);
             assert_eq!(e.bound, Bound::Exact);
+            assert_eq!(e.generation, 0);
         }
     }
 

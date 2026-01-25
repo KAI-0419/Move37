@@ -16,6 +16,16 @@ use crate::board::GameState;
 use crate::bitboard::*;
 use crate::voronoi::*;
 use crate::partition::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+/// Cache for critical cells computation
+/// Uses position hash as key to avoid recomputation
+thread_local! {
+    static CRITICAL_CELLS_CACHE: RefCell<HashMap<u64, Vec<u8>>> = RefCell::new(HashMap::new());
+}
+
+const CACHE_MAX_SIZE: usize = 1000;
 
 /// Evaluation weights for different difficulty levels
 #[derive(Clone, Copy, Debug)]
@@ -126,7 +136,15 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
     // 2. Immediate mobility
     let ai_moves = get_queen_moves(ai_pos.0, ai_pos.1, blocked);
     let player_moves = get_queen_moves(player_pos.0, player_pos.1, blocked);
-    let mobility_score = (count_ones(ai_moves) - count_ones(player_moves)) as f32;
+    let ai_mobility_count = count_ones(ai_moves);
+    let mobility_score = (ai_mobility_count - count_ones(player_moves)) as f32;
+
+    // DESPERATION MODE: If AI is trapped, ignore territory and focus on survival
+    let (w_territory, w_mobility, w_partition) = if ai_mobility_count <= 2 {
+        (0.0, 50.0, 0.0) // Extreme focus on mobility
+    } else {
+        (weights.territory, weights.mobility, weights.partition_advantage)
+    };
 
     // 3. Mobility potential (2-move lookahead)
     let mobility_potential_score = calculate_mobility_potential(state, blocked);
@@ -176,12 +194,12 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
     };
 
     let score = (
-        territory_score * weights.territory +
-        mobility_score * weights.mobility +
+        territory_score * w_territory +
+        mobility_score * w_mobility +
         mobility_potential_score * weights.mobility_potential +
         center_score * weights.center_control +
         corner_score * weights.corner_avoidance +
-        partition_score * weights.partition_advantage +
+        partition_score * w_partition +
         critical_score * weights.critical_cells +
         openness_score * weights.openness
     ) as i32;
@@ -238,8 +256,59 @@ fn calculate_mobility_potential(state: &GameState, blocked: u64) -> f32 {
     ai_potential - player_potential
 }
 
-/// Find cells that would cause partition if destroyed
+/// Compute cache key for critical cells
+/// Uses position hash based on player, AI, and destroyed cells
+fn compute_critical_cells_cache_key(state: &GameState) -> u64 {
+    let player_idx = state.player.trailing_zeros() as u8;
+    let ai_idx = state.ai.trailing_zeros() as u8;
+
+    // Simple hash: combine player, AI, and destroyed positions
+    let mut hash = (player_idx as u64) | ((ai_idx as u64) << 8);
+
+    // XOR in destroyed cells (simplified)
+    let mut destroyed = state.destroyed;
+    while destroyed != 0 {
+        let idx = destroyed.trailing_zeros();
+        hash ^= (idx as u64) << (idx % 32);
+        destroyed &= destroyed - 1;
+    }
+
+    hash
+}
+
+/// Find cells that would cause partition if destroyed (with caching)
 fn find_critical_cells(state: &GameState, blocked: u64) -> Vec<u8> {
+    let cache_key = compute_critical_cells_cache_key(state);
+
+    // Try cache first
+    let cached = CRITICAL_CELLS_CACHE.with(|cache| {
+        cache.borrow().get(&cache_key).cloned()
+    });
+
+    if let Some(result) = cached {
+        return result;
+    }
+
+    // Cache miss - compute
+    let result = find_critical_cells_uncached(state, blocked);
+
+    // Store in cache
+    CRITICAL_CELLS_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+
+        // Evict if cache is full (simple LRU: clear all)
+        if cache.len() >= CACHE_MAX_SIZE {
+            cache.clear();
+        }
+
+        cache.insert(cache_key, result.clone());
+    });
+
+    result
+}
+
+/// Find cells that would cause partition if destroyed (uncached implementation)
+fn find_critical_cells_uncached(state: &GameState, blocked: u64) -> Vec<u8> {
     let player_idx = state.player.trailing_zeros() as u8;
     let ai_idx = state.ai.trailing_zeros() as u8;
     let player_pos = index_to_pos(player_idx);
@@ -276,6 +345,13 @@ fn find_critical_cells(state: &GameState, blocked: u64) -> Vec<u8> {
     }
 
     critical
+}
+
+/// Clear the critical cells cache (call between games)
+pub fn clear_critical_cells_cache() {
+    CRITICAL_CELLS_CACHE.with(|cache| {
+        cache.borrow_mut().clear();
+    });
 }
 
 /// Evaluate the threat of partition
