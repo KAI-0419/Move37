@@ -26,7 +26,7 @@ import {
   getEmptyCells,
 } from "./boardUtils";
 import { isValidMove, getValidMoves, getValidDestroyPositions } from "./moveValidation";
-import { getAIMove } from "./evaluation";
+import { getAIMove, selectBestDestroyPosition } from "./evaluation";
 
 export class IsolationEngine implements IGameEngine {
   getGameType(): GameType {
@@ -228,14 +228,28 @@ export class IsolationEngine implements IGameEngine {
         // Additional validation: check if move is actually valid
         const isValid = this.isValidMove(boardState, result.move, false);
         if (!isValid.valid) {
-          console.warn("AI returned invalid move, recalculating...", result.move);
+          console.error("AI returned invalid move, recalculating...", {
+            move: result.move,
+            boardState: {
+              aiPos: board.aiPos,
+              playerPos: board.playerPos,
+              destroyedCount: board.destroyed.length,
+            },
+            validationError: isValid.error,
+          });
+          
           // Try to get any valid move as fallback
           const validMoves = getValidMoves(board, board.aiPos, false);
           if (validMoves.length > 0) {
+            // Intelligent destroy selection
+            const destroyPositions = getValidDestroyPositions(board, validMoves[0], false);
+            const bestDestroy = selectBestDestroyPosition(board, validMoves[0], destroyPositions);
+            
             return {
               move: {
                 from: board.aiPos,
                 to: validMoves[0],
+                destroy: bestDestroy,
               },
               logs: result.logs || ["gameRoom.log.moveExecuted"],
             };
@@ -251,10 +265,14 @@ export class IsolationEngine implements IGameEngine {
         const board = parseBoardState(boardState);
         const validMoves = getValidMoves(board, board.aiPos, false);
         if (validMoves.length > 0) {
+          const destroyPositions = getValidDestroyPositions(board, validMoves[0], false);
+          const bestDestroy = selectBestDestroyPosition(board, validMoves[0], destroyPositions);
+          
           return {
             move: {
               from: board.aiPos,
               to: validMoves[0],
+              destroy: bestDestroy,
             },
             logs: ["gameRoom.log.moveExecuted"],
           };

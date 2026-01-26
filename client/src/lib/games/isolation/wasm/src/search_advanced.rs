@@ -173,8 +173,8 @@ pub fn find_best_move_advanced_detailed(state: &GameState, config: AdvancedSearc
     }
 
     // 2. Endgame Solver Check
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = safe_get_position_index(state.player).unwrap_or(0);
+    let ai_idx = safe_get_position_index(state.ai).unwrap_or(48);
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 
@@ -403,10 +403,10 @@ fn alpha_beta_advanced(
     // 1. Terminal State Detection (Game Over) - Check BEFORE depth == 0
     // This fixes the "Horizon Effect" where immediate wins at depth 0 were seen as just heuristic scores.
     let (current_r, current_c) = if maximizing {
-        let idx = state.ai.trailing_zeros() as u8;
+        let idx = safe_get_position_index(state.ai).unwrap_or(48);
         index_to_pos(idx)
     } else {
-        let idx = state.player.trailing_zeros() as u8;
+        let idx = safe_get_position_index(state.player).unwrap_or(0);
         index_to_pos(idx)
     };
     
@@ -526,6 +526,11 @@ fn alpha_beta_advanced(
     let mut move_count = 0;
 
     for mut mv in ordered_moves {
+        // Defensive: Validate move coordinates
+        if mv.to.0 >= BOARD_SIZE || mv.to.1 >= BOARD_SIZE {
+            continue;
+        }
+
         let destroy_candidates = get_destroy_candidates_advanced(state, &mv, maximizing, 6);
 
         for destroy_pos in destroy_candidates {
@@ -701,7 +706,7 @@ fn order_moves(
             // 4. Winning move detection (quick check)
             let occupied = state.destroyed | state.player | state.ai | pos_to_mask(mv.to.0, mv.to.1);
             let opp_pos = if maximizing { state.player } else { state.ai };
-            let opp_idx = opp_pos.trailing_zeros() as u8;
+            let opp_idx = safe_get_position_index(opp_pos).unwrap_or(if maximizing { 0 } else { 48 });
             let (opp_r, opp_c) = index_to_pos(opp_idx);
             let opp_moves = get_queen_moves(opp_r, opp_c, occupied);
             let opp_mobility_count = count_ones(opp_moves);

@@ -80,6 +80,11 @@ fn alpha_beta(
     let mut max_score = -1_000_000;
 
     for mut mv in moves {
+        // Defensive: Validate move coordinates
+        if mv.to.0 >= BOARD_SIZE || mv.to.1 >= BOARD_SIZE {
+            continue;
+        }
+
         let target_positions = get_destroy_candidates(state, &mv, maximizing);
         
         for destroy_pos in target_positions {
@@ -142,7 +147,10 @@ fn get_destroy_candidates_advanced(
     let occupied = state.destroyed | state.player | state.ai | pos_to_mask(mv.to.0, mv.to.1);
 
     let target_pos = if maximizing { state.player } else { state.ai };
-    let target_idx = target_pos.trailing_zeros() as u8;
+    let target_idx = match safe_get_position_index(target_pos) {
+        Some(idx) => idx,
+        None => return Vec::new(), // Invalid state, no candidates
+    };
     let (tr, tc) = index_to_pos(target_idx);
 
     let our_new_pos = mv.to;

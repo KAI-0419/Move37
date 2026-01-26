@@ -29,6 +29,12 @@ impl GameState {
     }
 
     pub fn from_raw(player_r: u8, player_c: u8, ai_r: u8, ai_c: u8, destroyed: &[u8]) -> Self {
+        // Defensive: Clamp coordinates to valid range
+        let player_r = player_r.min(BOARD_SIZE - 1);
+        let player_c = player_c.min(BOARD_SIZE - 1);
+        let ai_r = ai_r.min(BOARD_SIZE - 1);
+        let ai_c = ai_c.min(BOARD_SIZE - 1);
+
         let mut d_mask = 0u64;
         
         // destroyed comes as flat array [r1, c1, r2, c2...]

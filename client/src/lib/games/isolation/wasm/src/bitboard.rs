@@ -185,3 +185,16 @@ pub fn flood_fill(start: u64, blocked: u64) -> u64 {
     
     flood
 }
+
+/// Safely extract position index from a bitboard
+/// Returns None if bitboard is empty (0) or index is out of bounds
+pub fn safe_get_position_index(bitboard: u64) -> Option<u8> {
+    if bitboard == 0 {
+        return None;
+    }
+    let idx = bitboard.trailing_zeros() as u8;
+    if idx >= CELL_COUNT {
+        return None;
+    }
+    Some(idx)
+}

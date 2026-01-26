@@ -171,8 +171,22 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
     let destroyed_count = count_ones(state.destroyed);
     let blocked = state.destroyed | state.player | state.ai;
 
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = match safe_get_position_index(state.player) {
+        Some(idx) => idx,
+        None => return (0, EvalComponents {
+            territory: 0.0, mobility: 0.0, mobility_potential: 0.0,
+            center_control: 0.0, corner_avoidance: 0.0, partition_advantage: 0.0,
+            critical_cells: 0.0, openness: 0.0, parity: 0.0, trap: 0.0, effective_mobility: 0.0,
+        }),
+    };
+    let ai_idx = match safe_get_position_index(state.ai) {
+        Some(idx) => idx,
+        None => return (0, EvalComponents {
+            territory: 0.0, mobility: 0.0, mobility_potential: 0.0,
+            center_control: 0.0, corner_avoidance: 0.0, partition_advantage: 0.0,
+            critical_cells: 0.0, openness: 0.0, parity: 0.0, trap: 0.0, effective_mobility: 0.0,
+        }),
+    };
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 
@@ -330,7 +344,10 @@ fn evaluate_parity(_state: &GameState, voronoi: &VoronoiResult) -> f32 {
 /// Check if position is a trap (forced loss)
 fn is_trap_position(state: &GameState, target_is_player: bool) -> bool {
     let pos_mask = if target_is_player { state.player } else { state.ai };
-    let pos_idx = pos_mask.trailing_zeros() as u8;
+    let pos_idx = match safe_get_position_index(pos_mask) {
+        Some(idx) => idx,
+        None => return true, // If position is invalid/empty, consider it trapped/lost
+    };
     let (r, c) = index_to_pos(pos_idx);
     let blocked = state.destroyed | state.player | state.ai;
 
@@ -385,7 +402,10 @@ fn is_trap_position(state: &GameState, target_is_player: bool) -> bool {
 
 /// Calculate effective mobility (safe moves)
 fn effective_mobility(pos_mask: u64, blocked: u64) -> i32 {
-    let pos_idx = pos_mask.trailing_zeros() as u8;
+    let pos_idx = match safe_get_position_index(pos_mask) {
+        Some(idx) => idx,
+        None => return 0,
+    };
     let (r, c) = index_to_pos(pos_idx);
     let moves = get_queen_moves(r, c, blocked);
     
@@ -413,8 +433,14 @@ fn effective_mobility(pos_mask: u64, blocked: u64) -> i32 {
 
 /// Calculate mobility potential (cells reachable in 2 moves)
 fn calculate_mobility_potential(state: &GameState, blocked: u64) -> f32 {
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = match safe_get_position_index(state.player) {
+        Some(idx) => idx,
+        None => return 0.0,
+    };
+    let ai_idx = match safe_get_position_index(state.ai) {
+        Some(idx) => idx,
+        None => return 0.0,
+    };
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 
@@ -463,8 +489,8 @@ fn calculate_mobility_potential(state: &GameState, blocked: u64) -> f32 {
 /// Compute cache key for critical cells
 /// Uses position hash based on player, AI, and destroyed cells
 fn compute_critical_cells_cache_key(state: &GameState) -> u64 {
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = safe_get_position_index(state.player).unwrap_or(64); // Use 64 as safe default for hash
+    let ai_idx = safe_get_position_index(state.ai).unwrap_or(64);
 
     // Simple hash: combine player, AI, and destroyed positions
     let mut hash = (player_idx as u64) | ((ai_idx as u64) << 8);
@@ -513,8 +539,14 @@ fn find_critical_cells(state: &GameState, blocked: u64) -> Vec<u8> {
 
 /// Find cells that would cause partition if destroyed (uncached implementation)
 fn find_critical_cells_uncached(state: &GameState, blocked: u64) -> Vec<u8> {
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = match safe_get_position_index(state.player) {
+        Some(idx) => idx,
+        None => return Vec::new(),
+    };
+    let ai_idx = match safe_get_position_index(state.ai) {
+        Some(idx) => idx,
+        None => return Vec::new(),
+    };
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 
@@ -564,8 +596,14 @@ fn evaluate_partition_threat(state: &GameState, blocked: u64, critical_cells: &[
         return 0.0;
     }
 
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = match safe_get_position_index(state.player) {
+        Some(idx) => idx,
+        None => return 0.0,
+    };
+    let ai_idx = match safe_get_position_index(state.ai) {
+        Some(idx) => idx,
+        None => return 0.0,
+    };
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 
@@ -615,8 +653,14 @@ fn evaluate_critical_cell_control(
 
 /// Evaluate openness (preference for open areas)
 fn evaluate_openness(state: &GameState, blocked: u64) -> f32 {
-    let player_idx = state.player.trailing_zeros() as u8;
-    let ai_idx = state.ai.trailing_zeros() as u8;
+    let player_idx = match safe_get_position_index(state.player) {
+        Some(idx) => idx,
+        None => return 0.0,
+    };
+    let ai_idx = match safe_get_position_index(state.ai) {
+        Some(idx) => idx,
+        None => return 0.0,
+    };
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 

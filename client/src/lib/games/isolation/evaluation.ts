@@ -650,7 +650,7 @@ export function runMinimaxSearch(
     if (!finalMove.destroy || finalMove.destroy.r < 0 || finalMove.destroy.c < 0) {
       const destroyPositions = getValidDestroyPositions(board, finalMove.to, false);
       if (destroyPositions.length > 0) {
-        finalMove.destroy = destroyPositions[0];
+        finalMove.destroy = selectBestDestroyPosition(board, finalMove.to, destroyPositions);
       } else {
         return { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
       }
@@ -671,7 +671,7 @@ export function runMinimaxSearch(
           move: {
             from: board.aiPos,
             to: aiMoves[0],
-            destroy: destroyPositions[0] || { r: 0, c: 0 }
+            destroy: selectBestDestroyPosition(board, aiMoves[0], destroyPositions) || { r: 0, c: 0 }
           },
           logs: ["gameRoom.log.moveExecuted"],
         };
@@ -681,6 +681,54 @@ export function runMinimaxSearch(
     }
     return { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
   }
+}
+
+/**
+ * Intelligent destroy position selection for fallbacks
+ * Prevents "dumb" moves like destroying (0,0) when it's not strategic
+ */
+export function selectBestDestroyPosition(
+  board: BoardState,
+  aiNewPos: { r: number; c: number },
+  candidates: { r: number; c: number }[]
+): { r: number; c: number } {
+  if (!candidates || candidates.length === 0) return { r: 0, c: 0 };
+  if (candidates.length === 1) return candidates[0];
+
+  // Score based selection
+  let bestScore = -Infinity;
+  let bestPos = candidates[0];
+
+  for (const pos of candidates) {
+    let score = 0;
+
+    // 1. Prioritize blocking opponent (+50)
+    const distToPlayer = Math.abs(pos.r - board.playerPos.r) +
+                         Math.abs(pos.c - board.playerPos.c);
+    if (distToPlayer <= 2) score += 50 - distToPlayer * 10;
+
+    // 2. Prioritize center (+20)
+    const distToCenter = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
+    score += (6 - distToCenter) * 3;
+
+    // 3. Avoid blocking self (-30)
+    const distToAI = Math.abs(pos.r - aiNewPos.r) +
+                     Math.abs(pos.c - aiNewPos.c);
+    if (distToAI <= 1) score -= 30;
+
+    // 4. Avoid edges/corners (-10/-15)
+    const isEdge = pos.r === 0 || pos.r === 6 || pos.c === 0 || pos.c === 6;
+    const isCorner = isEdge && (pos.c === 0 || pos.c === 6);
+    if (isCorner) score -= 15;
+    else if (isEdge) score -= 5;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestPos = pos;
+    }
+  }
+
+  return bestPos;
 }
 
 /**
