@@ -208,7 +208,37 @@ fn score_destroy_position(
         }
     }
 
-    // 2. Adjacent to opponent (Pressure)
+    // 2. PARTITION ANALYSIS (New)
+    let new_destroyed = state.destroyed | pos_mask;
+    // Determine who is who for partition check
+    let (p_pos, a_pos) = if maximizing {
+        (opponent_pos, our_new_pos)
+    } else {
+        (our_new_pos, opponent_pos)
+    };
+
+    let partition = detect_partition_bitboard(p_pos, a_pos, new_destroyed);
+    if partition.is_partitioned {
+        let advantage = if maximizing {
+            partition.ai_region_size - partition.player_region_size
+        } else {
+            partition.player_region_size - partition.ai_region_size
+        };
+
+        if advantage > 0 {
+            // We have more space! Huge bonus.
+            score += 10_000 + (advantage * 500);
+        } else if advantage < 0 {
+            // We trapped ourselves in smaller space! Huge penalty.
+            score -= 10_000 + (advantage.abs() * 500);
+        } else {
+            // Equal partition. Slight bonus for simplifying if we are winning?
+            // Or just neutral. Let's give small bonus to encourage safe simplification.
+            score += 200;
+        }
+    }
+
+    // 3. Adjacent to opponent (Pressure)
     let dist_to_opponent = manhattan_distance(pos, opponent_pos);
     if dist_to_opponent == 1 {
         score += 30;
@@ -216,18 +246,15 @@ fn score_destroy_position(
         score += 15;
     }
 
-    // 3. Don't block our own future moves (Critical Survival)
+    // 4. Don't block our own future moves (Critical Survival)
     let dist_to_self = manhattan_distance(pos, our_new_pos);
     if dist_to_self == 1 {
         score -= 50;
     }
 
-    // 4. Center control
+    // 5. Center control
     let center_dist = (pos.0 as i32 - 3).abs() + (pos.1 as i32 - 3).abs();
     score += (6 - center_dist) * 2;
-
-    // Note: Expensive Partition and Voronoi checks removed for performance (NPS).
-    // These are evaluated at leaf nodes.
 
     score
 }
@@ -239,8 +266,15 @@ fn manhattan_distance(a: (u8, u8), b: (u8, u8)) -> i32 {
 
 /// Legacy simple destroy candidates (fallback)
 fn get_destroy_candidates(state: &GameState, mv: &Move, maximizing: bool) -> Vec<(u8, u8)> {
-    // Use advanced version with default candidate count
-    get_destroy_candidates_advanced(state, mv, maximizing, 6)
+    let destroyed_cnt = count_ones(state.destroyed);
+    let count = if destroyed_cnt < 10 {
+        6
+    } else if destroyed_cnt < 30 {
+        8
+    } else {
+        12 // Deep endgame search
+    };
+    get_destroy_candidates_advanced(state, mv, maximizing, count)
 }
 
 /// Export for use in search_advanced module

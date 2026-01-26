@@ -37,10 +37,11 @@ pub fn detect_partition_bitboard(
     let player_mask = 1u64 << player_idx;
     let ai_mask = 1u64 << ai_idx;
 
-    // Flood fill from player position, treating AI position as BLOCKED
-    // This gives us all cells the player can reach
-    let blocked_for_player = destroyed | ai_mask;
-    let player_reachable = queen_flood_fill(player_pos, blocked_for_player);
+    // To check connectivity, we treat the opponent's square as "reachable" 
+    // (i.e., we don't treat it as a wall).
+    // If we can reach the opponent's square, we are in the same component.
+    // So we ONLY use destroyed cells as blockers for the flood fill.
+    let player_reachable = queen_flood_fill(player_pos, destroyed);
 
     // Check if AI position is in player's reachable set
     let is_partitioned = (player_reachable & ai_mask) == 0;
@@ -58,12 +59,13 @@ pub fn detect_partition_bitboard(
 
     // Board IS partitioned - calculate region sizes
     // Player's region = all cells reachable from player (includes player position)
-    let player_region = player_reachable | player_mask;
+    // Since it's partitioned, player_reachable (calculated above with destroyed only)
+    // already correctly represents the player's component (AI is unreachable anyway).
+    let player_region = player_reachable;
 
     // AI's region = all cells reachable from AI (includes AI position)
-    let blocked_for_ai = destroyed | player_mask;
-    let ai_reachable = queen_flood_fill(ai_pos, blocked_for_ai);
-    let ai_region = ai_reachable | ai_mask;
+    // Again, use only destroyed as blockers.
+    let ai_region = queen_flood_fill(ai_pos, destroyed);
 
     PartitionResult {
         is_partitioned: true,
@@ -195,14 +197,15 @@ mod tests {
     }
 
     #[test]
-    fn test_partition_diagonal_wall() {
-        // Create a diagonal wall separating players
+    fn test_partition_row_wall() {
+        // Create a horizontal wall separating players (Row 3)
         let player_pos = (0, 0);
         let ai_pos = (6, 6);
 
         let mut destroyed = 0u64;
-        for i in 1..6 {
-            destroyed |= 1u64 << pos_to_index(i, i);
+        // Destroy entire row 3 (index 21 to 27)
+        for c in 0..7 {
+            destroyed |= 1u64 << pos_to_index(3, c);
         }
 
         let result = detect_partition_bitboard(player_pos, ai_pos, destroyed);
@@ -247,16 +250,17 @@ mod tests {
         let ai_pos = (6, 6);
 
         let mut destroyed = 0u64;
-        for i in 1..5 {
-            destroyed |= 1u64 << pos_to_index(i, i);
+        // Create wall at Row 3, leaving one gap at (3,6)
+        for c in 0..6 {
+            destroyed |= 1u64 << pos_to_index(3, c);
         }
 
-        // Destroying (5,5) should complete the diagonal wall and partition
+        // Destroying (3,6) should complete the wall and partition
         let would_partition = would_cause_partition(
             player_pos,
             ai_pos,
             destroyed,
-            (5, 5),
+            (3, 6),
         );
         assert!(would_partition);
 

@@ -57,45 +57,42 @@ pub fn calculate_voronoi_optimized(
     while (player_frontier != 0 || ai_frontier != 0) && depth < max_depth {
         depth += 1;
 
-        // Process player frontier
-        if player_frontier != 0 {
-            let new_player_frontier = expand_frontier_optimized(
-                player_frontier,
-                blocked,
-                player_visited,
-            );
+        // 1. Expand both frontiers simultaneously
+        let new_player_frontier = if player_frontier != 0 {
+            expand_frontier_optimized(player_frontier, blocked, player_visited)
+        } else {
+            0
+        };
 
-            // Mark cells reached by player BEFORE AI
-            let player_claimed = new_player_frontier & !ai_visited;
-            player_territory |= player_claimed;
+        let new_ai_frontier = if ai_frontier != 0 {
+            expand_frontier_optimized(ai_frontier, blocked, ai_visited)
+        } else {
+            0
+        };
 
-            // Mark contested cells (both reach simultaneously this iteration)
-            let both_reached = new_player_frontier & ai_visited & !player_visited & !contested;
-            contested |= both_reached;
+        // 2. Determine ownership based on simultaneous arrival
+        
+        // Player claims: Reached by player, NOT visited by AI before, NOT reached by AI now
+        let player_only = new_player_frontier & !ai_visited & !new_ai_frontier;
+        
+        // AI claims: Reached by AI, NOT visited by player before, NOT reached by player now
+        let ai_only = new_ai_frontier & !player_visited & !new_player_frontier;
 
-            player_visited |= new_player_frontier;
-            player_frontier = new_player_frontier;
-        }
+        // Contested: Reached by BOTH in this same step
+        let contested_new = new_player_frontier & new_ai_frontier;
 
-        // Process AI frontier
-        if ai_frontier != 0 {
-            let new_ai_frontier = expand_frontier_optimized(
-                ai_frontier,
-                blocked,
-                ai_visited,
-            );
+        // 3. Update territory accumulators
+        player_territory |= player_only;
+        ai_territory |= ai_only;
+        contested |= contested_new;
 
-            // Mark cells reached by AI BEFORE player
-            let ai_claimed = new_ai_frontier & !player_visited;
-            ai_territory |= ai_claimed;
+        // 4. Update visited sets
+        player_visited |= new_player_frontier;
+        ai_visited |= new_ai_frontier;
 
-            // Mark contested cells (both reach simultaneously this iteration)
-            let both_reached = new_ai_frontier & player_visited & !ai_visited & !contested;
-            contested |= both_reached;
-
-            ai_visited |= new_ai_frontier;
-            ai_frontier = new_ai_frontier;
-        }
+        // 5. Advance frontiers
+        player_frontier = new_player_frontier;
+        ai_frontier = new_ai_frontier;
     }
 
     VoronoiResult {

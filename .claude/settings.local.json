@@ -19,7 +19,8 @@
       "Bash(cd:*)",
       "Bash(npx tsc:*)",
       "Bash(git show:*)",
-      "Bash(wasm-pack build:*)"
+      "Bash(wasm-pack build:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

@@ -9,6 +9,7 @@
 //! - Critical bottleneck detection
 //! - Partition awareness
 //! - Positional awareness (center/corners)
+//! - Game Theoretic concepts: Parity, Trap detection, Effective Mobility
 //!
 //! Based on TypeScript advancedEvaluation.ts
 
@@ -38,6 +39,9 @@ pub struct EvalWeights {
     pub partition_advantage: f32,
     pub critical_cells: f32,
     pub openness: f32,
+    pub parity: f32,
+    pub trap: f32,
+    pub effective_mobility: f32,
 }
 
 impl EvalWeights {
@@ -52,6 +56,9 @@ impl EvalWeights {
             partition_advantage: 500.0,
             critical_cells: 4.0,
             openness: 1.0,
+            parity: 20.0,
+            trap: 100.0,
+            effective_mobility: 3.0,
         }
     }
 
@@ -66,6 +73,9 @@ impl EvalWeights {
             partition_advantage: 300.0,
             critical_cells: 3.0,
             openness: 0.8,
+            parity: 5.0,
+            trap: 20.0,
+            effective_mobility: 1.0,
         }
     }
 
@@ -80,8 +90,42 @@ impl EvalWeights {
             partition_advantage: 100.0,
             critical_cells: 2.0,
             openness: 0.5,
+            parity: 0.0,
+            trap: 0.0,
+            effective_mobility: 0.0,
         }
     }
+}
+
+/// Dynamic weights based on game phase
+pub fn get_phase_weights(destroyed_count: u32) -> EvalWeights {
+    // Start with NEXUS-7 base
+    let mut w = EvalWeights::nexus_7();
+
+    if destroyed_count < 10 {
+        // Opening: Center control + Mobility
+        w.territory = 3.0;
+        w.mobility = 6.0;
+        w.center_control = 5.0;
+        w.partition_advantage = 200.0;
+        w.trap = 50.0;
+    } else if destroyed_count < 30 {
+        // Midgame: Territory + Critical cells + Trap
+        w.territory = 8.0;
+        w.mobility = 5.0;
+        w.center_control = 1.0;
+        w.partition_advantage = 600.0;
+        w.critical_cells = 8.0;
+        w.trap = 150.0;
+    } else {
+        // Endgame: Partition + Parity + Mobility
+        w.territory = 2.0;
+        w.mobility = 10.0;
+        w.partition_advantage = 1000.0;
+        w.parity = 50.0;
+        w.effective_mobility = 10.0;
+    }
+    w
 }
 
 /// Individual evaluation components for debugging/analysis
@@ -95,6 +139,9 @@ pub struct EvalComponents {
     pub partition_advantage: f32,
     pub critical_cells: f32,
     pub openness: f32,
+    pub parity: f32,
+    pub trap: f32,
+    pub effective_mobility: f32,
 }
 
 /// Precomputed center distance table (Manhattan distance from center (3,3))
@@ -181,6 +228,24 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
     // 8. Openness (access to open areas)
     let openness_score = evaluate_openness(state, blocked);
 
+    // 9. Game Theoretic: Parity
+    let parity_score = evaluate_parity(state, &voronoi);
+
+    // 10. Game Theoretic: Trap Detection
+    let trap_score = if is_trap_position(state, true) { 
+        1.0 // Player trapped is good for AI
+    } else if is_trap_position(state, false) {
+        -1.0 // AI trapped is bad
+    } else {
+        0.0
+    };
+
+    // 11. Game Theoretic: Effective Mobility
+    let ai_effective = effective_mobility(state.ai, blocked);
+    let player_effective = effective_mobility(state.player, blocked);
+    let effective_mobility_score = (ai_effective - player_effective) as f32;
+
+
     // Combine all components
     let components = EvalComponents {
         territory: territory_score,
@@ -191,6 +256,9 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
         partition_advantage: partition_score,
         critical_cells: critical_score,
         openness: openness_score,
+        parity: parity_score,
+        trap: trap_score,
+        effective_mobility: effective_mobility_score,
     };
 
     let score = (
@@ -201,10 +269,110 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
         corner_score * weights.corner_avoidance +
         partition_score * w_partition +
         critical_score * weights.critical_cells +
-        openness_score * weights.openness
+        openness_score * weights.openness +
+        parity_score * weights.parity +
+        trap_score * weights.trap +
+        effective_mobility_score * weights.effective_mobility
     ) as i32;
 
     (score, components)
+}
+
+/// Calculate parity advantage
+fn evaluate_parity(_state: &GameState, voronoi: &VoronoiResult) -> f32 {
+    // Parity concept: In a partitioned game, the player with the larger odd/even compatible region wins.
+    // Simplified: Larger region usually implies parity advantage if played correctly.
+    if voronoi.ai_count > voronoi.player_count {
+        1.0
+    } else if voronoi.player_count > voronoi.ai_count {
+        -1.0
+    } else {
+        0.0
+    }
+}
+
+/// Check if position is a trap (forced loss)
+fn is_trap_position(state: &GameState, target_is_player: bool) -> bool {
+    let pos_mask = if target_is_player { state.player } else { state.ai };
+    let pos_idx = pos_mask.trailing_zeros() as u8;
+    let (r, c) = index_to_pos(pos_idx);
+    let blocked = state.destroyed | state.player | state.ai;
+
+    let moves = get_queen_moves(r, c, blocked);
+    
+    // If no moves, it's a trap (loss)
+    if moves == 0 {
+        return true;
+    }
+
+    // Check if all immediate moves lead to positions with 0 or 1 move (dead ends)
+    // This assumes opponent will play perfectly to block the single exit
+    let mut all_trapped = true;
+    let mut temp = moves;
+    
+    while temp != 0 {
+        let idx = temp.trailing_zeros() as u8;
+        let (nr, nc) = index_to_pos(idx);
+        
+        // Hypothetical next state: we moved to (nr, nc)
+        // Opponent stays where they are (or moves).
+        // Check our mobility from new pos.
+        // NOTE: This is a shallow check.
+        // We assume 'blocked' includes our OLD position (it becomes destroyed/occupied).
+        // Actually in Isolation, old position is empty? No, old position becomes empty but we occupy new one.
+        // But in the game logic, we move from A to B. A becomes empty? 
+        // Wait, standard Isolation: Piece moves. Old square stays empty?
+        // "Players move their Queen... to any square... The square just vacated... is NOT destroyed."
+        // "BUT in THIS implementation (check board.rs?): 
+        // Usually Isolation involves destroying a square.
+        // "Move queen, THEN destroy a square".
+        // The square we came from is effectively empty unless we destroy it.
+        
+        // However, 'blocked' argument passed here is current state.
+        // If we move, 'pos_mask' is no longer occupied.
+        // New 'blocked' = (blocked ^ pos_mask) | new_mask.
+        
+        let new_mask = 1u64 << idx;
+        let future_blocked = (blocked ^ pos_mask) | new_mask;
+        
+        let future_moves = get_queen_moves(nr, nc, future_blocked);
+        if count_ones(future_moves) > 1 {
+            all_trapped = false; // Found an escape route with >1 options
+            break;
+        }
+        
+        temp &= temp - 1;
+    }
+    
+    all_trapped
+}
+
+/// Calculate effective mobility (safe moves)
+fn effective_mobility(pos_mask: u64, blocked: u64) -> i32 {
+    let pos_idx = pos_mask.trailing_zeros() as u8;
+    let (r, c) = index_to_pos(pos_idx);
+    let moves = get_queen_moves(r, c, blocked);
+    
+    let mut effective = 0;
+    let mut temp = moves;
+    
+    while temp != 0 {
+        let idx = temp.trailing_zeros() as u8;
+        let (nr, nc) = index_to_pos(idx);
+        
+        // Future blocked: old pos empty, new pos occupied
+        let new_mask = 1u64 << idx;
+        let future_blocked = (blocked ^ pos_mask) | new_mask;
+        
+        let future_moves = get_queen_moves(nr, nc, future_blocked);
+        if count_ones(future_moves) >= 2 {
+            effective += 1; // This move leads to a flexible position
+        }
+        
+        temp &= temp - 1;
+    }
+    
+    effective
 }
 
 /// Calculate mobility potential (cells reachable in 2 moves)
@@ -469,10 +637,8 @@ fn evaluate_openness(state: &GameState, blocked: u64) -> f32 {
 
 /// Legacy simple evaluation (for backward compatibility / fallback)
 pub fn evaluate(state: &GameState) -> i32 {
-    let blocked = state.destroyed | state.player | state.ai;
-
-    // Use NEXUS-3 weights for simple evaluation
-    let weights = EvalWeights::nexus_3();
+    let destroyed_cnt = count_ones(state.destroyed);
+    let weights = get_phase_weights(destroyed_cnt);
     let (score, _) = evaluate_advanced(state, &weights);
     score
 }
