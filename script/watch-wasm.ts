@@ -76,7 +76,9 @@ async function buildWasm(crateDir: string) {
         activeBuilds.delete(crateDir);
 
         if (code === 0) {
-            log(`${colors.green}Build success${colors.reset} for ${crateName} in ${duration}s`);
+            const time = new Date().toLocaleTimeString();
+            log(`${colors.green}Build success${colors.reset} for ${crateName} in ${duration}s at ${time}`);
+            log(`${colors.gray}✔ Changes reflected in server${colors.reset}`);
         } else {
             error(`Build failed for ${crateName} (exit code: ${code})`);
         }
