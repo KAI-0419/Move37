@@ -7,10 +7,11 @@
     "node": ">=20.x"
   },
   "scripts": {
-    "dev": "tsx server/index.ts",
+    "dev": "tsx script/dev.ts",
     "build": "tsx script/build.ts",
     "start": "node dist/index.cjs",
-    "check": "tsc"
+    "check": "tsc",
+    "watch:wasm": "tsx script/watch-wasm.ts"
   },
   "dependencies": {
     "@capacitor-community/native-audio": "^7.0.0",
@@ -89,8 +90,10 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
+    "chokidar": "^5.0.0",
     "cross-env": "^10.1.0",
     "esbuild": "^0.27.2",
+    "fast-glob": "^3.3.3",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
