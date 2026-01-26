@@ -81,16 +81,31 @@ impl TranspositionTable {
 
     /// Compute Zobrist hash for a game state
     pub fn compute_hash(&self, state: &GameState, is_ai_turn: bool) -> u64 {
-        let player_idx = state.player.trailing_zeros() as usize;
-        let ai_idx = state.ai.trailing_zeros() as usize;
+        let mut hash = 0;
 
-        let mut hash = self.zobrist_player[player_idx] ^ self.zobrist_ai[ai_idx];
+        // XOR player position
+        if state.player != 0 {
+            let player_idx = state.player.trailing_zeros() as usize;
+            if player_idx < 49 {
+                hash ^= self.zobrist_player[player_idx];
+            }
+        }
+
+        // XOR AI position
+        if state.ai != 0 {
+            let ai_idx = state.ai.trailing_zeros() as usize;
+            if ai_idx < 49 {
+                hash ^= self.zobrist_ai[ai_idx];
+            }
+        }
 
         // XOR all destroyed cells
         let mut destroyed = state.destroyed;
         while destroyed != 0 {
             let idx = destroyed.trailing_zeros() as usize;
-            hash ^= self.zobrist_destroyed[idx];
+            if idx < 49 {
+                hash ^= self.zobrist_destroyed[idx];
+            }
             destroyed &= destroyed - 1;
         }
 

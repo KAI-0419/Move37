@@ -174,7 +174,17 @@ fn find_best_endgame_destroy(
     let full_board = (1u64 << CELL_COUNT) - 1;
     let empty = full_board & !occupied;
 
-    let mut best_destroy = (0, 0);
+    // Default to first available empty cell
+    let mut best_destroy = if empty != 0 {
+        index_to_pos(empty.trailing_zeros() as u8)
+    } else {
+        (0, 0)
+    };
+
+    // Calculate opponent's mobility to detect kill shots
+    let opponent_mobility = get_queen_moves(other_pos.0, other_pos.1, occupied);
+    let opponent_move_count = count_ones(opponent_mobility);
+
     let mut best_score = i32::MIN;
 
     let mut temp = empty;
@@ -184,6 +194,19 @@ fn find_best_endgame_destroy(
         let pos_mask = 1u64 << idx;
 
         let mut score = 0;
+
+        // 1. KILLER MOVE (Checkmate)
+        // If opponent has moves, and this destroy blocks one...
+        if (opponent_mobility & pos_mask) != 0 {
+            // If opponent has only 1 move (or we reduce them to 0), this is a win!
+            // Note: Since we are iterating all empty cells, if opponent_move_count is 1,
+            // we will eventually find that 1 cell.
+            if opponent_move_count == 1 {
+                score += 10_000; // IMMEDIATE WIN
+            } else {
+                score += 50; // Good block
+            }
+        }
 
         // Strongly prefer destroying cells outside our region
         if (reachable_region & pos_mask) == 0 {

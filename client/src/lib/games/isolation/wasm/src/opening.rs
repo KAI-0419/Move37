@@ -156,7 +156,13 @@ fn find_best_opening_destroy(
     let full_board = (1u64 << CELL_COUNT) - 1;
     let empty = full_board & !occupied;
 
-    let mut best_destroy = (0, 0);
+    // Default to first available empty cell
+    let mut best_destroy = if empty != 0 {
+        index_to_pos(empty.trailing_zeros() as u8)
+    } else {
+        (0, 0) // Should be unreachable in opening phase
+    };
+    
     let mut best_score = i32::MIN;
 
     let mut temp = empty;
