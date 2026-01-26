@@ -61,8 +61,8 @@ impl IsolationEngine {
     /// Uses transposition table, killer moves, and history heuristic
     pub fn get_best_move_advanced(&self, difficulty: &str, time_limit_ms: u32) -> JsValue {
         let config = search_advanced::AdvancedSearchConfig::for_difficulty(difficulty, time_limit_ms);
-        let best_move = search_advanced::find_best_move_advanced(&self.state, config);
-        serde_wasm_bindgen::to_value(&best_move).unwrap()
+        let result = search_advanced::find_best_move_advanced_detailed(&self.state, config);
+        serde_wasm_bindgen::to_value(&result).unwrap()
     }
 
     /// Evaluate current position with advanced evaluation

@@ -276,27 +276,45 @@ pub fn update_hash_after_move(
     let mut hash = old_hash;
 
     // XOR out old player position
-    let old_player_idx = old_state.player.trailing_zeros() as usize;
-    hash ^= tt.zobrist_player[old_player_idx];
+    if old_state.player != 0 {
+        let old_player_idx = old_state.player.trailing_zeros() as usize;
+        if old_player_idx < 49 {
+            hash ^= tt.zobrist_player[old_player_idx];
+        }
+    }
 
     // XOR in new player position
-    let new_player_idx = new_state.player.trailing_zeros() as usize;
-    hash ^= tt.zobrist_player[new_player_idx];
+    if new_state.player != 0 {
+        let new_player_idx = new_state.player.trailing_zeros() as usize;
+        if new_player_idx < 49 {
+            hash ^= tt.zobrist_player[new_player_idx];
+        }
+    }
 
     // XOR out old AI position
-    let old_ai_idx = old_state.ai.trailing_zeros() as usize;
-    hash ^= tt.zobrist_ai[old_ai_idx];
+    if old_state.ai != 0 {
+        let old_ai_idx = old_state.ai.trailing_zeros() as usize;
+        if old_ai_idx < 49 {
+            hash ^= tt.zobrist_ai[old_ai_idx];
+        }
+    }
 
     // XOR in new AI position
-    let new_ai_idx = new_state.ai.trailing_zeros() as usize;
-    hash ^= tt.zobrist_ai[new_ai_idx];
+    if new_state.ai != 0 {
+        let new_ai_idx = new_state.ai.trailing_zeros() as usize;
+        if new_ai_idx < 49 {
+            hash ^= tt.zobrist_ai[new_ai_idx];
+        }
+    }
 
     // XOR the newly destroyed cells (difference between states)
     let new_destroyed = new_state.destroyed & !old_state.destroyed;
     let mut destroyed = new_destroyed;
     while destroyed != 0 {
         let idx = destroyed.trailing_zeros() as usize;
-        hash ^= tt.zobrist_destroyed[idx];
+        if idx < 49 {
+            hash ^= tt.zobrist_destroyed[idx];
+        }
         destroyed &= destroyed - 1;
     }
 

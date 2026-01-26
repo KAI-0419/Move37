@@ -27,35 +27,107 @@ pub fn pos_to_index(r: u8, c: u8) -> u8 {
     r * BOARD_SIZE + c
 }
 
+pub const COL_0: u64 = 0x0000408102040811; // Corrected for 7x7? Let's use a helper.
+// 0, 7, 14, 21, 28, 35, 42
+pub const COL_6: u64 = 0x0001020408102040; // 6, 13, 20, 27, 34, 41, 48
+
+/// Get Col 0 mask for 7x7
+const fn get_col_0_mask() -> u64 {
+    (1 << 0) | (1 << 7) | (1 << 14) | (1 << 21) | (1 << 28) | (1 << 35) | (1 << 42)
+}
+
+/// Get Col 6 mask for 7x7
+const fn get_col_6_mask() -> u64 {
+    (1 << 6) | (1 << 13) | (1 << 20) | (1 << 27) | (1 << 34) | (1 << 41) | (1 << 48)
+}
+
+pub const MASK_COL_0: u64 = get_col_0_mask();
+pub const MASK_COL_6: u64 = get_col_6_mask();
+pub const NOT_COL_0: u64 = !MASK_COL_0;
+pub const NOT_COL_6: u64 = !MASK_COL_6;
+
+/// Expand a bitboard in all 8 queen directions simultaneously (bit-parallel)
+/// This is MUCH faster than iterating over individual bits.
+pub fn expand_queen_bit_parallel(source: u64, blocked: u64) -> u64 {
+    let mut expanded = 0u64;
+    let empty = !blocked;
+
+    // North: << 7
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill << 7) & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // South: >> 7
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill >> 7) & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // East: << 1 (avoiding wrap from Col 6 to Col 0)
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill << 1) & NOT_COL_0 & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // West: >> 1 (avoiding wrap from Col 0 to Col 6)
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill >> 1) & NOT_COL_6 & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // NE: << 8 (avoiding wrap from Col 6 to Col 0)
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill << 8) & NOT_COL_0 & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // NW: << 6 (avoiding wrap from Col 0 to Col 6)
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill << 6) & NOT_COL_6 & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // SE: >> 6 (avoiding wrap from Col 6 to Col 0)
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill >> 6) & NOT_COL_0 & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    // SW: >> 8 (avoiding wrap from Col 0 to Col 6)
+    let mut fill = source;
+    for _ in 0..6 {
+        fill = (fill >> 8) & NOT_COL_6 & empty;
+        if fill == 0 { break; }
+        expanded |= fill;
+    }
+
+    expanded
+}
+
 pub fn count_ones(bitboard: u64) -> u32 {
     bitboard.count_ones()
 }
 
 /// Get queen moves from a position, given occupancy constraints
-/// This is the "Magic Bitboard" equivalent for runtime
+/// Bit-parallel implementation for 7x7 board
 pub fn get_queen_moves(r: u8, c: u8, blocked: u64) -> u64 {
-    let mut attacks = 0u64;
-    let directions = [
-        (-1, -1), (-1, 0), (-1, 1),
-        (0, -1),           (0, 1),
-        (1, -1),  (1, 0),  (1, 1)
-    ];
-
-    for (dr, dc) in directions.iter() {
-        let mut nr = r as i8 + dr;
-        let mut nc = c as i8 + dc;
-
-        while nr >= 0 && nr < BOARD_SIZE as i8 && nc >= 0 && nc < BOARD_SIZE as i8 {
-            let mask = 1u64 << (nr * BOARD_SIZE as i8 + nc);
-            if (blocked & mask) != 0 {
-                break; // Blocked
-            }
-            attacks |= mask;
-            nr += dr;
-            nc += dc;
-        }
-    }
-    attacks
+    let source = 1u64 << (r * BOARD_SIZE + c);
+    expand_queen_bit_parallel(source, blocked)
 }
 
 /// Simple floodfill to determine reachable area size

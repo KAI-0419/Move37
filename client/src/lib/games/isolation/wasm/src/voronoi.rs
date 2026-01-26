@@ -105,37 +105,15 @@ pub fn calculate_voronoi_optimized(
     }
 }
 
-/// Expand frontier by one queen-move step (optimized, no array allocations)
+/// Expand frontier by one queen-move step (bit-parallel optimization)
 ///
-/// For each cell in frontier, get all queen moves and combine them.
 /// Returns only new cells (not already visited).
 fn expand_frontier_optimized(
     frontier: u64,
     blocked: u64,
     visited: u64,
 ) -> u64 {
-    let mut new_frontier = 0u64;
-
-    // For each cell in frontier, get all queen moves
-    let mut temp = frontier;
-    while temp != 0 {
-        // Extract lowest set bit without array allocation
-        let lowest_bit = temp & temp.wrapping_neg(); // temp & -temp in two's complement
-
-        // Get index directly from bit position (count trailing zeros)
-        let idx = lowest_bit.trailing_zeros() as u8;
-        let (r, c) = index_to_pos(idx);
-
-        // Get moves from this position
-        let moves = get_queen_moves(r, c, blocked);
-        new_frontier |= moves;
-
-        // Clear this bit using Brian Kernighan's algorithm
-        temp &= temp - 1;
-    }
-
-    // Return only new cells (not already visited)
-    new_frontier & !visited
+    expand_queen_bit_parallel(frontier, blocked) & !visited
 }
 
 #[cfg(test)]

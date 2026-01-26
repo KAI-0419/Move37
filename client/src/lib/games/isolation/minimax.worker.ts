@@ -49,7 +49,9 @@ self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest
 
     try {
       // Use Rust Engine
-      const result = await getBestMoveWasm(board, difficulty, 2000); // 2000ms limit? or difficulty based?
+      // Increased time limit to 4000ms for NEXUS-7 stability (preventing early cutoffs)
+      const timeLimit = difficulty === "NEXUS-7" ? 4000 : 2000;
+      const result = await getBestMoveWasm(board, difficulty, timeLimit);
 
       const endTime = performance.now();
       const timeElapsed = endTime - startTime;
@@ -57,11 +59,11 @@ self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest
       const response: MinimaxWorkerResponse = {
         type: 'MOVE_RESULT',
         move: result.move,
-        logs: ["gameRoom.log.isolation.strategy.aiDominant"], // Placeholder logs, need better logs from Rust
+        logs: ["gameRoom.log.isolation.strategy.aiDominant"], // Placeholder logs
         stats: {
-          depth: 10, // Rust search depth
+          depth: result.depth,
           timeElapsed,
-          nodesEvaluated: 0,
+          nodesEvaluated: result.nodes,
         },
       };
 

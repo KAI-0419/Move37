@@ -12,6 +12,7 @@ use crate::bitboard::*;
 use crate::transposition::{TranspositionTable, Bound, update_hash_after_move};
 use crate::partition::*;
 use crate::endgame::*;
+use serde::{Serialize, Deserialize};
 
 /// Killer moves heuristic
 ///
@@ -139,32 +140,39 @@ impl AdvancedSearchConfig {
     }
 }
 
-/// Find best move using advanced search
+#[derive(Serialize, Deserialize)]
+pub struct SearchResult {
+    pub best_move: Option<Move>,
+    pub depth: u8,
+    pub score: i32,
+    pub nodes: u32,
+}
 
-pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) -> Option<Move> {
-
+/// Find best move using advanced search and return detailed results
+pub fn find_best_move_advanced_detailed(state: &GameState, config: AdvancedSearchConfig) -> SearchResult {
     // 1. Opening Book Check
-
-    // Isolation typically has an opening phase where center control is key.
-
     let destroyed_count = count_ones(state.destroyed) as u8;
-
-    if destroyed_count < 16 {
-
+    if destroyed_count < 8 {
         if let Some(opening_move) = crate::opening::get_opening_move(state, destroyed_count) {
+            let mut test_state = *state;
+            test_state.ai = pos_to_mask(opening_move.to.0, opening_move.to.1);
+            test_state.destroyed |= pos_to_mask(opening_move.destroy.0, opening_move.destroy.1);
+            
+            let blocked = test_state.destroyed | test_state.player | test_state.ai;
+            let mobility = count_ones(get_queen_moves(opening_move.to.0, opening_move.to.1, blocked));
 
-            web_sys::console::log_1(&"Opening book move found".into());
-
-            return Some(opening_move);
-
+            if mobility > 0 {
+                return SearchResult {
+                    best_move: Some(opening_move),
+                    depth: 0,
+                    score: 0,
+                    nodes: 0,
+                };
+            }
         }
-
     }
 
     // 2. Endgame Solver Check
-
-    // If board is partitioned, use exact endgame solver for perfect play
-
     let player_idx = state.player.trailing_zeros() as u8;
     let ai_idx = state.ai.trailing_zeros() as u8;
     let player_pos = index_to_pos(player_idx);
@@ -173,49 +181,39 @@ pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) 
     let partition = detect_partition_bitboard(player_pos, ai_pos, state.destroyed);
 
     if partition.is_partitioned && partition.ai_region_size <= 18 {
-        web_sys::console::log_1(&format!(
-            "Partition detected! AI region: {} cells, solving exactly...",
-            partition.ai_region_size
-        ).into());
-
         let endgame_result = solve_endgame(
             state,
             partition.ai_region,
             true, // is_ai
-            config.time_limit_ms / 2, // Use half the time budget for endgame solving
+            config.time_limit_ms / 2,
         );
 
         if endgame_result.solved {
-            web_sys::console::log_1(&format!(
-                "Endgame solved exactly! Longest path: {} moves",
-                endgame_result.longest_path
-            ).into());
-
             if let Some(mv) = endgame_result.best_move {
-                return Some(mv);
+                return SearchResult {
+                    best_move: Some(mv),
+                    depth: 255, // Indicator for solved
+                    score: 100_000 + endgame_result.longest_path,
+                    nodes: 0,
+                };
             }
-        } else {
-            web_sys::console::log_1(&"Endgame solver timed out, using heuristic search".into());
         }
     }
 
     let mut tt = TranspositionTable::new();
-    tt.new_search(); // Initialize generation for this search
-
+    tt.new_search();
     let mut killers = KillerMoves::new();
-
     let mut history = HistoryTable::new();
 
-
-
     let mut best_move = None;
-    let mut best_score = 0;
+    let mut best_score = -1_000_000;
+    let mut actual_depth = 0;
 
     let start_time = js_sys::Date::now();
     let time_limit = config.time_limit_ms as f64;
     let mut nodes = 0;
 
-    // Iterative Deepening with Aspiration Windows
+    // Iterative Deepening
     for depth in 1..=config.max_depth {
         if js_sys::Date::now() - start_time > time_limit {
             break;
@@ -228,7 +226,6 @@ pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) 
         };
 
         let (m, score) = if config.use_aspiration && depth >= 3 {
-            // Use aspiration windows for depth >= 3
             aspiration_search(
                 state,
                 depth,
@@ -243,7 +240,6 @@ pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) 
                 &mut nodes,
             )
         } else {
-            // Full window search for shallow depths
             alpha_beta_advanced(
                 state,
                 depth,
@@ -261,30 +257,31 @@ pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) 
             )
         };
 
-        if let Some(mv) = m {
-            best_move = Some(mv);
-            best_score = score;
+        // Only update if search wasn't aborted by timeout
+        if js_sys::Date::now() - start_time < time_limit || depth == 1 {
+            if let Some(mv) = m {
+                best_move = Some(mv);
+                best_score = score;
+                actual_depth = depth;
+            }
         }
 
-        if js_sys::Date::now() - start_time > time_limit {
+        // If we found a win or loss, stop searching deeper
+        if best_score > 90_000 || best_score < -90_000 {
             break;
         }
     }
 
-    // Log statistics
-    if config.use_tt && (tt.hits + tt.misses) > 0 {
-        let hit_rate = tt.hit_rate() * 100.0;
-        web_sys::console::log_1(&format!(
-            "TT: {} entries, {:.1}% hit rate ({} hits / {} total), {} nodes searched",
-            tt.size(),
-            hit_rate,
-            tt.hits,
-            tt.hits + tt.misses,
-            nodes
-        ).into());
+    SearchResult {
+        best_move,
+        depth: actual_depth,
+        score: best_score,
+        nodes,
     }
+}
 
-    best_move
+pub fn find_best_move_advanced(state: &GameState, config: AdvancedSearchConfig) -> Option<Move> {
+    find_best_move_advanced_detailed(state, config).best_move
 }
 
 /// Aspiration window search
@@ -707,27 +704,35 @@ fn order_moves(
             let opp_idx = opp_pos.trailing_zeros() as u8;
             let (opp_r, opp_c) = index_to_pos(opp_idx);
             let opp_moves = get_queen_moves(opp_r, opp_c, occupied);
+            let opp_mobility_count = count_ones(opp_moves);
 
-            if count_ones(opp_moves) == 0 {
+            let mut is_winning = false;
+            if opp_mobility_count == 0 {
                 score += 50_000; // Immediate winning move
+                is_winning = true;
             }
 
             // 5. Survival Instinct (Suicide Prevention) - TypeScript Parity
             // Calculate our mobility AFTER this move.
             // If we move to a spot with 0 exits, it's suicide.
-            let opp_mask = if maximizing { state.ai } else { state.player };
-            // Blocked for next turn: Destroyed + Opponent + My New Pos
-            // (My old pos becomes empty, so we don't include it in blocked)
-            let future_blocked = state.destroyed | opp_mask | pos_to_mask(mv.to.0, mv.to.1);
-            let my_future_moves = get_queen_moves(mv.to.0, mv.to.1, future_blocked);
-            let my_mobility = count_ones(my_future_moves);
+            // CRITICAL FIX: If we are winning (is_winning) OR if the opponent is also desperate (<= 1 move),
+            // we should NOT penalize "suicide". The game ends when opponent cannot move.
+            // If we trap them, it doesn't matter if we are stuck too.
+            if !is_winning && opp_mobility_count > 1 {
+                let opp_mask = if maximizing { state.ai } else { state.player };
+                // Blocked for next turn: Destroyed + Opponent + My New Pos
+                // (My old pos becomes empty, so we don't include it in blocked)
+                let future_blocked = state.destroyed | opp_mask | pos_to_mask(mv.to.0, mv.to.1);
+                let my_future_moves = get_queen_moves(mv.to.0, mv.to.1, future_blocked);
+                let my_mobility = count_ones(my_future_moves);
 
-            if my_mobility == 0 {
-                score -= 100_000; // SUICIDE: Do not go here
-            } else if my_mobility == 1 {
-                score -= 20_000; // DANGER: High risk of being trapped
-            } else if my_mobility == 2 {
-                score -= 2_000; // CAUTION
+                if my_mobility == 0 {
+                    score -= 100_000; // SUICIDE: Do not go here
+                } else if my_mobility == 1 {
+                    score -= 20_000; // DANGER: High risk of being trapped
+                } else if my_mobility == 2 {
+                    score -= 2_000; // CAUTION
+                }
             }
 
             (mv, score)

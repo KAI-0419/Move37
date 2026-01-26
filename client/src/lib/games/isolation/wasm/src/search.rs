@@ -194,6 +194,14 @@ fn score_destroy_position(
 ) -> i32 {
     let mut score = 0;
 
+    // CRITICAL FIX: If target has 0 mobility (body block by our move), 
+    // they are already dead. ANY destroy is a winning move.
+    // We set a huge base score but continue to let other heuristics 
+    // (partition, center control) break ties for the "best" winning move.
+    if target_mobility == 0 {
+        score = 20_000;
+    }
+
     let pos_idx = pos_to_index(pos.0, pos.1);
     let pos_mask = 1u64 << pos_idx;
 
@@ -209,6 +217,9 @@ fn score_destroy_position(
     }
 
     // 2. PARTITION ANALYSIS (New)
+    /* Optimization: Skip expensive partition check for candidate generation
+       This was causing major slowdowns (3M+ NPS drop to <500k NPS)
+       We will rely on the main evaluation function to detect partitions.
     let new_destroyed = state.destroyed | pos_mask;
     // Determine who is who for partition check
     let (p_pos, a_pos) = if maximizing {
@@ -237,6 +248,7 @@ fn score_destroy_position(
             score += 200;
         }
     }
+    */
 
     // 3. Adjacent to opponent (Pressure)
     let dist_to_opponent = manhattan_distance(pos, opponent_pos);

@@ -14,10 +14,14 @@ let engineInstance: IsolationEngine | null = null;
 let isInitializing = false;
 
 export interface WasmMoveResult {
-    from: [number, number];
-    to: [number, number];
-    destroy: [number, number];
+    best_move: {
+        from: [number, number];
+        to: [number, number];
+        destroy: [number, number];
+    } | null;
+    depth: number;
     score: number;
+    nodes: number;
 }
 
 /**
@@ -54,7 +58,7 @@ export async function getBestMoveWasm(
     board: BoardState,
     difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7",
     timeLimitMs: number
-): Promise<{ move: GameMove; score: number }> {
+): Promise<{ move: GameMove | null; score: number; depth: number; nodes: number }> {
     if (!engineInstance) {
         await initWasm();
     }
@@ -77,39 +81,30 @@ export async function getBestMoveWasm(
     );
 
     // Call get_best_move_advanced with difficulty and enhanced evaluation
-    // The Rust implementation will automatically use the appropriate:
-    // - Evaluation weights (8-component advanced eval)
-    // - Search depth (NEXUS-3: 5, NEXUS-5: 7, NEXUS-7: 10)
-    // - Destroy candidate count
     const result = engine.get_best_move_advanced(difficulty, timeLimitMs);
 
-    // Parse result
-    // result is JsValue object matching `Move` struct: { from: [r,c], to: [r,c], destroy: [r,c], score: i32 }
-    // Actually WASM bindgen usually maps tuples to arrays or objects?
-    // In Rust `Move` struct: pub from: (u8, u8) -> in JS: [u8, u8] if using serde tuple?
-    // Wait, I defined `Move` struct with named fields in Rust `board.rs`.
-    // So JS will see an object: { from: [r,c], to: [r,c], ... } IF serde handles tuples as arrays.
-    // Default serde tuple -> array. 
-
     if (!result) {
-        throw new Error("WASM returned null move");
+        throw new Error("WASM returned null result");
     }
 
-    // Cast to expected type (checked at runtime implicitly)
-    const moveData = result as unknown as WasmMoveResult;
+    const res = result as unknown as WasmMoveResult;
 
-    // Rust returns u8, need to convert to number
-    const finalMove: GameMove = {
-        from: { r: moveData.from[0], c: moveData.from[1] },
-        to: { r: moveData.to[0], c: moveData.to[1] },
-        destroy: { r: moveData.destroy[0], c: moveData.destroy[1] }
-    };
+    let finalMove: GameMove | null = null;
+    if (res.best_move) {
+        finalMove = {
+            from: { r: res.best_move.from[0], c: res.best_move.from[1] },
+            to: { r: res.best_move.to[0], c: res.best_move.to[1] },
+            destroy: { r: res.best_move.destroy[0], c: res.best_move.destroy[1] }
+        };
+    }
 
     // Free the temporary engine instance (Rust memory)
     engine.free();
 
     return {
         move: finalMove,
-        score: moveData.score
+        score: res.score,
+        depth: res.depth,
+        nodes: res.nodes
     };
 }

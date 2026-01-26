@@ -92,22 +92,10 @@ pub fn queen_flood_fill(start_pos: (u8, u8), blocked: u64) -> u64 {
 
     while frontier != 0 && iterations < max_iterations {
         iterations += 1;
-        let mut new_frontier = 0u64;
-
-        // For each cell in frontier, get all queen moves
-        let mut temp = frontier;
-        while temp != 0 {
-            let lowest_bit = temp & temp.wrapping_neg();
-            let idx = lowest_bit.trailing_zeros() as u8;
-            let (r, c) = index_to_pos(idx);
-
-            // Get moves from this position
-            // Block visited cells to avoid infinite expansion
-            let moves = get_queen_moves(r, c, blocked | reachable);
-            new_frontier |= moves & !reachable;
-
-            temp &= temp - 1;
-        }
+        
+        // Bit-parallel expansion: Get all moves from all frontier bits at once
+        let moves = expand_queen_bit_parallel(frontier, blocked | reachable);
+        let new_frontier = moves & !reachable;
 
         reachable |= new_frontier;
         frontier = new_frontier;

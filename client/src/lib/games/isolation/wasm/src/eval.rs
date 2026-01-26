@@ -168,6 +168,7 @@ const CORNER_PROXIMITY: [i32; 49] = [
 
 /// Advanced evaluation function for NEXUS-5 and NEXUS-7
 pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, EvalComponents) {
+    let destroyed_count = count_ones(state.destroyed);
     let blocked = state.destroyed | state.player | state.ai;
 
     let player_idx = state.player.trailing_zeros() as u8;
@@ -175,75 +176,110 @@ pub fn evaluate_advanced(state: &GameState, weights: &EvalWeights) -> (i32, Eval
     let player_pos = index_to_pos(player_idx);
     let ai_pos = index_to_pos(ai_idx);
 
-    // 1. Territory analysis using Voronoi
-    let voronoi = calculate_voronoi_optimized(player_pos, ai_pos, state.destroyed);
-    let territory_score = (voronoi.ai_count - voronoi.player_count) as f32
-        + (voronoi.contested_count as f32 * 0.4); // Contested cells favor AI (moves second)
+    // 1. Partition analysis (Do this FIRST as it might skip other components)
+    let partition = detect_partition_bitboard(player_pos, ai_pos, state.destroyed);
+    
+    // 2. Territory analysis using Voronoi
+    // If partitioned, territory is simply the region sizes
+    let (voronoi_ai, voronoi_player, voronoi_contested) = if partition.is_partitioned {
+        (partition.ai_region_size as f32, partition.player_region_size as f32, 0.0)
+    } else {
+        let voronoi = calculate_voronoi_optimized(player_pos, ai_pos, state.destroyed);
+        (voronoi.ai_count as f32, voronoi.player_count as f32, voronoi.contested_count as f32)
+    };
+    
+    let territory_score = (voronoi_ai - voronoi_player) + (voronoi_contested * 0.4);
 
-    // 2. Immediate mobility
+    // 3. Immediate mobility
     let ai_moves = get_queen_moves(ai_pos.0, ai_pos.1, blocked);
     let player_moves = get_queen_moves(player_pos.0, player_pos.1, blocked);
     let ai_mobility_count = count_ones(ai_moves);
-    let mobility_score = (ai_mobility_count - count_ones(player_moves)) as f32;
+    let player_mobility_count = count_ones(player_moves);
+    let mobility_score = (ai_mobility_count as i32 - player_mobility_count as i32) as f32;
 
     // DESPERATION MODE: If AI is trapped, ignore territory and focus on survival
     let (w_territory, w_mobility, w_partition) = if ai_mobility_count <= 2 {
-        (0.0, 50.0, 0.0) // Extreme focus on mobility
+        (0.5, 50.0, 0.0) // Extreme focus on mobility, but don't totally ignore territory
     } else {
         (weights.territory, weights.mobility, weights.partition_advantage)
     };
 
-    // 3. Mobility potential (2-move lookahead)
-    let mobility_potential_score = calculate_mobility_potential(state, blocked);
-
-    // 4. Center control
-    let ai_center_dist = CENTER_DISTANCE[ai_idx as usize];
-    let player_center_dist = CENTER_DISTANCE[player_idx as usize];
-    let center_score = (player_center_dist - ai_center_dist) as f32;
-
-    // 5. Corner avoidance
-    let ai_corner_dist = CORNER_PROXIMITY[ai_idx as usize];
-    let player_corner_dist = CORNER_PROXIMITY[player_idx as usize];
-    let corner_score = (ai_corner_dist - player_corner_dist) as f32;
-
-    // 6. Partition analysis
-    let partition = detect_partition_bitboard(player_pos, ai_pos, state.destroyed);
-    let partition_score = if partition.is_partitioned {
-        // Already partitioned - huge advantage/disadvantage based on region sizes
-        ((partition.ai_region_size - partition.player_region_size) * 3) as f32
-    } else {
-        // Check for near-partition situations
-        let critical_cells = find_critical_cells(state, blocked);
-        if critical_cells.len() <= 3 && critical_cells.len() > 0 {
-            // Close to partition - evaluate potential
-            evaluate_partition_threat(state, blocked, &critical_cells)
-        } else {
-            0.0
-        }
-    };
-
-    // 7. Critical cells control
-    let critical_score = evaluate_critical_cell_control(state, blocked, &voronoi);
-
-    // 8. Openness (access to open areas)
-    let openness_score = evaluate_openness(state, blocked);
-
-    // 9. Game Theoretic: Parity
-    let parity_score = evaluate_parity(state, &voronoi);
-
-    // 10. Game Theoretic: Trap Detection
-    let trap_score = if is_trap_position(state, true) { 
-        1.0 // Player trapped is good for AI
-    } else if is_trap_position(state, false) {
-        -1.0 // AI trapped is bad
+    // 4. Mobility potential (2-move lookahead)
+    // Only calculate if desperate or in mid-game (to save time)
+    let mobility_potential_score = if ai_mobility_count <= 4 || (destroyed_count > 15 && destroyed_count < 35) {
+        calculate_mobility_potential(state, blocked)
     } else {
         0.0
     };
 
-    // 11. Game Theoretic: Effective Mobility
-    let ai_effective = effective_mobility(state.ai, blocked);
-    let player_effective = effective_mobility(state.player, blocked);
-    let effective_mobility_score = (ai_effective - player_effective) as f32;
+    // 5. Center control / Corner avoidance (Combined and cheap)
+    let ai_center_dist = CENTER_DISTANCE[ai_idx as usize];
+    let player_center_dist = CENTER_DISTANCE[player_idx as usize];
+    let center_score = (player_center_dist - ai_center_dist) as f32;
+
+    let ai_corner_dist = CORNER_PROXIMITY[ai_idx as usize];
+    let player_corner_dist = CORNER_PROXIMITY[player_idx as usize];
+    let corner_score = (ai_corner_dist - player_corner_dist) as f32;
+
+    // 6. Partition score
+    let partition_score = if partition.is_partitioned {
+        // Already partitioned - huge advantage/disadvantage based on region sizes
+        ((partition.ai_region_size - partition.player_region_size) * 5) as f32
+    } else if destroyed_count > 12 {
+        // Only check for near-partition situations if board is somewhat filled
+        let critical_cells = find_critical_cells(state, blocked);
+        if !critical_cells.is_empty() && critical_cells.len() <= 3 {
+            evaluate_partition_threat(state, blocked, &critical_cells)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    // 7. Critical cells control (Only if few critical cells exist)
+    let critical_score = if destroyed_count > 15 {
+        // Simplified check: use partition logic if available
+        0.0 // Currently too expensive for leaf nodes
+    } else {
+        0.0
+    };
+
+    // 8. Openness
+    let openness_score = if destroyed_count < 20 {
+        evaluate_openness(state, blocked)
+    } else {
+        0.0
+    };
+
+    // 9. Parity (Crucial in endgame)
+    let parity_score = if partition.is_partitioned {
+        // In partitioned board, parity of remaining squares determines winner
+        // (Simplified: odd remaining squares favor current player)
+        let ai_parity = (partition.ai_region_size % 2) as f32;
+        let player_parity = (partition.player_region_size % 2) as f32;
+        ai_parity - player_parity
+    } else {
+        0.0
+    };
+
+    // 10. Trap Detection (Cheap check)
+    let trap_score = if ai_mobility_count == 1 {
+        -1.0 
+    } else if player_mobility_count == 1 {
+        1.0
+    } else {
+        0.0
+    };
+
+    // 11. Effective Mobility (Only in endgame)
+    let effective_mobility_score = if destroyed_count > 30 {
+        let ai_effective = effective_mobility(state.ai, blocked);
+        let player_effective = effective_mobility(state.player, blocked);
+        (ai_effective - player_effective) as f32
+    } else {
+        0.0
+    };
 
 
     // Combine all components

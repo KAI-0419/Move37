@@ -116,7 +116,7 @@ export class MinimaxWorkerPool {
     const response = event.data;
     if (response.type === 'MOVE_RESULT') {
       if (response.stats) {
-        console.log(`[MinimaxWorkerPool] Calculation completed: depth=${response.stats.depth}, time=${response.stats.timeElapsed.toFixed(0)}ms`);
+        console.log(`[MinimaxWorkerPool] Calculation completed: depth=${response.stats.depth}, time=${response.stats.timeElapsed.toFixed(0)}ms, nodes=${response.stats.nodesEvaluated}`);
       }
       resolve({
         move: response.move,
