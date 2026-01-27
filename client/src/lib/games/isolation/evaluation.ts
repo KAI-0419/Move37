@@ -650,7 +650,12 @@ export function runMinimaxSearch(
     if (!finalMove.destroy || finalMove.destroy.r < 0 || finalMove.destroy.c < 0) {
       const destroyPositions = getValidDestroyPositions(board, finalMove.to, false);
       if (destroyPositions.length > 0) {
-        finalMove.destroy = selectBestDestroyPosition(board, finalMove.to, destroyPositions);
+        const bestDestroy = selectBestDestroyPosition(board, finalMove.to, destroyPositions);
+        if (bestDestroy) {
+          finalMove.destroy = bestDestroy;
+        } else {
+          return { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
+        }
       } else {
         return { move: null, logs: ["gameRoom.log.calculationErrorKo"] };
       }
@@ -667,14 +672,18 @@ export function runMinimaxSearch(
       const aiMoves = getValidMoves(board, board.aiPos, false);
       if (aiMoves.length > 0) {
         const destroyPositions = getValidDestroyPositions(board, aiMoves[0], false);
-        return {
-          move: {
-            from: board.aiPos,
-            to: aiMoves[0],
-            destroy: selectBestDestroyPosition(board, aiMoves[0], destroyPositions) || { r: 0, c: 0 }
-          },
-          logs: ["gameRoom.log.moveExecuted"],
-        };
+        const bestDestroy = selectBestDestroyPosition(board, aiMoves[0], destroyPositions);
+
+        if (bestDestroy) {
+          return {
+            move: {
+              from: board.aiPos,
+              to: aiMoves[0],
+              destroy: bestDestroy
+            },
+            logs: ["gameRoom.log.moveExecuted"],
+          };
+        }
       }
     } catch (e) {
       console.error("Fallback failed:", e);
@@ -691,8 +700,8 @@ export function selectBestDestroyPosition(
   board: BoardState,
   aiNewPos: { r: number; c: number },
   candidates: { r: number; c: number }[]
-): { r: number; c: number } {
-  if (!candidates || candidates.length === 0) return { r: 0, c: 0 };
+): { r: number; c: number } | null {
+  if (!candidates || candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
 
   // Score based selection

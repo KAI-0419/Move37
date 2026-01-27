@@ -240,19 +240,21 @@ export class IsolationEngine implements IGameEngine {
           
           // Try to get any valid move as fallback
           const validMoves = getValidMoves(board, board.aiPos, false);
-          if (validMoves.length > 0) {
-            // Intelligent destroy selection
-            const destroyPositions = getValidDestroyPositions(board, validMoves[0], false);
-            const bestDestroy = selectBestDestroyPosition(board, validMoves[0], destroyPositions);
+          
+          for (const move of validMoves) {
+            const destroyPositions = getValidDestroyPositions(board, move, false);
+            const bestDestroy = selectBestDestroyPosition(board, move, destroyPositions);
             
-            return {
-              move: {
-                from: board.aiPos,
-                to: validMoves[0],
-                destroy: bestDestroy,
-              },
-              logs: result.logs || ["gameRoom.log.moveExecuted"],
-            };
+            if (bestDestroy) {
+              return {
+                move: {
+                  from: board.aiPos,
+                  to: move,
+                  destroy: bestDestroy,
+                },
+                logs: result.logs || ["gameRoom.log.moveExecuted"],
+              };
+            }
           }
         }
       }
@@ -264,18 +266,21 @@ export class IsolationEngine implements IGameEngine {
       try {
         const board = parseBoardState(boardState);
         const validMoves = getValidMoves(board, board.aiPos, false);
-        if (validMoves.length > 0) {
-          const destroyPositions = getValidDestroyPositions(board, validMoves[0], false);
-          const bestDestroy = selectBestDestroyPosition(board, validMoves[0], destroyPositions);
+        
+        for (const move of validMoves) {
+          const destroyPositions = getValidDestroyPositions(board, move, false);
+          const bestDestroy = selectBestDestroyPosition(board, move, destroyPositions);
           
-          return {
-            move: {
-              from: board.aiPos,
-              to: validMoves[0],
-              destroy: bestDestroy,
-            },
-            logs: ["gameRoom.log.moveExecuted"],
-          };
+          if (bestDestroy) {
+            return {
+              move: {
+                from: board.aiPos,
+                to: move,
+                destroy: bestDestroy,
+              },
+              logs: ["gameRoom.log.moveExecuted"],
+            };
+          }
         }
       } catch (fallbackError) {
         console.error("Fallback also failed:", fallbackError);

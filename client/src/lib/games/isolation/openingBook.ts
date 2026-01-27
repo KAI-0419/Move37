@@ -42,8 +42,8 @@ export function getOpeningMove(
   board: BoardState,
   turnCount: number
 ): { move: { r: number; c: number }; destroy: { r: number; c: number } } | null {
-  // Only use opening book for first 8 AI turns (16 total turns)
-  if (turnCount > 16) return null;
+  // Only use opening book for first 4 AI turns (8 total turns) to avoid suboptimal mid-game states
+  if (turnCount > 8) return null;
 
   const { playerPos, aiPos, destroyed } = board;
 
@@ -65,6 +65,10 @@ export function getOpeningMove(
 
   // Find best destroy position
   const destroy = findBestOpeningDestroy(board, bestMove);
+
+  if (!destroy) {
+    return null;
+  }
 
   return { move: bestMove, destroy };
 }
@@ -107,7 +111,7 @@ function evaluateOpeningMove(
     blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
   }
   blocked |= CELL_MASKS[posToIndex(playerPos.r, playerPos.c)];
-  blocked |= CELL_MASKS[posToIndex(aiPos.r, aiPos.c)];
+  // AI's current position will be empty after move, so don't block it
 
   const movesFromNewPos = popCount(getQueenMoves(move, blocked));
   score += movesFromNewPos * OPENING_PRINCIPLES.MOBILITY_WEIGHT;
@@ -159,7 +163,7 @@ function evaluateOpeningMove(
 function findBestOpeningDestroy(
   board: BoardState,
   newPos: { r: number; c: number }
-): { r: number; c: number } {
+): { r: number; c: number } | null {
   const { playerPos, aiPos, destroyed } = board;
 
   const tempBoard: BoardState = {
@@ -169,8 +173,8 @@ function findBestOpeningDestroy(
 
   const destroyPositions = getValidDestroyPositions(tempBoard, newPos, false);
   if (destroyPositions.length === 0) {
-    // Fallback - this shouldn't happen
-    return { r: 0, c: 0 };
+    // No valid destroy positions
+    return null;
   }
 
   // Score each destroy position

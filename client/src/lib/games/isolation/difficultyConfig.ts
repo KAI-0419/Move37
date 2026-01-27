@@ -168,7 +168,7 @@ const NEXUS_5_CONFIG: DifficultyConfig = {
  */
 const NEXUS_7_CONFIG: DifficultyConfig = {
   maxDepth: 10,
-  timeLimit: 15000,
+  timeLimit: 10000,
   minDepth: 5,
 
   useVoronoi: true,              // Full Voronoi analysis
@@ -185,21 +185,21 @@ const NEXUS_7_CONFIG: DifficultyConfig = {
   useHistoryHeuristic: true,
 
   weights: {
-    territory: 5.0,              // Moderate territory focus
-    mobility: 8.0,               // Extreme mobility focus (Don't get trapped)
-    mobilityPotential: 5.0,      // Deep lookahead for moves
-    centerControl: 2.0,          // Strong center control
-    cornerAvoidance: 3.0,        // Stronger corner avoidance (Don't trap yourself)
-    partitionAdvantage: 500,     // Critical partition detection
-    criticalCells: 4.0,          // Critical cell control
-    openness: 1.0,               // Openness awareness
+    territory: 4.0,              // Reduced: Don't just expand, attack!
+    mobility: 10.0,              // Increased: Mobility is life
+    mobilityPotential: 6.0,      // Increased: Deep lookahead for moves
+    centerControl: 1.5,          // Reduced: Center is good, but freedom is better
+    cornerAvoidance: 4.0,        // Increased: Corners are death
+    partitionAdvantage: 600,     // Increased: Partitioning leads to forced wins
+    criticalCells: 5.0,          // Increased: Control choke points
+    openness: 1.5,               // Increased: Stay in the open
     wallPenalty: 0.8,
     voronoiTerritory: 5.0,
-    immediateMobility: 8.0,
-    isolationPenalty: 12.0,      // Maximum penalty for being isolated
+    immediateMobility: 10.0,     // Increased: Immediate survival
+    isolationPenalty: 15.0,      // Maximum penalty for being isolated
   },
 
-  destroyCandidateCount: 2,      // Optimized: Only check top 2 destroys to allow deeper search (Depth 8+)
+  destroyCandidateCount: 3,      // Balanced: Check top 3 to find better destroy options without killing depth
   earlyTerminationThreshold: 8000,
 };
 

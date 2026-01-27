@@ -10,6 +10,8 @@ import type { BoardState } from "./types";
 import type { GameMove, PlayerMove } from "@shared/gameEngineInterface";
 import { getBestMoveWasm, initWasm } from "./IsolationWasmAdapter";
 import { runMinimaxSearch } from "./evaluation"; // Keep for fallback if needed, or remove?
+import { getDifficultyConfig } from "./difficultyConfig";
+import { getValidMoves } from "./moveValidation";
 
 /**
  * Worker message types
@@ -49,8 +51,19 @@ self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest
 
     try {
       // Use Rust Engine
-      // Increased time limit to 4000ms for NEXUS-7 stability (preventing early cutoffs)
-      const timeLimit = difficulty === "NEXUS-7" ? 4000 : 2000;
+      const config = getDifficultyConfig(difficulty);
+      let timeLimit = config.timeLimit;
+
+      // Crisis Mode: If mobility is critically low, double the think time to find a way out
+      if (difficulty === "NEXUS-7") {
+         const aiMoves = getValidMoves(board, board.aiPos, false);
+         if (aiMoves.length <= 4) {
+             timeLimit = timeLimit * 2;
+             // We can't use console.log in worker easily for user visibility, but good for debug
+             // console.log("CRISIS MODE: AI Mobility Low (" + aiMoves.length + "), Doubling Time Limit to " + timeLimit + "ms");
+         }
+      }
+
       const result = await getBestMoveWasm(board, difficulty, timeLimit);
 
       const endTime = performance.now();
