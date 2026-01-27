@@ -240,8 +240,8 @@ function findBestOpeningDestroy(
  * Check if we're still in opening phase
  */
 export function isOpeningPhase(turnCount: number, destroyedCount: number): boolean {
-  // Opening ends around turn 10-12 or when board gets crowded
-  return turnCount <= 12 && destroyedCount <= 8;
+  // Opening ends exactly at turn 8 for predictable transition to Minimax
+  return turnCount <= 8;
 }
 
 /**

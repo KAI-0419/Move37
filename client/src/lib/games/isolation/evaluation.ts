@@ -115,13 +115,11 @@ function quickFilterDestroys(
   opponentMoves: { r: number; c: number }[],
   ourNewPos: { r: number; c: number },
   count: number
-): { r: number; c: number }[] {
-  // If we have fewer positions than needed, return all
-  if (destroyPositions.length <= count) {
-    return destroyPositions;
-  }
-
-  // Quick score based on simple heuristics (no complex calculations)
+): { pos: { r: number; c: number }; score: number }[] {
+  // If we have fewer positions than needed, score all and return
+  // (We still need scores for the next step)
+  
+  // Quick score based on simple heuristics
   const scored = destroyPositions.map(pos => {
     let score = 0;
 
@@ -152,7 +150,7 @@ function quickFilterDestroys(
 
   // Sort by score and return top candidates
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, count).map(s => s.pos);
+  return scored.slice(0, count);
 }
 
 /**
@@ -203,14 +201,17 @@ function getAllMoves(
     );
 
     // Score and rank promising destroy positions (now much smaller set)
-    const scoredDestroys = promisingDestroys.map(pos => {
-      let score = 0;
+    // OPTIMIZATION: Use pre-calculated scores from quickFilterDestroys
+    const scoredDestroys = promisingDestroys.map(({ pos, score: heuristicScore }) => {
+      let score = heuristicScore;
 
       // Add Survival Score
       score += survivalBonus;
 
-      // 1. Critical Priority: Checkmate Detection
-      // Does this destroy block an opponent's move?
+      // 1. Critical Priority: Checkmate Detection (FATALITY)
+      // quickFilterDestroys already adds +1000 for blocking.
+      // We only need to add the EXTRA bonus for fatality (10000).
+      
       const blocksOpponent = opponentMoves.some(m => m.r === pos.r && m.c === pos.c);
 
       if (blocksOpponent) {
@@ -218,30 +219,8 @@ function getAllMoves(
           // FATALITY: Opponent has only 1 move, and we are destroying it.
           // This creates a state where opponent has 0 moves -> Instant Win.
           score += 10000;
-        } else {
-          // Standard blocking bonus
-          score += 50;
         }
       }
-
-      // 2. Adjacent to opponent (Pressure)
-      const distToOpponent = Math.abs(pos.r - opponentPos.r) + Math.abs(pos.c - opponentPos.c);
-      if (distToOpponent === 1) score += 30;
-      else if (distToOpponent === 2) score += 15;
-
-      // 3. Don't block our own path (Self-Preservation)
-      // Check if this destroy blocks one of our potential future moves from 'to'
-      // (Simple check: is it adjacent to 'to'?)
-      const distToSelf = Math.abs(pos.r - to.r) + Math.abs(pos.c - to.c);
-      if (distToSelf === 1) {
-        // It might be a valid move for us next turn, check carefully
-        // But for heuristic, just a small penalty is enough
-        score -= 10;
-      }
-
-      // 4. Center control (General heuristic)
-      const centerDist = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
-      score += (6 - centerDist) * 1.5;
 
       return { pos, score };
     });
@@ -445,8 +424,11 @@ function analyzePlayerPsychology(board: BoardState, playerMove: PlayerMove | nul
   const moveTimeSeconds = playerMove.moveTimeSeconds;
   const hoverCount = playerMove.hoverCount ?? 0;
 
-  // V2 Analysis Data (OPTIMIZED Voronoi)
-  const voronoi = calculateBitboardVoronoiOptimized(board.playerPos, board.aiPos, board.destroyed);
+  // V2 Analysis Data (OPTIMIZED Voronoi) - Use cached result if available
+  const voronoi = searchContext?.voronoiResult ?? 
+    (searchContext ? (searchContext.voronoiResult = calculateBitboardVoronoiOptimized(board.playerPos, board.aiPos, board.destroyed)) : 
+    calculateBitboardVoronoiOptimized(board.playerPos, board.aiPos, board.destroyed));
+    
   const playerMobility = voronoi.playerCount; // Approximate available moves/space
 
   // 1. Claustrophobia (Low mobility)
@@ -497,6 +479,13 @@ function analyzePlayerPsychology(board: BoardState, playerMove: PlayerMove | nul
   return "gameRoom.log.isolation.playerBalanced";
 }
 
+// Search context for caching expensive calculations within a single search
+interface SearchContext {
+  board: BoardState;
+  voronoiResult: ReturnType<typeof calculateBitboardVoronoiOptimized> | null;
+}
+let searchContext: SearchContext | null = null;
+
 /**
  * Synchronous minimax search
  */
@@ -514,6 +503,15 @@ export function runMinimaxSearch(
 
     const config = getDifficultyConfig(difficulty);
     const startTime = Date.now();
+
+    // Initialize search context
+    searchContext = { board, voronoiResult: null };
+
+    // Reset killer moves for new search
+    for (let i = 0; i < killerMoves.length; i++) {
+      killerMoves[i].primary = null;
+      killerMoves[i].secondary = null;
+    }
 
     // OPTIMIZATION: Reset history heuristic for each search
     // Prevents accumulation of stale data from previous games
@@ -626,7 +624,9 @@ export function runMinimaxSearch(
 
     // Generate logs
     const psychologicalInsight = analyzePlayerPsychology(board, playerLastMove, turnCount);
-    const voronoi = calculateBitboardVoronoiOptimized(board.playerPos, board.aiPos, board.destroyed);
+    
+    // Use cached Voronoi result
+    const voronoi = searchContext?.voronoiResult ?? calculateBitboardVoronoiOptimized(board.playerPos, board.aiPos, board.destroyed);
     const areaDiff = voronoi.aiCount - voronoi.playerCount;
 
     let strategicLog: string;
@@ -645,6 +645,9 @@ export function runMinimaxSearch(
     }
 
     const finalMove: GameMove = { ...selectedMove.move, destroy: selectedMove.destroy };
+
+    // Clear search context
+    searchContext = null;
 
     // Validate destroy
     if (!finalMove.destroy || finalMove.destroy.r < 0 || finalMove.destroy.c < 0) {

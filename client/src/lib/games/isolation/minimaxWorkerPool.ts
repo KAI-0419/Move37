@@ -25,6 +25,7 @@ export interface MinimaxWorkerRequest {
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
   turnCount?: number;
   boardHistory?: string[];
+  requestId: number;
 }
 
 /**
@@ -40,13 +41,14 @@ export interface MinimaxWorkerResponse {
     nodesEvaluated?: number;
   };
   error?: string;
+  requestId: number;
 }
 
 /**
  * Worker Pool Configuration
  */
 export interface MinimaxWorkerPoolConfig {
-  workerTimeout?: number; // Timeout in ms (default: 15000 for deep search)
+  workerTimeout?: number; // Timeout in ms (default: 25000 for deep search + buffer)
 }
 
 /**
@@ -59,14 +61,16 @@ export class MinimaxWorkerPool {
   private worker: Worker | null = null;
   private workerTimeout: number;
   private isInitialized: boolean = false;
+  private currentRequestId: number = 0;
   private pendingRequest: {
     resolve: (result: { move: GameMove | null; logs: string[] }) => void;
     reject: (error: Error) => void;
     timeoutId: NodeJS.Timeout;
+    requestId: number;
   } | null = null;
 
   constructor(config: MinimaxWorkerPoolConfig = {}) {
-    const { workerTimeout = 20000 } = config;
+    const { workerTimeout = 25000 } = config;
     this.workerTimeout = workerTimeout;
     console.log(`[MinimaxWorkerPool] Initializing with timeout: ${workerTimeout}ms`);
   }
@@ -104,6 +108,14 @@ export class MinimaxWorkerPool {
    * Handle messages from worker
    */
   private handleMessage(event: MessageEvent<MinimaxWorkerResponse>): void {
+    const response = event.data;
+
+    // Check for stale response
+    if (this.pendingRequest && response.requestId !== this.pendingRequest.requestId) {
+      console.warn(`[MinimaxWorkerPool] Ignoring stale response (reqId: ${response.requestId}, current: ${this.pendingRequest.requestId})`);
+      return;
+    }
+
     if (!this.pendingRequest) {
       console.warn('[MinimaxWorkerPool] Received message but no pending request');
       return;
@@ -113,7 +125,6 @@ export class MinimaxWorkerPool {
     clearTimeout(timeoutId);
     this.pendingRequest = null;
 
-    const response = event.data;
     if (response.type === 'MOVE_RESULT') {
       if (response.stats) {
         console.log(`[MinimaxWorkerPool] Calculation completed: depth=${response.stats.depth}, time=${response.stats.timeElapsed.toFixed(0)}ms, nodes=${response.stats.nodesEvaluated}`);
@@ -173,14 +184,18 @@ export class MinimaxWorkerPool {
     }
 
     return new Promise((resolve, reject) => {
+      const requestId = ++this.currentRequestId;
+      
       const timeoutId = setTimeout(() => {
-        if (this.pendingRequest) {
+        // Only reject if this specific request is still pending
+        if (this.pendingRequest && this.pendingRequest.requestId === requestId) {
+          console.warn(`[MinimaxWorkerPool] Request ${requestId} timed out after ${this.workerTimeout}ms`);
           this.pendingRequest = null;
           reject(new Error(`Worker timeout after ${this.workerTimeout}ms`));
         }
       }, this.workerTimeout);
 
-      this.pendingRequest = { resolve, reject, timeoutId };
+      this.pendingRequest = { resolve, reject, timeoutId, requestId };
 
       // Send request to worker
       const request: MinimaxWorkerRequest = {
@@ -190,6 +205,7 @@ export class MinimaxWorkerPool {
         difficulty,
         turnCount,
         boardHistory,
+        requestId,
       };
 
       this.worker!.postMessage(request);

@@ -23,6 +23,7 @@ export interface MinimaxWorkerRequest {
   difficulty: "NEXUS-3" | "NEXUS-5" | "NEXUS-7";
   turnCount?: number;
   boardHistory?: string[];
+  requestId: number;
 }
 
 export interface MinimaxWorkerResponse {
@@ -35,6 +36,7 @@ export interface MinimaxWorkerResponse {
     nodesEvaluated?: number;
   };
   error?: string;
+  requestId: number;
 }
 
 // Initialize WASM immediately on worker load
@@ -44,7 +46,7 @@ initWasm().catch(err => console.error("Worker failed to init WASM:", err));
  * Handle messages from main thread
  */
 self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest>) => {
-  const { type, board, playerLastMove, difficulty, turnCount, boardHistory } = event.data;
+  const { type, board, playerLastMove, difficulty, turnCount, boardHistory, requestId } = event.data;
 
   if (type === 'CALCULATE_MOVE') {
     const startTime = performance.now();
@@ -78,6 +80,7 @@ self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest
           timeElapsed,
           nodesEvaluated: result.nodes,
         },
+        requestId
       };
 
       self.postMessage(response);
@@ -94,7 +97,8 @@ self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest
           stats: {
             depth: result.depth || 0,
             timeElapsed: endTime - startTime,
-          }
+          },
+          requestId
         };
         self.postMessage(response);
       } catch (fbError) {
@@ -108,6 +112,7 @@ self.addEventListener('message', async (event: MessageEvent<MinimaxWorkerRequest
             timeElapsed: endTime - startTime,
           },
           error: error instanceof Error ? error.message : 'Unknown error',
+          requestId
         };
         self.postMessage(response);
       }

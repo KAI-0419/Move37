@@ -54,6 +54,7 @@ export interface TranspositionEntry {
 
 export class TranspositionTable {
   private table: Map<number, TranspositionEntry>;
+  private ageGroups: Map<number, Set<number>>; // Optimization: Track keys by age for O(1) eviction
   private readonly maxSize: number;
   private currentAge: number;
   private hits: number;
@@ -62,6 +63,7 @@ export class TranspositionTable {
 
   constructor(maxSize: number = 100000) {
     this.table = new Map();
+    this.ageGroups = new Map();
     this.maxSize = maxSize;
     this.currentAge = 0;
     this.hits = 0;
@@ -189,39 +191,58 @@ export class TranspositionTable {
       bestMove,
       age: this.currentAge
     });
+
+    // Add to age group for O(1) eviction
+    if (!this.ageGroups.has(this.currentAge)) {
+      this.ageGroups.set(this.currentAge, new Set());
+    }
+    this.ageGroups.get(this.currentAge)!.add(hash);
   }
 
   /**
    * Evict oldest entries when at capacity
+   * OPTIMIZED: Uses ageGroups to find oldest entries in O(1) instead of O(n)
    */
   private evictOldest(): void {
-    // Simple strategy: remove entries from oldest age
-    const entriesToRemove: number[] = [];
     const targetRemoval = Math.floor(this.maxSize * 0.1); // Remove 10%
+    let removedCount = 0;
 
-    const entries = Array.from(this.table.entries());
-    for (const [key, entry] of entries) {
-      if (entry.age < this.currentAge) {
-        entriesToRemove.push(key);
-        if (entriesToRemove.length >= targetRemoval) break;
-      }
-    }
+    // Iterate through age groups, starting from oldest
+    // Map keys in JS are insertion-ordered, so this generally works for incremental ages
+    // But to be safe and handle potentially non-sequential ages cleanly:
+    const sortedAges = Array.from(this.ageGroups.keys()).sort((a, b) => a - b);
 
-    // If not enough old entries, remove any
-    if (entriesToRemove.length < targetRemoval) {
-      let count = 0;
-      const keys = Array.from(this.table.keys());
+    for (const age of sortedAges) {
+      if (age >= this.currentAge) break; // Don't evict current search entries
+
+      const keys = this.ageGroups.get(age)!;
+      const keysToRemove: number[] = [];
+
       for (const key of keys) {
-        if (count >= targetRemoval - entriesToRemove.length) break;
-        if (!entriesToRemove.includes(key)) {
-          entriesToRemove.push(key);
-          count++;
+        // Verify entry is still from this age (might have been updated)
+        const entry = this.table.get(key);
+        if (entry && entry.age === age) {
+          this.table.delete(key);
+          keysToRemove.push(key);
+          removedCount++;
+        } else {
+          // Entry was updated to a newer age, just remove from this old set
+          keysToRemove.push(key);
         }
-      }
-    }
 
-    for (const key of entriesToRemove) {
-      this.table.delete(key);
+        if (removedCount >= targetRemoval) break;
+      }
+
+      // Cleanup processed keys from the set
+      for (const k of keysToRemove) {
+        keys.delete(k);
+      }
+
+      if (keys.size === 0) {
+        this.ageGroups.delete(age);
+      }
+
+      if (removedCount >= targetRemoval) break;
     }
   }
 
@@ -237,6 +258,7 @@ export class TranspositionTable {
    */
   clear(): void {
     this.table.clear();
+    this.ageGroups.clear();
     this.currentAge = 0;
     this.hits = 0;
     this.misses = 0;

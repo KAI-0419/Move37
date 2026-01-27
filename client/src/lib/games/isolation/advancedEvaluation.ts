@@ -213,7 +213,11 @@ function findCriticalCellsOptimized(board: BoardState, blocked: bigint): number[
   const { playerPos, aiPos, destroyed } = board;
 
   // Create cache key from board state
-  const cacheKey = `${playerPos.r},${playerPos.c}:${aiPos.r},${aiPos.c}:${destroyed.length}`;
+  let destroyedBits = 0n;
+  for (const d of destroyed) {
+    destroyedBits |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
+  const cacheKey = `${playerPos.r},${playerPos.c}:${aiPos.r},${aiPos.c}:${destroyedBits.toString(16)}`;
 
   // Check cache
   const cached = criticalCellsCache.get(cacheKey);
