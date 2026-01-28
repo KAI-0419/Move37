@@ -16,7 +16,7 @@ import type { BoardState } from "./types";
 import type { GameMove, PlayerMove } from "@shared/gameEngineInterface";
 import { getValidMoves, getValidDestroyPositions } from "./moveValidation";
 import { parseBoardState, generateBoardString, isValidPosition, isDestroyed, isOccupied } from "./boardUtils";
-import { posToIndex, CELL_MASKS, popCount, getQueenMoves, queenFloodFill, calculateBitboardVoronoiOptimized } from "./bitboard";
+import { posToIndex, CELL_MASKS, popCount, getQueenMoves, queenFloodFill, calculateBitboardVoronoiOptimized, detectSharedConstrainedSpace, isInsideSharedRegion, type SharedConstraintInfo } from "./bitboard";
 import { detectPartition } from "./partition";
 import { TranspositionTable, getTranspositionTable, updateHashAfterMove, type TTFlag } from "./transposition";
 import { getDifficultyConfig, selectMoveIndex, type Difficulty, type DifficultyConfig } from "./difficultyConfig";
@@ -107,6 +107,7 @@ function applyMove(board: BoardState, move: GameMove, isPlayer: boolean): BoardS
  * @param opponentMoves - Opponent's available moves
  * @param ourNewPos - Our position after this move
  * @param count - Number of candidates to return
+ * @param sharedConstraint - Optional info about shared constrained space
  * @returns Top candidates based on quick heuristics
  */
 function quickFilterDestroys(
@@ -114,7 +115,8 @@ function quickFilterDestroys(
   opponentPos: { r: number; c: number },
   opponentMoves: { r: number; c: number }[],
   ourNewPos: { r: number; c: number },
-  count: number
+  count: number,
+  sharedConstraint?: SharedConstraintInfo
 ): { pos: { r: number; c: number }; score: number }[] {
   // If we have fewer positions than needed, score all and return
   // (We still need scores for the next step)
@@ -129,15 +131,34 @@ function quickFilterDestroys(
       score += 1000;
     }
 
+    // Shared Constraint Logic (Fix for self-trapping bug)
+    if (sharedConstraint && sharedConstraint.isConstrained) {
+      const isInside = isInsideSharedRegion(pos, sharedConstraint.sharedRegion);
+      
+      if (isInside) {
+        // PENALTY: Destroying inside our shared small cage reduces our own mobility
+        // Severity depends on constraint level
+        if (sharedConstraint.constraintLevel === 'severe') score -= 300;
+        else if (sharedConstraint.constraintLevel === 'moderate') score -= 150;
+        else score -= 50;
+      } else {
+        // BONUS: Destroying OUTSIDE the cage is good (keeps our space intact)
+        score += 200;
+      }
+    }
+
     // Priority 2: Adjacent to opponent (100-300 points)
     const dist = Math.abs(pos.r - opponentPos.r) + Math.abs(pos.c - opponentPos.c);
     if (dist <= 3) {
       score += (4 - dist) * 100;
     }
 
-    // Priority 3: Center cells (10-60 points)
-    const centerDist = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
-    score += (6 - centerDist) * 10;
+    // Priority 3: Center cells (10-60 points) - ONLY if not severely constrained
+    // In severe constraints, space preservation is more important than center control
+    if (!sharedConstraint || sharedConstraint.constraintLevel !== 'severe') {
+      const centerDist = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
+      score += (6 - centerDist) * 10;
+    }
 
     // Priority 4: Not adjacent to our new position (avoid self-blocking)
     const distToUs = Math.abs(pos.r - ourNewPos.r) + Math.abs(pos.c - ourNewPos.c);
@@ -165,6 +186,10 @@ function getAllMoves(
   const opponentPos = isPlayer ? board.aiPos : board.playerPos;
   const validMoves = getValidMoves(board, position, isPlayer);
   const allMoves: Array<{ move: GameMove; destroy: { r: number; c: number } }> = [];
+
+  // Calculate Shared Constraint ONCE for all moves
+  // This detects if we are trapped in a cage with the opponent
+  const sharedConstraint = detectSharedConstrainedSpace(board.playerPos, board.aiPos, board.destroyed);
 
   for (const to of validMoves) {
     const move: GameMove = { from: position, to };
@@ -197,7 +222,8 @@ function getAllMoves(
       opponentPos,
       opponentMoves,
       to,
-      config.destroyCandidateCount * 2
+      config.destroyCandidateCount * 2,
+      sharedConstraint // Pass the shared constraint info
     );
 
     // Score and rank promising destroy positions (now much smaller set)
@@ -653,7 +679,10 @@ export function runMinimaxSearch(
     if (!finalMove.destroy || finalMove.destroy.r < 0 || finalMove.destroy.c < 0) {
       const destroyPositions = getValidDestroyPositions(board, finalMove.to, false);
       if (destroyPositions.length > 0) {
-        const bestDestroy = selectBestDestroyPosition(board, finalMove.to, destroyPositions);
+        // Shared Constraint Logic for Fallback
+        const sharedConstraint = detectSharedConstrainedSpace(board.playerPos, board.aiPos, board.destroyed);
+        
+        const bestDestroy = selectBestDestroyPosition(board, finalMove.to, destroyPositions, sharedConstraint);
         if (bestDestroy) {
           finalMove.destroy = bestDestroy;
         } else {
@@ -675,7 +704,10 @@ export function runMinimaxSearch(
       const aiMoves = getValidMoves(board, board.aiPos, false);
       if (aiMoves.length > 0) {
         const destroyPositions = getValidDestroyPositions(board, aiMoves[0], false);
-        const bestDestroy = selectBestDestroyPosition(board, aiMoves[0], destroyPositions);
+        // Shared Constraint Logic for Emergency Fallback
+        const sharedConstraint = detectSharedConstrainedSpace(board.playerPos, board.aiPos, board.destroyed);
+        
+        const bestDestroy = selectBestDestroyPosition(board, aiMoves[0], destroyPositions, sharedConstraint);
 
         if (bestDestroy) {
           return {
@@ -702,7 +734,8 @@ export function runMinimaxSearch(
 export function selectBestDestroyPosition(
   board: BoardState,
   aiNewPos: { r: number; c: number },
-  candidates: { r: number; c: number }[]
+  candidates: { r: number; c: number }[],
+  sharedConstraint?: SharedConstraintInfo
 ): { r: number; c: number } | null {
   if (!candidates || candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
@@ -719,9 +752,25 @@ export function selectBestDestroyPosition(
                          Math.abs(pos.c - board.playerPos.c);
     if (distToPlayer <= 2) score += 50 - distToPlayer * 10;
 
-    // 2. Prioritize center (+20)
-    const distToCenter = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
-    score += (6 - distToCenter) * 3;
+    // Shared Constraint Logic
+    if (sharedConstraint && sharedConstraint.isConstrained) {
+      const isInside = isInsideSharedRegion(pos, sharedConstraint.sharedRegion);
+      
+      if (isInside) {
+        // Penalty for reducing own space
+        if (sharedConstraint.constraintLevel === 'severe') score -= 30;
+        else score -= 15;
+      } else {
+        // Bonus for preserving own space
+        score += 20;
+      }
+    }
+
+    // 2. Prioritize center (+20) - Only if not severely constrained
+    if (!sharedConstraint || sharedConstraint.constraintLevel !== 'severe') {
+      const distToCenter = Math.abs(pos.r - 3) + Math.abs(pos.c - 3);
+      score += (6 - distToCenter) * 3;
+    }
 
     // 3. Avoid blocking self (-30)
     const distToAI = Math.abs(pos.r - aiNewPos.r) +

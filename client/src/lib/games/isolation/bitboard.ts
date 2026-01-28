@@ -128,19 +128,41 @@ export function getQueenMoves(
   const idx = posToIndex(pos.r, pos.c);
   let moves = 0n;
 
-  for (let d = 0; d < 8; d++) {
+  // Directions 0-3 are NEGATIVE (decreasing indices: NW, N, NE, W)
+  // For these, the "first blocker" is the one with the HIGHEST index
+  for (let d = 0; d < 4; d++) {
     const ray = RAY_MASKS[idx][d];
-
-    // Find first blocker in this direction
     const blockers = ray & blocked;
 
     if (blockers === 0n) {
-      // No blockers - all cells in this direction are reachable
       moves |= ray;
     } else {
-      // Find the first blocker
-      // Get the cells before the first blocker
-      const firstBlocker = blockers & (-blockers); // Isolate lowest bit
+      // Find the HIGHEST bit in blockers (closest to current position in negative direction)
+      // Since max index is 48, Number() conversion is safe (safe up to 2^53)
+      const msbIndex = Math.floor(Math.log2(Number(blockers)));
+      const firstBlocker = 1n << BigInt(msbIndex);
+      
+      // We want to keep bits HIGHER than the first blocker
+      // Mask: ~(firstBlocker * 2 - 1) -> clears bits 0..msbIndex
+      const mask = ~((firstBlocker << 1n) - 1n);
+      
+      moves |= ray & mask;
+    }
+  }
+
+  // Directions 4-7 are POSITIVE (increasing indices: E, SW, S, SE)
+  // For these, the "first blocker" is the one with the LOWEST index
+  for (let d = 4; d < 8; d++) {
+    const ray = RAY_MASKS[idx][d];
+    const blockers = ray & blocked;
+
+    if (blockers === 0n) {
+      moves |= ray;
+    } else {
+      // Find the LOWEST bit in blockers (closest to current position in positive direction)
+      const firstBlocker = blockers & (-blockers);
+      
+      // We want to keep bits LOWER than the first blocker
       const beforeBlocker = firstBlocker - 1n;
       moves |= ray & beforeBlocker;
     }
@@ -719,6 +741,78 @@ export function detectPartitionBitboard(
     playerRegionSize: popCount(playerRegion),
     aiRegionSize: popCount(aiRegion)
   };
+}
+
+/**
+ * Information about a shared constrained space (both players trapped together)
+ */
+export interface SharedConstraintInfo {
+  isConstrained: boolean;
+  sharedRegion: bigint;
+  sharedRegionSize: number;
+  constraintLevel: 'none' | 'mild' | 'moderate' | 'severe';
+}
+
+/**
+ * Detect if both players are trapped in the same small region
+ */
+export function detectSharedConstrainedSpace(
+  playerPos: { r: number; c: number },
+  aiPos: { r: number; c: number },
+  destroyed: { r: number; c: number }[]
+): SharedConstraintInfo {
+  // Check if players are in the same connected component
+  // We use canReachEachOther which treats player positions as passable for connectivity check
+  if (!canReachEachOther(playerPos, aiPos, destroyed)) {
+    return {
+      isConstrained: false,
+      sharedRegion: 0n,
+      sharedRegionSize: 0,
+      constraintLevel: 'none'
+    };
+  }
+
+  // Create blocked bitboard (ONLY destroyed cells)
+  // We strictly want the size of the *component* they are both in.
+  // We do NOT block the player position here, because we want the total available area.
+  let blocked = 0n;
+  for (const d of destroyed) {
+    blocked |= CELL_MASKS[posToIndex(d.r, d.c)];
+  }
+
+  // Calculate shared region using flood fill from AI position
+  const sharedRegion = queenFloodFill(aiPos, blocked);
+  const regionSize = popCount(sharedRegion);
+
+  // Classify constraint level based on region size
+  let constraintLevel: 'none' | 'mild' | 'moderate' | 'severe' = 'none';
+
+  if (regionSize < 10) {
+    constraintLevel = 'severe'; // Very tight space (increased from 8 to 10 for safety)
+  } else if (regionSize < 18) {
+    constraintLevel = 'moderate'; // Medium space
+  } else if (regionSize < 28) {
+    constraintLevel = 'mild'; // Large but defined space
+  }
+  // Else 'none' (Open board)
+
+  return {
+    isConstrained: constraintLevel !== 'none',
+    sharedRegion,
+    sharedRegionSize: regionSize,
+    constraintLevel
+  };
+}
+
+/**
+ * Check if a position is inside the shared region
+ */
+export function isInsideSharedRegion(
+  pos: { r: number; c: number },
+  sharedRegion: bigint
+): boolean {
+  const idx = posToIndex(pos.r, pos.c);
+  return (sharedRegion & CELL_MASKS[idx]) !== 0n;
 }
 
 // Export cell masks for external use
